@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Ordens de Serviço</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'ticket_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Nova OS
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Cliente</th>
+                        <th>Tipo</th>
+                        <th>Equipamento</th>
+                        <th>Técnico</th>
+                        <th>Status</th>
+                        <th>Data Criação</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr class="{% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'in_progress' %}row-in-progress{% elif ticket.status == 'canceled' %}row-canceled{% else %}row-delayed{% endif %}">
+                        <td>{{ ticket.id }}</td>
+                        <td>{{ ticket.client.name }}</td>
+                        <td>{{ ticket.get_order_type_display }}</td>
+                        <td>{{ ticket.equipment }}</td>
+                        <td>
+                            {% if ticket.technician %}
+                                {{ ticket.technician.username }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ ticket.status }}">
+                                {{ ticket.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <a href="{% url 'ticket_update' ticket.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                            <a href="{% url 'ticket_delete' ticket.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">Compartilhar</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary">Exportar</button>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+            <i class="fas fa-calendar"></i> Esta semana
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-custom bg-primary text-white h-100">
+            <div class="card-body">
+                <h6 class="card-title">Total de Tickets</h6>
+                <h2 class="display-4">{{ total_tickets }}</h2>
+                <p class="card-text"><i class="fas fa-ticket-alt"></i> Geral</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom bg-danger text-white h-100">
+            <div class="card-body">
+                <h6 class="card-title">Em Aberto</h6>
+                <h2 class="display-4">{{ tickets_open }}</h2>
+                <p class="card-text"><i class="fas fa-clock"></i> Aguardando atendimento</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom bg-warning text-dark h-100">
+            <div class="card-body">
+                <h6 class="card-title">Aguardando Aprovação</h6>
+                <h2 class="display-4">{{ tickets_pending }}</h2>
+                <p class="card-text"><i class="fas fa-pause-circle"></i> Pendências</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-custom bg-success text-white h-100">
+            <div class="card-body">
+                <h6 class="card-title">Finalizados</h6>
+                <h2 class="display-4">{{ tickets_finished }}</h2>
+                <p class="card-text"><i class="fas fa-check-circle"></i> Concluídos</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card card-custom">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Status das Ordens de Serviço</h5>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px; position: relative;">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card card-custom">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Tickets por Técnico</h5>
+            </div>
+            <div class="card-body">
+                <div style="height: 300px; position: relative;">
+                    <canvas id="techChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Status Chart
+    const ctxStatus = document.getElementById('statusChart').getContext('2d');
+    const statusChart = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+            labels: {{ chart_status_labels|safe }},
+            datasets: [{
+                data: {{ chart_status_data|safe }},
+                backgroundColor: [
+                    '#3498db', // Open
+                    '#f39c12', // Pending/In Progress
+                    '#e74c3c', // ???
+                    '#26923B', // Finished
+                    '#95a5a6'  // Canceled
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    // Tech Chart
+    const ctxTech = document.getElementById('techChart').getContext('2d');
+    const techChart = new Chart(ctxTech, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_tech_labels|safe }},
+            datasets: [{
+                label: 'Tickets Atribuídos',
+                data: {{ chart_tech_data|safe }},
+                backgroundColor: '#26C45B',
+                borderColor: '#26923B',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+</script>
+{% endblock %}

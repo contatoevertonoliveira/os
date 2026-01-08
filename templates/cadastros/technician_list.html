@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Técnicos</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'technician_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Novo Técnico
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Login</th>
+                        <th>Email</th>
+                        <th>Cargo</th>
+                        <th>Posto</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tech in technicians %}
+                    <tr>
+                        <td>{{ tech.first_name }} {{ tech.last_name }}</td>
+                        <td>{{ tech.username }}</td>
+                        <td>{{ tech.email }}</td>
+                        <td>{{ tech.profile.job_title|default:"-" }}</td>
+                        <td>{{ tech.profile.station|default:"-" }}</td>
+                        <td>
+                            <a href="{% url 'technician_update' tech.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'technician_delete' tech.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">Nenhum técnico cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
