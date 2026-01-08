@@ -163,10 +163,22 @@
         .badge-canceled { background-color: #7f8c8d; }
 
         /* Table Row Colors */
-        .row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
-        .row-in-progress { background-color: rgba(255, 193, 7, 0.25) !important; }
-        .row-delayed { background-color: rgba(220, 53, 69, 0.25) !important; }
-        .row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
+        .row-open, .row-open > td, .row-open > th { background-color: #ffffff !important; }
+        
+        .row-pending, .row-pending > td, .row-pending > th { background-color: rgba(255, 193, 7, 0.25) !important; }
+        .row-pending:hover > td, .row-pending:hover > th { background-color: rgba(255, 193, 7, 0.4) !important; }
+        
+        .row-finished, .row-finished > td, .row-finished > th { background-color: rgba(38, 146, 59, 0.25) !important; }
+        .row-finished:hover > td, .row-finished:hover > th { background-color: rgba(38, 146, 59, 0.4) !important; }
+        
+        .row-canceled, .row-canceled > td, .row-canceled > th { background-color: rgba(108, 117, 125, 0.25) !important; }
+        .row-canceled:hover > td, .row-canceled:hover > th { background-color: rgba(108, 117, 125, 0.4) !important; }
+        
+        .row-in-progress, .row-in-progress > td, .row-in-progress > th { background-color: rgba(52, 152, 219, 0.25) !important; }
+        .row-in-progress:hover > td, .row-in-progress:hover > th { background-color: rgba(52, 152, 219, 0.4) !important; }
+        
+        .row-delayed, .row-delayed > td, .row-delayed > th { background-color: rgba(220, 53, 69, 0.25) !important; }
+        .row-delayed:hover > td, .row-delayed:hover > th { background-color: rgba(220, 53, 69, 0.4) !important; }
 
         /* Responsive */
         @media (max-width: 991px) {

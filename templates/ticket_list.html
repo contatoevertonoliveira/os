@@ -28,10 +28,23 @@
                 </thead>
                 <tbody>
                     {% for ticket in tickets %}
-                    <tr class="{% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'in_progress' %}row-in-progress{% elif ticket.status == 'canceled' %}row-canceled{% else %}row-delayed{% endif %}">
+                    <tr class="{% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                        style="cursor: pointer;"
+                        data-ticket-id="{{ ticket.id }}"
+                        data-status-key="{{ ticket.status }}"
+                        data-client="{{ ticket.client.name }}"
+                        data-order-type="{{ ticket.order_type.name|default:'-' }}"
+                        data-equipment="{{ ticket.equipment.name|default:'-' }}"
+                        data-technician="{% if ticket.technician %}{{ ticket.technician.username }}{% else %}-{% endif %}"
+                        data-status="{{ ticket.get_status_display }}"
+                        data-created-at="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                        data-description="{{ ticket.description|default:'Sem descrição detalhada.' }}"
+                        data-problem-type="{{ ticket.problem_type.name|default:'-' }}"
+                        data-finished-at="{{ ticket.finished_at|date:'d/m/Y H:i'|default:'-' }}"
+                        ondblclick="openTicketModal(this)">
                         <td>{{ ticket.id }}</td>
                         <td>{{ ticket.client.name }}</td>
-                        <td>{{ ticket.get_order_type_display }}</td>
+                        <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
                         <td>
                             {% if ticket.technician %}
@@ -67,4 +80,91 @@
         </div>
     </div>
 </div>
+
+<!-- Ticket Detail Modal -->
+<div class="modal fade" id="ticketDetailModal" tabindex="-1" aria-labelledby="ticketDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="ticketDetailModalLabel">Detalhes da Ordem de Serviço #<span id="modalTicketId"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>Cliente:</strong> <span id="modalClient" class="text-info"></span></p>
+                        <p><strong>Tipo de Ordem:</strong> <span id="modalOrderType"></span></p>
+                        <p><strong>Equipamento:</strong> <span id="modalEquipment"></span></p>
+                        <p><strong>Tipo de Problema:</strong> <span id="modalProblemType"></span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Técnico Responsável:</strong> <span id="modalTechnician"></span></p>
+                        <p><strong>Status:</strong> <span id="modalStatus" class="badge"></span></p>
+                        <p><strong>Data de Criação:</strong> <span id="modalCreatedAt"></span></p>
+                        <p><strong>Data de Finalização:</strong> <span id="modalFinishedAt"></span></p>
+                    </div>
+                </div>
+                
+                <hr class="border-secondary">
+                
+                <div class="mb-3">
+                    <h6 class="text-primary">Descrição / Observações do Andamento</h6>
+                    <div class="p-3 border border-secondary rounded bg-secondary bg-opacity-10" style="min-height: 100px;">
+                        <p id="modalDescription" class="mb-0" style="white-space: pre-wrap;"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="modalEditLink" class="btn btn-primary">Editar OS</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openTicketModal(row) {
+        // Extract data from data attributes
+        const id = row.getAttribute('data-ticket-id');
+        const client = row.getAttribute('data-client');
+        const orderType = row.getAttribute('data-order-type');
+        const equipment = row.getAttribute('data-equipment');
+        const technician = row.getAttribute('data-technician');
+        const status = row.getAttribute('data-status');
+        const statusKey = row.getAttribute('data-status-key');
+        const createdAt = row.getAttribute('data-created-at');
+        const description = row.getAttribute('data-description');
+        const problemType = row.getAttribute('data-problem-type');
+        const finishedAt = row.getAttribute('data-finished-at');
+        
+        // Populate modal fields
+        document.getElementById('modalTicketId').textContent = id;
+        document.getElementById('modalClient').textContent = client;
+        document.getElementById('modalOrderType').textContent = orderType;
+        document.getElementById('modalEquipment').textContent = equipment;
+        document.getElementById('modalProblemType').textContent = problemType;
+        document.getElementById('modalTechnician').textContent = technician;
+        document.getElementById('modalCreatedAt').textContent = createdAt;
+        document.getElementById('modalFinishedAt').textContent = finishedAt;
+        document.getElementById('modalDescription').textContent = description;
+        
+        // Handle Status Badge
+        const statusSpan = document.getElementById('modalStatus');
+        statusSpan.textContent = status;
+        
+        // Reset classes
+        statusSpan.className = 'badge badge-' + statusKey;
+        
+        /* Removed old logic based on row classes */
+
+        // Update Edit Link
+        const editLink = document.getElementById('modalEditLink');
+        editLink.href = "/tickets/" + id + "/edit/"; // Updated to match urls.py pattern
+
+        // Show Modal
+        const modal = new bootstrap.Modal(document.getElementById('ticketDetailModal'));
+        modal.show();
+    }
+</script>
+
 {% endblock %}

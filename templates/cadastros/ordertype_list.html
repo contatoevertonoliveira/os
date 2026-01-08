@@ -22,7 +22,10 @@
                 </thead>
                 <tbody>
                     {% for item in ordertypes %}
-                    <tr>
+                    <tr style="cursor: pointer;"
+                        data-id="{{ item.id }}"
+                        data-name="{{ item.name }}"
+                        ondblclick="openOrderTypeModal(this)">
                         <td>{{ item.name }}</td>
                         <td>
                             <a href="{% url 'ordertype_update' item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
@@ -45,4 +48,40 @@
         </div>
     </div>
 </div>
+
+<!-- Order Type Detail Modal -->
+<div class="modal fade" id="orderTypeDetailModal" tabindex="-1" aria-labelledby="orderTypeDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="orderTypeDetailModalLabel">Detalhes do Tipo de Ordem</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">NOME DO TIPO DE ORDEM</label>
+                    <div id="modalName" class="fs-5"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openOrderTypeModal(row) {
+        const id = row.getAttribute('data-id');
+        const name = row.getAttribute('data-name');
+
+        document.getElementById('modalName').textContent = name;
+        document.getElementById('modalEditLink').href = "/ordertypes/" + id + "/edit/";
+
+        const modal = new bootstrap.Modal(document.getElementById('orderTypeDetailModal'));
+        modal.show();
+    }
+</script>
+
 {% endblock %}

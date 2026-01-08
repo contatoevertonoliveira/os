@@ -25,7 +25,13 @@
                 </thead>
                 <tbody>
                     {% for client in clients %}
-                    <tr>
+                    <tr style="cursor: pointer;"
+                        data-id="{{ client.id }}"
+                        data-name="{{ client.name }}"
+                        data-email="{{ client.email|default:'-' }}"
+                        data-phone="{{ client.phone|default:'-' }}"
+                        data-address="{{ client.address|default:'-' }}"
+                        ondblclick="openClientModal(this)">
                         <td>{{ client.name }}</td>
                         <td>{{ client.email|default:"-" }}</td>
                         <td>{{ client.phone|default:"-" }}</td>
@@ -51,4 +57,59 @@
         </div>
     </div>
 </div>
+
+<!-- Client Detail Modal -->
+<div class="modal fade" id="clientDetailModal" tabindex="-1" aria-labelledby="clientDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="clientDetailModalLabel">Detalhes do Cliente</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">NOME</label>
+                    <div id="modalName" class="fs-5"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">EMAIL</label>
+                    <div id="modalEmail"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">TELEFONE</label>
+                    <div id="modalPhone"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">ENDEREÇO</label>
+                    <div id="modalAddress" class="p-2 border border-secondary rounded bg-secondary bg-opacity-10"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openClientModal(row) {
+        const id = row.getAttribute('data-id');
+        const name = row.getAttribute('data-name');
+        const email = row.getAttribute('data-email');
+        const phone = row.getAttribute('data-phone');
+        const address = row.getAttribute('data-address');
+
+        document.getElementById('modalName').textContent = name;
+        document.getElementById('modalEmail').textContent = email;
+        document.getElementById('modalPhone').textContent = phone;
+        document.getElementById('modalAddress').textContent = address;
+
+        document.getElementById('modalEditLink').href = "/clients/" + id + "/edit/";
+
+        const modal = new bootstrap.Modal(document.getElementById('clientDetailModal'));
+        modal.show();
+    }
+</script>
+
 {% endblock %}

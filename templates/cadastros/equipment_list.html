@@ -23,7 +23,11 @@
                 </thead>
                 <tbody>
                     {% for item in equipments %}
-                    <tr>
+                    <tr style="cursor: pointer;"
+                        data-id="{{ item.id }}"
+                        data-name="{{ item.name }}"
+                        data-description="{{ item.description|default:'-' }}"
+                        ondblclick="openEquipmentModal(this)">
                         <td>{{ item.name }}</td>
                         <td>{{ item.description|default:"-" }}</td>
                         <td>
@@ -47,4 +51,47 @@
         </div>
     </div>
 </div>
+
+<!-- Equipment Detail Modal -->
+<div class="modal fade" id="equipmentDetailModal" tabindex="-1" aria-labelledby="equipmentDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="equipmentDetailModalLabel">Detalhes do Equipamento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">NOME DO EQUIPAMENTO</label>
+                    <div id="modalName" class="fs-5"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">DESCRIÇÃO</label>
+                    <div id="modalDescription" class="p-2 border border-secondary rounded bg-secondary bg-opacity-10" style="white-space: pre-wrap;"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openEquipmentModal(row) {
+        const id = row.getAttribute('data-id');
+        const name = row.getAttribute('data-name');
+        const description = row.getAttribute('data-description');
+
+        document.getElementById('modalName').textContent = name;
+        document.getElementById('modalDescription').textContent = description;
+
+        document.getElementById('modalEditLink').href = "/equipments/" + id + "/edit/";
+
+        const modal = new bootstrap.Modal(document.getElementById('equipmentDetailModal'));
+        modal.show();
+    }
+</script>
+
 {% endblock %}

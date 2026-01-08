@@ -26,7 +26,14 @@
                 </thead>
                 <tbody>
                     {% for tech in technicians %}
-                    <tr>
+                    <tr style="cursor: pointer;"
+                        data-id="{{ tech.id }}"
+                        data-fullname="{{ tech.first_name }} {{ tech.last_name }}"
+                        data-username="{{ tech.username }}"
+                        data-email="{{ tech.email }}"
+                        data-job-title="{{ tech.profile.job_title|default:"-" }}"
+                        data-station="{{ tech.profile.station|default:"-" }}"
+                        ondblclick="openTechnicianModal(this)">
                         <td>{{ tech.first_name }} {{ tech.last_name }}</td>
                         <td>{{ tech.username }}</td>
                         <td>{{ tech.email }}</td>
@@ -51,4 +58,69 @@
         </div>
     </div>
 </div>
+
+<!-- Technician Detail Modal -->
+<div class="modal fade" id="technicianDetailModal" tabindex="-1" aria-labelledby="technicianDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="technicianDetailModalLabel">Detalhes do Técnico</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="fw-bold text-secondary small">NOME COMPLETO</label>
+                    <div id="modalFullName" class="fs-5"></div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">LOGIN (USUÁRIO)</label>
+                        <div id="modalUsername"></div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">EMAIL</label>
+                        <div id="modalEmail"></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">CARGO</label>
+                        <div id="modalJobTitle"></div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">POSTO</label>
+                        <div id="modalStation"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openTechnicianModal(row) {
+        const id = row.getAttribute('data-id');
+        const fullname = row.getAttribute('data-fullname');
+        const username = row.getAttribute('data-username');
+        const email = row.getAttribute('data-email');
+        const jobTitle = row.getAttribute('data-job-title');
+        const station = row.getAttribute('data-station');
+
+        document.getElementById('modalFullName').textContent = fullname;
+        document.getElementById('modalUsername').textContent = username;
+        document.getElementById('modalEmail').textContent = email;
+        document.getElementById('modalJobTitle').textContent = jobTitle;
+        document.getElementById('modalStation').textContent = station;
+
+        document.getElementById('modalEditLink').href = "/technicians/" + id + "/edit/";
+
+        const modal = new bootstrap.Modal(document.getElementById('technicianDetailModal'));
+        modal.show();
+    }
+</script>
+
 {% endblock %}
