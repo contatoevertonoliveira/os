@@ -30,7 +30,14 @@
                         data-name="{{ client.name }}"
                         data-email="{{ client.email|default:'-' }}"
                         data-phone="{{ client.phone|default:'-' }}"
+                        data-phone2="{{ client.phone2|default:'-' }}"
                         data-address="{{ client.address|default:'-' }}"
+                        data-contact1-name="{{ client.contact1_name|default:'-' }}"
+                        data-contact1-phone="{{ client.contact1_phone|default:'-' }}"
+                        data-contact1-email="{{ client.contact1_email|default:'-' }}"
+                        data-contact2-name="{{ client.contact2_name|default:'-' }}"
+                        data-contact2-phone="{{ client.contact2_phone|default:'-' }}"
+                        data-contact2-email="{{ client.contact2_email|default:'-' }}"
                         ondblclick="openClientModal(this)">
                         <td>{{ client.name }}</td>
                         <td>{{ client.email|default:"-" }}</td>
@@ -78,10 +85,29 @@
                 <div class="mb-3">
                     <label class="fw-bold text-secondary small">TELEFONE</label>
                     <div id="modalPhone"></div>
+                    <div id="modalPhone2" class="text-muted small"></div>
                 </div>
                 <div class="mb-3">
                     <label class="fw-bold text-secondary small">ENDEREÇO</label>
                     <div id="modalAddress" class="p-2 border border-secondary rounded bg-secondary bg-opacity-10"></div>
+                </div>
+                
+                <hr class="border-secondary">
+                <h6 class="text-primary mb-3">Contatos de Suporte</h6>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">CONTATO 1</label>
+                        <div id="modalContact1Name" class="fw-bold"></div>
+                        <div id="modalContact1Phone" class="small"></div>
+                        <div id="modalContact1Email" class="small text-muted"></div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="fw-bold text-secondary small">CONTATO 2</label>
+                        <div id="modalContact2Name" class="fw-bold"></div>
+                        <div id="modalContact2Phone" class="small"></div>
+                        <div id="modalContact2Email" class="small text-muted"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer border-secondary">
@@ -98,12 +124,30 @@
         const name = row.getAttribute('data-name');
         const email = row.getAttribute('data-email');
         const phone = row.getAttribute('data-phone');
+        const phone2 = row.getAttribute('data-phone2');
         const address = row.getAttribute('data-address');
+        
+        const c1Name = row.getAttribute('data-contact1-name');
+        const c1Phone = row.getAttribute('data-contact1-phone');
+        const c1Email = row.getAttribute('data-contact1-email');
+        
+        const c2Name = row.getAttribute('data-contact2-name');
+        const c2Phone = row.getAttribute('data-contact2-phone');
+        const c2Email = row.getAttribute('data-contact2-email');
 
         document.getElementById('modalName').textContent = name;
         document.getElementById('modalEmail').textContent = email;
         document.getElementById('modalPhone').textContent = phone;
+        document.getElementById('modalPhone2').textContent = phone2 !== '-' ? phone2 : '';
         document.getElementById('modalAddress').textContent = address;
+        
+        document.getElementById('modalContact1Name').textContent = c1Name;
+        document.getElementById('modalContact1Phone').textContent = c1Phone;
+        document.getElementById('modalContact1Email').textContent = c1Email;
+        
+        document.getElementById('modalContact2Name').textContent = c2Name;
+        document.getElementById('modalContact2Phone').textContent = c2Phone;
+        document.getElementById('modalContact2Email').textContent = c2Email;
 
         document.getElementById('modalEditLink').href = "/clients/" + id + "/edit/";
 

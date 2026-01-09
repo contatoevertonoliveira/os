@@ -1,0 +1,367 @@
+{% load widget_tweaks %}
+
+<div class="modal-header bg-white border-bottom py-2" style="cursor: move;">
+    <div class="d-flex align-items-center gap-2">
+        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+            <i class="fas fa-ticket-alt fa-sm"></i>
+        </div>
+        <div>
+            <h6 class="modal-title fw-bold text-primary mb-0" id="ticketModalLabel">OS {{ ticket.formatted_id }}</h6>
+            <span class="text-muted small" style="font-size: 0.75rem;">{{ ticket.client.name }}</span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-1">
+        <button type="button" class="btn btn-sm btn-light text-secondary modal-minimize-btn" title="Minimizar" aria-label="Minimizar">
+            <i class="fas fa-minus fa-xs"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-light text-secondary modal-maximize-btn" title="Maximizar" aria-label="Maximizar">
+            <i class="far fa-square fa-xs"></i>
+        </button>
+        <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+</div>
+
+<div class="modal-body bg-light p-0" style="overflow-y: auto;">
+    <style>
+        /* Custom Switch Styles for Modal Systems */
+        #ticketEditForm .form-check-input.system-switch:checked {
+            background-color: #26C45B; /* Green Light */
+            border-color: #26C45B;
+            box-shadow: 0 0 8px rgba(38, 196, 91, 0.8); /* Glow effect */
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+        }
+        
+        #ticketEditForm .form-check-input.system-switch:not(:checked) {
+            background-color: #dc3545; /* Red Opaque */
+            border-color: #dc3545;
+            opacity: 0.8;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+        }
+        
+        #ticketEditForm .form-check-input.system-switch:focus,
+        #ticketEditForm .form-check-input.system-switch:active {
+            outline: 0 !important;
+            box-shadow: none !important;
+        }
+
+        #ticketEditForm .form-check-input.system-switch:checked:focus {
+            border-color: #26C45B !important;
+            background-color: #26C45B !important;
+            box-shadow: 0 0 8px rgba(38, 196, 91, 0.8) !important;
+        }
+
+        #ticketEditForm .form-check-input.system-switch:not(:checked):focus {
+            border-color: #dc3545 !important;
+            background-color: #dc3545 !important;
+            box-shadow: none !important;
+        }
+    </style>
+    <form id="ticketEditForm" method="post" action="{% url 'ticket_modal' ticket.id %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="row g-0 h-100">
+            <!-- Left Column: Main Form (Compact) -->
+            <div class="col-lg-8 border-end bg-white">
+                <div class="p-4">
+                    <!-- Header Actions -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-0">
+                            <i class="fas fa-info-circle me-1"></i> Dados da Ordem
+                        </h6>
+                        <span class="badge bg-{{ ticket.status_color|default:'secondary' }}">{{ ticket.get_status_display }}</span>
+                    </div>
+
+                    <!-- Row 1: Basic Info -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Status</label>
+                            {% render_field form.status class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-9">
+                            <label class="form-label small fw-bold text-muted mb-1">Cliente</label>
+                            {% render_field form.client class="form-select form-select-sm" %}
+                        </div>
+                    </div>
+                    
+                    <!-- Systems (Switches) -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Sistemas</label>
+                        <div class="card p-2 bg-light border-0 rounded-3">
+                            <div class="row row-cols-2 g-2">
+                                {% for checkbox in form.systems %}
+                                <div class="col">
+                                    <div class="form-check form-switch">
+                                        {{ checkbox.tag }}
+                                        <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
+                                            <span class="badge rounded-pill" id="modal-badge-{{ checkbox.id_for_label }}" style="background-color: #6c757d; font-weight: normal; font-size: 0.75rem; min-width: 50px;">
+                                                {{ checkbox.choice_label }}
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Ative para adicionar.</small>
+                    </div>
+
+                    <!-- Row 2: Location -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Grupo</label>
+                            {% render_field form.area_group class="form-control form-control-sm" placeholder="Ex: Bloco A" %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Subgrupo</label>
+                            {% render_field form.area_subgroup class="form-control form-control-sm" placeholder="Ex: 1º Andar" %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Área</label>
+                            {% render_field form.area class="form-control form-control-sm" placeholder="Ex: Sala 101" %}
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Technical Details -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Equipamento</label>
+                            {% render_field form.equipment class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
+                            {% render_field form.call_type class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
+                            {% render_field form.problem_type class="form-select form-select-sm" %}
+                        </div>
+                    </div>
+
+                    <!-- Row 4: People & Dates -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
+                            {% render_field form.requester class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Técnico</label>
+                            {% render_field form.technician class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
+                            {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Prazo</label>
+                            {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Descrição Inicial</label>
+                        {% render_field form.description class="form-control form-control-sm" rows="3" %}
+                    </div>
+                    
+                    {% if ticket.image %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted mb-1">Anexo Inicial</label>
+                        <div class="p-2 border rounded bg-light d-flex align-items-center">
+                             <a href="{{ ticket.image.url }}" target="_blank" class="text-decoration-none d-flex align-items-center gap-2">
+                                <i class="fas fa-image text-secondary"></i>
+                                <span class="small text-dark">Ver Imagem Anexada</span>
+                             </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4 pt-3 border-top text-end">
+                        <button type="submit" class="btn btn-primary-custom btn-sm px-4 fw-bold">
+                            <i class="fas fa-save me-1"></i> Salvar Alterações
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+<script>
+    (function() {
+        // Define colors from template
+        const systemColors = {
+            {% for system in form.systems.field.queryset %}
+                "{{ system.id }}": "{{ system.color }}",
+            {% endfor %}
+        };
+
+        // Update badge visibility/opacity based on switch state
+        const checkboxes = document.querySelectorAll('#ticketEditForm input[name="systems"]');
+        
+        checkboxes.forEach(checkbox => {
+            const badge = document.getElementById(`modal-badge-${checkbox.id}`);
+            const systemId = checkbox.value;
+            const color = systemColors[systemId] || '#6c757d';
+            
+            // Set initial color
+            if (badge) {
+                badge.style.backgroundColor = color;
+                
+                // Function to update style
+                const updateStyle = () => {
+                    if (checkbox.checked) {
+                        badge.style.opacity = '1';
+                        badge.classList.add('shadow-sm');
+                    } else {
+                        badge.style.opacity = '0.5';
+                        badge.classList.remove('shadow-sm');
+                    }
+                };
+
+                // Add listener
+                checkbox.addEventListener('change', updateStyle);
+                
+                // Initial call
+                updateStyle();
+            }
+        });
+
+        // Automatic Estimated Time Calculation for Modal
+        const startDateInput = document.getElementById('ticketEditForm').querySelector('input[name="start_date"]');
+        const deadlineInput = document.getElementById('ticketEditForm').querySelector('input[name="deadline"]');
+        const estimatedTimeInput = document.getElementById('ticketEditForm').querySelector('input[name="estimated_time"]');
+
+        function calculateEstimatedTime() {
+            if (startDateInput.value && deadlineInput.value) {
+                const start = new Date(startDateInput.value);
+                const end = new Date(deadlineInput.value);
+                
+                start.setSeconds(0, 0);
+                end.setSeconds(0, 0);
+
+                const diffTime = end - start;
+                
+                if (diffTime >= 0) {
+                    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                    
+                    const oneDay = 1000 * 60 * 60 * 24;
+                    const diffDays = Math.round((endDay - startDay) / oneDay) + 1;
+                    
+                    if (diffDays > 0) {
+                        const totalHoursDecimal = diffDays * 8.8; // 8:48 per day
+                        
+                        const hours = Math.floor(totalHoursDecimal);
+                        const minutesDecimal = (totalHoursDecimal - hours) * 60;
+                        const minutes = Math.round(minutesDecimal);
+                        
+                        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+                        
+                        // Only update if value is different to avoid unnecessary dirty checks or loops
+                        // However, since this is a calculation based on inputs, we should update.
+                        // We also need to trigger the "change" or "input" event if we want the form persistence logic to pick it up?
+                        // But the modal persistence logic listens to 'change' on inputs. 
+                        // If we set value programmatically, we might need to manually trigger change if needed.
+                        // But the save logic checks values on focusout or submit. 
+                        // Let's just set the value.
+                        if (estimatedTimeInput.value !== formattedTime) {
+                            estimatedTimeInput.value = formattedTime;
+                            
+                            // Trigger 'change' event so any listeners (like auto-save) detect it
+                            // However, we are inside the modal logic.
+                            // The modal logic uses 'focusout' to detect changes or 'submit'.
+                            // If we change it programmatically, the user sees it.
+                            // If they save, it sends the new value.
+                            
+                            // If we want to be safe, we can manually trigger a change event.
+                            // estimatedTimeInput.dispatchEvent(new Event('change'));
+                        }
+                    }
+                }
+            }
+        }
+
+        if (startDateInput && deadlineInput && estimatedTimeInput) {
+            startDateInput.addEventListener('change', calculateEstimatedTime);
+            deadlineInput.addEventListener('change', calculateEstimatedTime);
+        }
+    })();
+</script>
+
+            <!-- Right Column: Evolution & History -->
+            <div class="col-lg-4 bg-light">
+                <div class="d-flex flex-column h-100">
+                    <!-- New Evolution -->
+                    <div class="p-3 bg-white border-bottom">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3">
+                            <i class="fas fa-plus-circle me-1"></i> Nova Evolução
+                        </h6>
+                        <div class="mb-2">
+                            <textarea name="evolution_description" class="form-control form-control-sm" rows="2" placeholder="Descreva o andamento..."></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <input type="file" name="evolution_image" class="form-control form-control-sm w-75">
+                            <button type="submit" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- History Timeline -->
+                    <div class="flex-grow-1 overflow-auto p-3" style="max-height: 500px;">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 sticky-top bg-light py-1">
+                            <i class="fas fa-history me-1"></i> Histórico
+                        </h6>
+                        
+                        {% if updates %}
+                            <div class="timeline-sm">
+                                {% for update in updates %}
+                                <div class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
+                                    <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
+                                    <div class="card shadow-sm border-0">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold small text-primary">
+                                                    {{ update.created_by.get_full_name|default:update.created_by.username }}
+                                                </span>
+                                                <small class="text-muted" style="font-size: 0.7rem;">
+                                                    {{ update.created_at|date:"d/m H:i" }}
+                                                </small>
+                                            </div>
+                                            <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
+                                            {% if update.image %}
+                                                <a href="{{ update.image.url }}" target="_blank" class="badge bg-light text-secondary border text-decoration-none mt-1">
+                                                    <i class="fas fa-paperclip"></i> Anexo
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-comment-slash fa-2x mb-2 opacity-25"></i>
+                                <p class="small mb-0">Nenhuma evolução registrada.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    /* Compact scrollbar for the modal */
+    .modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    .modal-body::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    .modal-body::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 3px;
+    }
+    .modal-body::-webkit-scrollbar-thumb:hover {
+        background: #bbb;
+    }
+</style>

@@ -1,92 +1,352 @@
 {% extends 'base.html' %}
+{% load widget_tweaks %}
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ title }}</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary">
+        <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left"></i> Voltar
         </a>
     </div>
 </div>
 
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card card-custom">
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    {% if form.errors %}
-                        <div class="alert alert-danger">
-                            Por favor, corrija os erros abaixo.
-                        </div>
-                    {% endif %}
+<div class="card card-custom border-0 shadow-sm">
+    <div class="card-body p-0">
+        <style>
+            /* Custom Switch Styles for Systems */
+            .form-check-input.system-switch:checked {
+                background-color: #26C45B; /* Green Light */
+                border-color: #26C45B;
+                box-shadow: 0 0 8px rgba(38, 196, 91, 0.8); /* Glow effect */
+                background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+            }
+            
+            .form-check-input.system-switch:not(:checked) {
+                background-color: #dc3545; /* Red Opaque */
+                border-color: #dc3545;
+                opacity: 0.8;
+                background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+            }
+            
+            .form-check-input.system-switch:focus,
+            .form-check-input.system-switch:active {
+                outline: 0 !important;
+                box-shadow: none !important;
+            }
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.client.id_for_label }}" class="form-label">Cliente</label>
-                            {{ form.client }}
-                            {% if form.client.errors %}
-                                <div class="text-danger small">{{ form.client.errors }}</div>
+            .form-check-input.system-switch:checked:focus {
+                border-color: #26C45B !important;
+                background-color: #26C45B !important;
+                box-shadow: 0 0 8px rgba(38, 196, 91, 0.8) !important;
+            }
+
+            .form-check-input.system-switch:not(:checked):focus {
+                border-color: #dc3545 !important;
+                background-color: #dc3545 !important;
+                box-shadow: none !important;
+            }
+        </style>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="row g-0">
+                <!-- Main Form Column -->
+                <div class="{% if updates %}col-lg-8 border-end{% else %}col-lg-12{% endif %}">
+                    <div class="p-4">
+                        {% if form.errors %}
+                            <div class="alert alert-danger small py-2">
+                                <i class="fas fa-exclamation-triangle me-1"></i> Por favor, verifique os campos abaixo.
+                                {{ form.errors }}
+                            </div>
+                        {% endif %}
+
+                        <!-- Header Section -->
+                        <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+                            <h6 class="text-uppercase text-secondary fw-bold small mb-0">
+                                <i class="fas fa-info-circle me-1"></i> Dados da Ordem
+                            </h6>
+                            {% if ticket %}
+                                <span class="badge bg-{{ ticket.status_color|default:'secondary' }}">{{ ticket.get_status_display }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Nova Ordem</span>
                             {% endif %}
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.order_type.id_for_label }}" class="form-label">Tipo de Ordem</label>
-                            {{ form.order_type }}
-                        </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.equipment.id_for_label }}" class="form-label">Equipamento</label>
-                            {{ form.equipment }}
+                        <!-- Row 1: Basic Info -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Status</label>
+                                {% render_field form.status class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small fw-bold text-muted mb-1">Cliente</label>
+                                {% render_field form.client class="form-select form-select-sm" %}
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.problem_type.id_for_label }}" class="form-label">Tipo de Problema</label>
-                            {{ form.problem_type }}
-                        </div>
-                    </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.technician.id_for_label }}" class="form-label">Técnico Responsável</label>
-                            {{ form.technician }}
+                        <!-- Systems (Switches) -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Sistemas</label>
+                            <div class="card p-3 bg-light border-0 rounded-3">
+                                <div class="row row-cols-2 row-cols-md-3 g-2">
+                                    {% for checkbox in form.systems %}
+                                    <div class="col">
+                                        <div class="form-check form-switch">
+                                            {{ checkbox.tag }}
+                                            <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
+                                                <span class="badge rounded-pill" id="badge-{{ checkbox.id_for_label }}" style="background-color: #6c757d; font-weight: normal; font-size: 0.8rem; min-width: 60px;">
+                                                    {{ checkbox.choice_label }}
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <small class="text-muted" style="font-size: 0.75rem;">Ative os switches para adicionar os sistemas à Ordem de Serviço.</small>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
-                            {{ form.status }}
+
+                        <!-- Row 2: Location -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">Grupo de Áreas</label>
+                                {% render_field form.area_group class="form-control form-control-sm" placeholder="Ex: Bloco A" %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">Subgrupo</label>
+                                {% render_field form.area_subgroup class="form-control form-control-sm" placeholder="Ex: 1º Andar" %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold text-muted mb-1">Área</label>
+                                {% render_field form.area class="form-control form-control-sm" placeholder="Ex: Sala 101" %}
+                            </div>
+                        </div>
+
+                        <!-- Row 3: Technical Details -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Equipamento</label>
+                                {% render_field form.equipment class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
+                                {% render_field form.call_type class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
+                                {% render_field form.problem_type class="form-select form-select-sm" %}
+                            </div>
+                             <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Tipo de Ordem</label>
+                                {% render_field form.order_type class="form-select form-select-sm" %}
+                            </div>
+                        </div>
+
+                        <!-- Row 4: People & Dates -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
+                                {% render_field form.requester class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Técnico</label>
+                                {% render_field form.technician class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
+                                {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Prazo (Deadline)</label>
+                                {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                            </div>
+                        </div>
+
+                        <!-- Row 5: Time & Finish -->
+                        <div class="row g-3 mb-3">
+                             <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Tempo Estimado</label>
+                                {% render_field form.estimated_time class="form-control form-control-sm" placeholder="HH:MM:SS" %}
+                            </div>
+                            {% if 'finished_at' in form.fields %}
+                             <div class="col-md-3">
+                                <label class="form-label small fw-bold text-muted mb-1">Finalizado em</label>
+                                {% render_field form.finished_at class="form-control form-control-sm" type="datetime-local" %}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Descrição Inicial</label>
+                            {% render_field form.description class="form-control form-control-sm" rows="4" %}
+                        </div>
+
+                        <div class="mb-4">
+                             <label class="form-label small fw-bold text-muted mb-1">Imagem do Evento</label>
+                             {% if ticket.image %}
+                                <div class="p-2 border rounded bg-light d-flex align-items-center mb-2">
+                                     <a href="{{ ticket.image.url }}" target="_blank" class="text-decoration-none d-flex align-items-center gap-2">
+                                        <i class="fas fa-image text-secondary"></i>
+                                        <span class="small text-dark">Ver Imagem Atual</span>
+                                     </a>
+                                </div>
+                             {% endif %}
+                             {% render_field form.image class="form-control form-control-sm" %}
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                            <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary btn-sm px-4">Cancelar</a>
+                            <button type="submit" class="btn btn-primary-custom btn-sm px-4 fw-bold">
+                                <i class="fas fa-save me-1"></i> Salvar Ordem
+                            </button>
                         </div>
                     </div>
-                    
-                    {% if 'finished_at' in form.fields %}
-                    <div class="mb-3">
-                        <label for="{{ form.finished_at.id_for_label }}" class="form-label">Data Finalização</label>
-                        {{ form.finished_at }}
-                        <small class="text-muted">Deixe em branco se não finalizado.</small>
-                    </div>
-                    {% endif %}
-
-                    <div class="mb-3">
-                        <label for="{{ form.description.id_for_label }}" class="form-label">Descrição Detalhada</label>
-                        {{ form.description }}
-                    </div>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary-custom btn-lg">
-                            <i class="fas fa-save"></i> Salvar Ordem de Serviço
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+                </div>
 
 <script>
-    // Add Bootstrap classes to form fields automatically
-    document.querySelectorAll('input, select, textarea').forEach(field => {
-        field.classList.add('form-control');
+    document.addEventListener('DOMContentLoaded', function() {
+        // Define colors from template
+        const systemColors = {
+            {% for system in form.systems.field.queryset %}
+                "{{ system.id }}": "{{ system.color }}",
+            {% endfor %}
+        };
+
+        // Update badge visibility/opacity based on switch state
+        const checkboxes = document.querySelectorAll('input[name="systems"]');
+        
+        checkboxes.forEach(checkbox => {
+            const label = document.querySelector(`label[for="${checkbox.id}"]`);
+            const badge = document.getElementById(`badge-${checkbox.id}`);
+            const systemId = checkbox.value;
+            const color = systemColors[systemId] || '#6c757d';
+            
+            // Set initial color
+            if (badge) {
+                badge.style.backgroundColor = color;
+                
+                // Function to update style
+                const updateStyle = () => {
+                    if (checkbox.checked) {
+                        badge.style.opacity = '1';
+                        badge.classList.add('shadow-sm');
+                    } else {
+                        badge.style.opacity = '0.5';
+                        badge.classList.remove('shadow-sm');
+                    }
+                };
+
+                // Add listener
+                checkbox.addEventListener('change', updateStyle);
+                
+                // Initial call
+                updateStyle();
+            }
+        });
+
+        // Automatic Estimated Time Calculation
+        const startDateInput = document.querySelector('input[name="start_date"]');
+        const deadlineInput = document.querySelector('input[name="deadline"]');
+        const estimatedTimeInput = document.querySelector('input[name="estimated_time"]');
+
+        function calculateEstimatedTime() {
+            if (startDateInput.value && deadlineInput.value) {
+                const start = new Date(startDateInput.value);
+                const end = new Date(deadlineInput.value);
+                
+                // Reset seconds to 0 for consistent comparison
+                start.setSeconds(0, 0);
+                end.setSeconds(0, 0);
+
+                // Calculate difference in milliseconds
+                const diffTime = end - start;
+                
+                if (diffTime >= 0) {
+                    // Calculate days difference (inclusive of start date logic if strictly following user request "quantity of days selected")
+                    // If user selects same day, it's 1 day? Or just duration?
+                    // "Calcularemos a quantidade de horas que será usada na quantidade de dias selecionados"
+                    // If start: 01/01, end: 03/01. Days spanned: 1st, 2nd, 3rd = 3 days? Or just end - start?
+                    // Typically: (End Date - Start Date).Days + 1 (to include the start day if we count days)
+                    
+                    // Let's use calendar days spanned logic.
+                    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                    
+                    // Difference in days
+                    const oneDay = 1000 * 60 * 60 * 24;
+                    const diffDays = Math.round((endDay - startDay) / oneDay) + 1; // +1 to include the starting day
+                    
+                    if (diffDays > 0) {
+                        // 8 hours 48 minutes per day = 8.8 hours
+                        // Total hours = days * 8.8
+                        const totalHoursDecimal = diffDays * 8.8;
+                        
+                        const hours = Math.floor(totalHoursDecimal);
+                        const minutesDecimal = (totalHoursDecimal - hours) * 60;
+                        const minutes = Math.round(minutesDecimal);
+                        
+                        // Format to HH:MM:00
+                        const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+                        estimatedTimeInput.value = formattedTime;
+                    }
+                }
+            }
+        }
+
+        if (startDateInput && deadlineInput && estimatedTimeInput) {
+            startDateInput.addEventListener('change', calculateEstimatedTime);
+            deadlineInput.addEventListener('change', calculateEstimatedTime);
+        }
     });
 </script>
+
+                <!-- Right Column: Evolution & History (Only if editing/updates exist) -->
+                {% if updates %}
+                <div class="col-lg-4 bg-light">
+                    <div class="d-flex flex-column h-100">
+                        <div class="p-4">
+                            <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">
+                                <i class="fas fa-history me-1"></i> Histórico de Evolução
+                            </h6>
+                            
+                            <div class="timeline-sm">
+                                {% for update in updates %}
+                                <div class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
+                                    <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
+                                    <div class="card shadow-sm border-0">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold small text-primary">
+                                                    {{ update.created_by.get_full_name|default:update.created_by.username }}
+                                                </span>
+                                                <small class="text-muted" style="font-size: 0.7rem;">
+                                                    {{ update.created_at|date:"d/m H:i" }}
+                                                </small>
+                                            </div>
+                                            <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
+                                            {% if update.image %}
+                                                <a href="{{ update.image.url }}" target="_blank" class="badge bg-light text-secondary border text-decoration-none mt-1">
+                                                    <i class="fas fa-paperclip"></i> Anexo
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            
+                            <div class="alert alert-info small mt-3">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Para adicionar novas evoluções, utilize o botão "Visualizar/Editar" na lista de tickets ou salve as alterações aqui primeiro.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

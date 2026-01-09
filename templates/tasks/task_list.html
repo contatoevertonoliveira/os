@@ -1,0 +1,415 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+
+{% block content %}
+<div id="task-board-container" class="h-100">
+    <div id="task-board">
+        {% regroup tickets by client as client_list %}
+        
+        <div class="row g-4">
+        {% for client in client_list %}
+            <div class="col-md-6 col-lg-4 col-xl-3">
+                <div class="client-column h-100">
+                    <div class="client-header mb-3 pb-2 border-bottom border-2 border-dark d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold text-uppercase m-0 text-dark">
+                            <i class="fas fa-building me-2 text-secondary"></i>{{ client.grouper.name }}
+                        </h5>
+                        <span class="badge bg-dark rounded-pill">{{ client.list|length }}</span>
+                    </div>
+                    
+                    <div class="task-list custom-scrollbar" style="max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 5px;">
+                        {% for ticket in client.list %}
+                        <div class="card mb-3 border-0 task-card position-relative" 
+                             onclick="openTaskModal(this)"
+                             data-ticket-id="{{ ticket.formatted_id }}"
+                             data-ticket-real-id="{{ ticket.id }}"
+                             data-title="{{ ticket.get_call_type_display|default:ticket.call_type|default:'Chamado' }}"
+                             data-client="{{ ticket.client.name }}"
+                             data-area="{{ ticket.area|default:'' }}"
+                             data-status="{{ ticket.get_status_display }}"
+                             data-call-type="{{ ticket.get_call_type_display|default:'' }}"
+                             data-deadline="{{ ticket.deadline|date:'d/m/Y'|default:'Indefinido' }}"
+                             data-start-date="{% if ticket.start_date %}{{ ticket.start_date|date:'d/m/Y' }}{% else %}{{ ticket.created_at|date:'d/m/Y' }}{% endif %}"
+                             data-technician-name="{{ ticket.technician.first_name|default:ticket.technician.username|default:'Sem técnico' }}"
+                             data-technician-photo="{% if ticket.technician.profile.photo %}{{ ticket.technician.profile.photo.url }}{% endif %}"
+                             data-technician-initials="{{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}"
+                             data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
+                             style="cursor: pointer;">
+                            
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-1" style="z-index: 10;">
+                                <!-- Edit Button -->
+                                <a href="{% url 'ticket_detail' ticket.id %}" 
+                                   class="btn btn-link p-1 text-muted action-btn" 
+                                   onclick="event.stopPropagation();"
+                                   title="Editar Ocorrência">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </a>
+
+                                <!-- Favorite Button -->
+                                <button class="btn btn-link p-1 favorite-btn {% if ticket.is_favorite %}text-warning{% else %}text-muted{% endif %}" 
+                                        data-ticket-id="{{ ticket.id }}" 
+                                        onclick="toggleFavorite(this, {{ ticket.id }}); event.stopPropagation();"
+                                        title="Favoritar">
+                                    <i class="{% if ticket.is_favorite %}fas{% else %}far{% endif %} fa-star"></i>
+                                </button>
+                            </div>
+
+                            <div class="card-body p-3">
+                                <!-- Title/Type -->
+                                <h6 class="card-title fw-bold text-dark mb-2 pe-4" style="font-family: 'Inter', sans-serif;">
+                                    {{ ticket.get_call_type_display|default:ticket.call_type|default:"Chamado" }}
+                                </h6>
+                                
+                                <!-- Ticket Code & Location -->
+                                <p class="card-text small text-secondary mb-3 border-bottom border-dark-subtle pb-2">
+                                    <strong class="text-dark">{{ ticket.formatted_id }}</strong><br>
+                                    {{ ticket.area|default:ticket.client.name }}
+                                </p>
+
+                                <!-- Badges (System on top, Status below) -->
+                                <div class="mb-3">
+                                    <div class="mb-1">
+                                        {% for system in ticket.systems.all %}
+                                            <span class="badge border border-dark text-dark mb-1" style="background-color: {{ system.color|default:'#fff' }}; font-weight: normal;">{{ system.name }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    <div>
+                                        <span class="badge bg-dark text-white mb-1">{{ ticket.get_status_display }}</span>
+                                        {% if ticket.call_type %}
+                                            <span class="badge bg-secondary text-white mb-1">{{ ticket.get_call_type_display }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Footer Info -->
+                                <div class="d-flex justify-content-between align-items-end mt-2">
+                                    <div class="text-muted small" style="font-size: 0.75rem;">
+                                        <i class="far fa-clock me-1"></i>{{ ticket.deadline|date:"d/m"|default:"--" }}
+                                    </div>
+                                    
+                                    <div class="technicians-avatars">
+                                        {% if ticket.technician %}
+                                            {% if ticket.technician.profile.photo %}
+                                                <img src="{{ ticket.technician.profile.photo.url }}" class="rounded-circle border border-dark" width="28" height="28" title="{{ ticket.technician.first_name }}">
+                                            {% else %}
+                                                <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 28px; height: 28px; font-size: 0.8rem;">
+                                                    {{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <a href="{% url 'ticket_detail' ticket.id %}" class="d-none"></a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12 text-center mt-5">
+                <h3 class="text-muted">Nenhuma tarefa pendente</h3>
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+<div class="modal fade" id="taskViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background-color: #fff9c4;">
+            <div class="modal-header border-bottom border-dark-subtle">
+                <h5 class="modal-title fw-bold" id="modalTicketTitle">Detalhes da Ocorrência</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row">
+                    <!-- Left Column: Main Info -->
+                    <div class="col-md-8 border-end border-dark-subtle">
+                        <div class="mb-4">
+                            <h2 class="fw-bold mb-1" id="modalTitle">Título da Task</h2>
+                            <p class="text-muted mb-0">
+                                <strong id="modalId" class="text-dark">JMP00000</strong> - 
+                                <span id="modalClient">Cliente</span>
+                                <span id="modalAreaWrapper" class="d-none"> - <span id="modalArea">Área</span></span>
+                            </p>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-sm-6">
+                                <div class="p-3 bg-white bg-opacity-50 rounded border border-warning">
+                                    <label class="small text-muted text-uppercase fw-bold">Status</label>
+                                    <div class="fs-5 fw-bold" id="modalStatus">Em Andamento</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="p-3 bg-white bg-opacity-50 rounded border border-warning">
+                                    <label class="small text-muted text-uppercase fw-bold">Tipo</label>
+                                    <div class="fs-5 fw-bold" id="modalCallType">Preventiva</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="small text-muted text-uppercase fw-bold mb-2">Sistemas Envolvidos</label>
+                            <div id="modalSystems" class="d-flex flex-wrap gap-2">
+                                <!-- Systems injected by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Meta Info -->
+                    <div class="col-md-4">
+                        <div class="mb-4">
+                            <label class="small text-muted text-uppercase fw-bold mb-2">Datas</label>
+                            <ul class="list-unstyled">
+                                <li class="mb-2 d-flex justify-content-between">
+                                    <span>Início:</span>
+                                    <strong id="modalStartDate">--/--/----</strong>
+                                </li>
+                                <li class="d-flex justify-content-between">
+                                    <span>Prazo:</span>
+                                    <strong id="modalDeadline" class="text-danger">--/--/----</strong>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="small text-muted text-uppercase fw-bold mb-2">Técnico Responsável</label>
+                            <div class="d-flex align-items-center bg-white bg-opacity-50 p-2 rounded">
+                                <div id="modalTechAvatar" class="me-3">
+                                    <!-- Avatar injected by JS -->
+                                </div>
+                                <div>
+                                    <div class="fw-bold" id="modalTechName">Nome do Técnico</div>
+                                    <small class="text-muted">Técnico</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <a href="#" id="modalEditLink" class="btn btn-dark">
+                                <i class="fas fa-pencil-alt me-2"></i>Editar Ocorrência
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Dashboard background */
+    body {
+        background-color: #f0f2f5;
+    }
+    
+    /* Post-it Card Style */
+    .task-card {
+        background-color: #fff9c4; /* Classic Post-it Yellow */
+        box-shadow: 2px 4px 6px rgba(0,0,0,0.1);
+        border-radius: 2px; /* Sharp-ish corners */
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transform: rotate(-1deg);
+    }
+    
+    /* Alternate rotation for organic feel */
+    .task-card:nth-of-type(even) {
+        transform: rotate(1deg);
+        background-color: #fffde7; /* Slightly lighter yellow */
+    }
+    
+    .task-card:hover {
+        transform: scale(1.05) rotate(0deg) !important;
+        box-shadow: 5px 10px 20px rgba(0,0,0,0.15);
+        z-index: 100;
+        cursor: pointer;
+    }
+    
+    .favorite-btn {
+        transition: transform 0.2s;
+    }
+    .favorite-btn:hover {
+        transform: scale(1.2);
+    }
+
+    /* Scrollbar Styling */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent; 
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Modal Logic
+    let taskModal;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalEl = document.getElementById('taskViewModal');
+        if (modalEl) {
+            // Check if bootstrap is available
+            if (typeof bootstrap !== 'undefined') {
+                taskModal = new bootstrap.Modal(modalEl);
+            } else {
+                console.error('Bootstrap is not defined!');
+            }
+        }
+    });
+
+    function openTaskModal(card) {
+        // Ensure modal is initialized
+        if (!taskModal) {
+            const modalEl = document.getElementById('taskViewModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                taskModal = new bootstrap.Modal(modalEl);
+            } else {
+                console.error('Cannot initialize modal: element or bootstrap missing');
+                return;
+            }
+        }
+
+        // Extract data
+        const data = card.dataset;
+        
+        // Populate Modal
+        document.getElementById('modalTitle').textContent = data.title;
+        document.getElementById('modalId').textContent = data.ticketId;
+        document.getElementById('modalClient').textContent = data.client;
+        
+        const areaWrapper = document.getElementById('modalAreaWrapper');
+        if (data.area) {
+            document.getElementById('modalArea').textContent = data.area;
+            areaWrapper.classList.remove('d-none');
+        } else {
+            areaWrapper.classList.add('d-none');
+        }
+        
+        document.getElementById('modalStatus').textContent = data.status;
+        document.getElementById('modalCallType').textContent = data.callType;
+        document.getElementById('modalStartDate').textContent = data.startDate;
+        document.getElementById('modalDeadline').textContent = data.deadline;
+        document.getElementById('modalTechName').textContent = data.technicianName;
+        
+        // Avatar
+        const avatarContainer = document.getElementById('modalTechAvatar');
+        if (data.technicianPhoto) {
+            avatarContainer.innerHTML = `<img src="${data.technicianPhoto}" class="rounded-circle border border-dark" width="48" height="48">`;
+        } else {
+            avatarContainer.innerHTML = `<div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 48px; height: 48px; font-size: 1.2rem;">${data.technicianInitials}</div>`;
+        }
+        
+        // Systems
+        const systemsContainer = document.getElementById('modalSystems');
+        systemsContainer.innerHTML = '';
+        try {
+            // Check if data.systems is already an object (unlikely in dataset but possible in some frameworks) or string
+            let systemsObj;
+            if (typeof data.systems === 'string') {
+                systemsObj = JSON.parse(data.systems);
+            } else {
+                systemsObj = data.systems;
+            }
+
+            if (systemsObj && systemsObj.length > 0) {
+                systemsObj.forEach(sys => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge border border-dark text-dark fs-6';
+                    badge.style.backgroundColor = sys.color;
+                    badge.style.fontWeight = 'normal';
+                    badge.textContent = sys.name;
+                    systemsContainer.appendChild(badge);
+                });
+            } else {
+                systemsContainer.innerHTML = '<span class="text-muted small fst-italic">Nenhum sistema vinculado</span>';
+            }
+        } catch (e) {
+            console.error('Error parsing systems:', e);
+            systemsContainer.innerHTML = '<span class="text-muted small">Erro ao carregar sistemas</span>';
+        }
+
+        // Edit Link
+        document.getElementById('modalEditLink').href = `/tickets/${data.ticketRealId}/`; // Assuming standard URL pattern
+
+        taskModal.show();
+    }
+
+    function toggleFavorite(btn, ticketId) {
+        // Prevent default action (if any) and stop propagation is handled inline
+        let csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+        if (!csrfToken) {
+            const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (csrfInput) csrfToken = csrfInput.value;
+        }
+        
+        fetch(`/tasks/${ticketId}/favorite/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.is_favorite) {
+                btn.classList.remove('text-muted');
+                btn.classList.add('text-warning');
+                btn.querySelector('i').classList.remove('far');
+                btn.querySelector('i').classList.add('fas');
+            } else {
+                btn.classList.remove('text-warning');
+                btn.classList.add('text-muted');
+                btn.querySelector('i').classList.remove('fas');
+                btn.querySelector('i').classList.add('far');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+    // Auto-refresh logic
+    let isInteracting = false;
+    document.addEventListener('mousemove', () => {
+        isInteracting = true;
+        clearTimeout(window.interactionTimeout);
+        window.interactionTimeout = setTimeout(() => {
+            isInteracting = false;
+        }, 5000);
+    });
+    
+    // Refresh function... (rest of the code)
+    function fetchUpdates() {
+        if (isInteracting) return;
+        
+        fetch(window.location.href)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newBoard = doc.getElementById('task-board');
+                if (newBoard) {
+                    document.getElementById('task-board').innerHTML = newBoard.innerHTML;
+                }
+            })
+            .catch(err => console.error('Auto-refresh error:', err));
+    }
+    
+    setInterval(fetchUpdates, 5000);
+
+</script>
+{% endblock %}

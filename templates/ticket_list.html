@@ -28,21 +28,10 @@
                 </thead>
                 <tbody>
                     {% for ticket in tickets %}
-                    <tr class="{% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                    <tr class="ticket-row {% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
-                        data-ticket-id="{{ ticket.id }}"
-                        data-status-key="{{ ticket.status }}"
-                        data-client="{{ ticket.client.name }}"
-                        data-order-type="{{ ticket.order_type.name|default:'-' }}"
-                        data-equipment="{{ ticket.equipment.name|default:'-' }}"
-                        data-technician="{% if ticket.technician %}{{ ticket.technician.username }}{% else %}-{% endif %}"
-                        data-status="{{ ticket.get_status_display }}"
-                        data-created-at="{{ ticket.created_at|date:'d/m/Y H:i' }}"
-                        data-description="{{ ticket.description|default:'Sem descrição detalhada.' }}"
-                        data-problem-type="{{ ticket.problem_type.name|default:'-' }}"
-                        data-finished-at="{{ ticket.finished_at|date:'d/m/Y H:i'|default:'-' }}"
-                        ondblclick="openTicketModal(this)">
-                        <td>{{ ticket.id }}</td>
+                        data-ticket-id="{{ ticket.id }}">
+                        <td>{{ ticket.formatted_id }}</td>
                         <td>{{ ticket.client.name }}</td>
                         <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
@@ -60,9 +49,9 @@
                         </td>
                         <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
                         <td>
-                            <a href="{% url 'ticket_update' ticket.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
+                                <i class="fas fa-eye"></i>
+                            </button>
                             {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
                             <a href="{% url 'ticket_delete' ticket.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
                                 <i class="fas fa-trash"></i>
@@ -81,90 +70,695 @@
     </div>
 </div>
 
-<!-- Ticket Detail Modal -->
-<div class="modal fade" id="ticketDetailModal" tabindex="-1" aria-labelledby="ticketDetailModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-light border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="ticketDetailModalLabel">Detalhes da Ordem de Serviço #<span id="modalTicketId"></span></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <p><strong>Cliente:</strong> <span id="modalClient" class="text-info"></span></p>
-                        <p><strong>Tipo de Ordem:</strong> <span id="modalOrderType"></span></p>
-                        <p><strong>Equipamento:</strong> <span id="modalEquipment"></span></p>
-                        <p><strong>Tipo de Problema:</strong> <span id="modalProblemType"></span></p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Técnico Responsável:</strong> <span id="modalTechnician"></span></p>
-                        <p><strong>Status:</strong> <span id="modalStatus" class="badge"></span></p>
-                        <p><strong>Data de Criação:</strong> <span id="modalCreatedAt"></span></p>
-                        <p><strong>Data de Finalização:</strong> <span id="modalFinishedAt"></span></p>
-                    </div>
+<div id="ticketDockContainer" class="position-fixed bottom-0 p-2 d-flex flex-column-reverse gap-2" style="z-index: 1080; pointer-events: none; max-height: 80vh; overflow-y: auto; scrollbar-width: none;">
+    <!-- Dock items will be injected here -->
+</div>
+
+<!-- Dynamic Ticket Modal Container -->
+<div class="modal fade" id="ticketModal" tabindex="-1" aria-labelledby="ticketModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" id="ticketModalContent">
+            <!-- Content loaded via AJAX -->
+            <div class="modal-body text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Carregando...</span>
                 </div>
-                
-                <hr class="border-secondary">
-                
-                <div class="mb-3">
-                    <h6 class="text-primary">Descrição / Observações do Andamento</h6>
-                    <div class="p-3 border border-secondary rounded bg-secondary bg-opacity-10" style="min-height: 100px;">
-                        <p id="modalDescription" class="mb-0" style="white-space: pre-wrap;"></p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <a href="#" id="modalEditLink" class="btn btn-primary">Editar OS</a>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-    function openTicketModal(row) {
-        // Extract data from data attributes
-        const id = row.getAttribute('data-ticket-id');
-        const client = row.getAttribute('data-client');
-        const orderType = row.getAttribute('data-order-type');
-        const equipment = row.getAttribute('data-equipment');
-        const technician = row.getAttribute('data-technician');
-        const status = row.getAttribute('data-status');
-        const statusKey = row.getAttribute('data-status-key');
-        const createdAt = row.getAttribute('data-created-at');
-        const description = row.getAttribute('data-description');
-        const problemType = row.getAttribute('data-problem-type');
-        const finishedAt = row.getAttribute('data-finished-at');
-        
-        // Populate modal fields
-        document.getElementById('modalTicketId').textContent = id;
-        document.getElementById('modalClient').textContent = client;
-        document.getElementById('modalOrderType').textContent = orderType;
-        document.getElementById('modalEquipment').textContent = equipment;
-        document.getElementById('modalProblemType').textContent = problemType;
-        document.getElementById('modalTechnician').textContent = technician;
-        document.getElementById('modalCreatedAt').textContent = createdAt;
-        document.getElementById('modalFinishedAt').textContent = finishedAt;
-        document.getElementById('modalDescription').textContent = description;
-        
-        // Handle Status Badge
-        const statusSpan = document.getElementById('modalStatus');
-        statusSpan.textContent = status;
-        
-        // Reset classes
-        statusSpan.className = 'badge badge-' + statusKey;
-        
-        /* Removed old logic based on row classes */
-
-        // Update Edit Link
-        const editLink = document.getElementById('modalEditLink');
-        editLink.href = "/tickets/" + id + "/edit/"; // Updated to match urls.py pattern
-
-        // Show Modal
-        const modal = new bootstrap.Modal(document.getElementById('ticketDetailModal'));
-        modal.show();
+<style>
+    .resizer {
+        position: absolute;
+        background-color: transparent;
+        z-index: 100;
     }
-</script>
+    .resizer-se {
+        width: 15px;
+        height: 15px;
+        bottom: 0;
+        right: 0;
+        cursor: se-resize;
+    }
+    .resizer-e {
+        width: 5px;
+        height: 100%;
+        top: 0;
+        right: 0;
+        cursor: e-resize;
+    }
+    .resizer-s {
+        height: 5px;
+        width: 100%;
+        bottom: 0;
+        left: 0;
+        cursor: s-resize;
+    }
+</style>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ticketModalElement = document.getElementById('ticketModal');
+        const ticketModal = new bootstrap.Modal(ticketModalElement);
+        const modalContent = document.getElementById('ticketModalContent');
+        const dockContainer = document.getElementById('ticketDockContainer');
+
+        // State Management
+        const openTickets = new Map(); // id -> { html, dialogClass, dialogStyle, title }
+        let activeTicketId = null;
+        let ticketsUpdated = false;
+        const STORAGE_KEY = 'OS_SYSTEM_OPEN_TICKETS';
+
+        // --- Persistence Logic ---
+
+        function saveToStorage() {
+            try {
+                if (activeTicketId) {
+                    saveCurrentTicketState();
+                }
+                const ticketsArray = Array.from(openTickets.entries());
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(ticketsArray));
+            } catch (e) {
+                console.warn('Failed to save tickets to localStorage:', e);
+            }
+        }
+
+        function loadFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const ticketsArray = JSON.parse(stored);
+                    openTickets.clear();
+                    ticketsArray.forEach(([id, state]) => {
+                        openTickets.set(id, state);
+                    });
+                    renderDock();
+                }
+            } catch (e) {
+                console.warn('Failed to load tickets from localStorage:', e);
+            }
+        }
+
+        window.addEventListener('beforeunload', () => {
+             // Ensure current active ticket is saved to state before unloading
+             if (activeTicketId) {
+                 saveCurrentTicketState();
+             }
+             saveToStorage();
+        });
+
+        // --- Helper Functions ---
+
+        function formatTicketId(id) {
+            return `JMP${String(id).padStart(5, '0')}`;
+        }
+
+        function getMainContentEl() {
+            return document.querySelector('.main-content') || document.body;
+        }
+
+        function getDialog() {
+            return ticketModalElement.querySelector('.modal-dialog');
+        }
+
+        function setDialogFullscreen(isFullscreen) {
+            const dialog = getDialog();
+            if (!dialog) return;
+            if (isFullscreen) {
+                dialog.classList.add('modal-fullscreen');
+                dialog.classList.remove('modal-xl');
+            } else {
+                dialog.classList.remove('modal-fullscreen');
+                dialog.classList.add('modal-xl');
+            }
+        }
+
+        function isDialogFullscreen() {
+            const dialog = getDialog();
+            if (!dialog) return false;
+            return dialog.classList.contains('modal-fullscreen');
+        }
+
+        // --- Dock Management ---
+
+        function renderDock() {
+            dockContainer.innerHTML = '';
+            
+            const mainContent = getMainContentEl();
+            const rect = mainContent.getBoundingClientRect();
+            dockContainer.style.left = `${rect.left}px`;
+            // For vertical stack, we don't set fixed width, but we might want to ensure it doesn't overlap too much.
+            // But user asked for "block in footer". 
+            // If vertical stack, it grows up from bottom-left of main content.
+            
+            openTickets.forEach((state, id) => {
+                // Show in dock if NOT active (minimized)
+                if (id === activeTicketId) return;
+
+                const item = document.createElement('div');
+                item.className = 'card shadow-sm border-primary ticket-dock-item mb-0';
+                item.style.cssText = 'width: 220px; min-width: 220px; cursor: pointer; pointer-events: auto; opacity: 0.95; transition: transform 0.2s;';
+                item.setAttribute('data-ticket-id', id);
+                item.innerHTML = `
+                    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2 text-truncate" style="max-width: 160px;">
+                            <i class="fas fa-window-restore text-primary"></i>
+                            <div class="d-flex flex-column" style="line-height: 1.1;">
+                                <span class="fw-bold small text-truncate">${formatTicketId(id)}</span>
+                                <span class="small text-muted text-truncate" style="font-size: 0.75rem;" title="${state.title}">${state.title.replace(/^OS JMP\d+\s*/, '')}</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-sm ms-2 close-dock-btn" aria-label="Close"></button>
+                    </div>
+                `;
+                
+                // Hover effect
+                item.addEventListener('mouseenter', () => item.style.transform = 'translateX(5px)');
+                item.addEventListener('mouseleave', () => item.style.transform = 'translateX(0)');
+
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.close-dock-btn')) return;
+                    restoreTicket(id);
+                });
+
+                item.querySelector('.close-dock-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeTicket(id);
+                });
+
+                dockContainer.appendChild(item);
+            });
+        }
+
+        // --- Ticket Management ---
+
+        function saveCurrentTicketState() {
+            if (!activeTicketId) return;
+            const dialog = getDialog();
+            const titleEl = modalContent.querySelector('.modal-title');
+            const title = titleEl ? titleEl.textContent : `OS ${formatTicketId(activeTicketId)}`;
+            
+            // Sync values to attributes for HTML serialization
+            modalContent.querySelectorAll('input, textarea, select').forEach(input => {
+                if (input.type === 'checkbox' || input.type === 'radio') {
+                    if (input.checked) input.setAttribute('checked', 'checked');
+                    else input.removeAttribute('checked');
+                } else {
+                    input.setAttribute('value', input.value);
+                    if (input.tagName === 'TEXTAREA') input.textContent = input.value;
+                    if (input.tagName === 'SELECT') {
+                        Array.from(input.options).forEach(opt => {
+                            if (opt.selected) opt.setAttribute('selected', 'selected');
+                            else opt.removeAttribute('selected');
+                        });
+                    }
+                }
+            });
+
+            openTickets.set(activeTicketId, {
+                html: modalContent.innerHTML,
+                dialogClass: dialog ? dialog.className : 'modal-dialog modal-xl',
+                dialogStyle: dialog ? dialog.getAttribute('style') : '',
+                title: title
+            });
+        }
+
+        function closeTicket(id) {
+            if (activeTicketId === id) {
+                activeTicketId = null;
+                ticketModal.hide();
+            }
+            openTickets.delete(id);
+            renderDock();
+            saveToStorage();
+            if (ticketsUpdated) refreshTicketList();
+        }
+
+        function minimizeCurrentTicket() {
+            if (!activeTicketId) return;
+            saveCurrentTicketState();
+            activeTicketId = null;
+            ticketModal.hide();
+            renderDock();
+            saveToStorage();
+        }
+
+        function restoreTicket(id) {
+            if (activeTicketId === id) return;
+
+            if (activeTicketId) {
+                saveCurrentTicketState();
+            }
+
+            const state = openTickets.get(id);
+            if (!state) return;
+
+            activeTicketId = id;
+            modalContent.innerHTML = state.html;
+            
+            const dialog = getDialog();
+            if (dialog) {
+                dialog.className = state.dialogClass;
+                if (state.dialogStyle) dialog.setAttribute('style', state.dialogStyle);
+                else dialog.removeAttribute('style');
+            }
+
+            ensureModalHandlersBound();
+            ticketModal.show();
+            renderDock();
+            saveToStorage();
+        }
+
+        function loadTicketModal(ticketId) {
+            if (openTickets.has(ticketId)) {
+                restoreTicket(ticketId);
+                return;
+            }
+
+            if (activeTicketId) {
+                saveCurrentTicketState();
+            }
+
+            activeTicketId = ticketId;
+            renderDock();
+
+            modalContent.innerHTML = `
+                <div class="modal-body text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                </div>
+            `;
+            const dialog = getDialog();
+            if (dialog) {
+                dialog.className = 'modal-dialog modal-xl';
+                dialog.removeAttribute('style');
+            }
+            
+            ticketModal.show();
+
+            fetch(`/tickets/${ticketId}/modal/`)
+                .then(response => response.text())
+                .then(html => {
+                    modalContent.innerHTML = html;
+                    
+                    const titleEl = modalContent.querySelector('.modal-title');
+                    const title = titleEl ? titleEl.textContent : `OS ${formatTicketId(ticketId)}`;
+                    openTickets.set(ticketId, {
+                        html: html,
+                        dialogClass: 'modal-dialog modal-xl',
+                        dialogStyle: '',
+                        title: title
+                    });
+                    
+                    ensureModalHandlersBound();
+                    saveToStorage();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    modalContent.innerHTML = '<div class="modal-body text-danger">Erro ao carregar.</div>';
+                });
+        }
+
+        function refreshTicketList() {
+            fetch(window.location.href)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newTbody = doc.querySelector('table tbody');
+                    const currentTbody = document.querySelector('table tbody');
+                    if (newTbody && currentTbody) {
+                        currentTbody.innerHTML = newTbody.innerHTML;
+                        bindTableEvents();
+                    }
+                    ticketsUpdated = false;
+                });
+        }
+
+        // --- Event Handlers & Binding ---
+
+        ticketModalElement.addEventListener('hidden.bs.modal', function () {
+            if (activeTicketId) {
+                closeTicket(activeTicketId);
+            }
+        });
+
+        function bindTableEvents() {
+            document.querySelectorAll('.ticket-row').forEach(row => {
+                row.addEventListener('dblclick', function() {
+                    const ticketId = this.getAttribute('data-ticket-id');
+                    loadTicketModal(ticketId);
+                });
+            });
+
+            document.querySelectorAll('.view-ticket-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const row = this.closest('tr');
+                    const ticketId = row.getAttribute('data-ticket-id');
+                    loadTicketModal(ticketId);
+                });
+            });
+        }
+
+        bindTableEvents();
+        window.addEventListener('resize', () => {
+             if (dockContainer.children.length > 0) renderDock();
+        });
+        
+        // Initialize from storage
+        loadFromStorage();
+        
+        // --- Form Handling & Drag & Resize ---
+
+        function getForm() { return modalContent.querySelector('#ticketEditForm'); }
+        function getFieldFromToggle(toggleBtn) {
+            const inputGroup = toggleBtn.closest('.input-group');
+            return inputGroup ? inputGroup.querySelector('input, select, textarea') : null;
+        }
+        function showToggleForField(field) {
+            const inputGroup = field.closest('.input-group');
+            const toggleBtn = inputGroup ? inputGroup.querySelector('.edit-toggle') : null;
+            if (toggleBtn) toggleBtn.style.display = 'block';
+        }
+        function lockField(field) {
+            field.setAttribute('disabled', 'disabled');
+            field.classList.add('form-control-plaintext');
+            field.classList.remove('form-control');
+            if (field.tagName === 'SELECT') field.classList.remove('form-select');
+        }
+        function unlockField(field) {
+            field.removeAttribute('disabled');
+            field.removeAttribute('readonly');
+            field.classList.remove('form-control-plaintext');
+            field.classList.add('form-control');
+            if (field.tagName === 'SELECT') field.classList.add('form-select');
+        }
+
+        function submitTicketForm(isAutoSave) {
+            const form = getForm();
+            if (!form) return;
+
+            const evoDescInput = form.querySelector('textarea[name="evolution_description"]');
+            const evoDescValue = evoDescInput ? evoDescInput.value : '';
+
+            const disabledInputs = Array.from(form.querySelectorAll(':disabled'));
+            disabledInputs.forEach(input => input.removeAttribute('disabled'));
+
+            const formData = new FormData(form);
+            const actionUrl = form.getAttribute('action');
+
+            disabledInputs.forEach(input => input.setAttribute('disabled', 'disabled'));
+
+            if (isAutoSave) {
+                formData.delete('evolution_description');
+                formData.delete('evolution_image');
+            }
+
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                    return;
+                }
+                return response.text().then(html => {
+                    modalContent.innerHTML = html;
+                    ticketsUpdated = true;
+                    if (isAutoSave && evoDescValue) {
+                        const newEvoInput = modalContent.querySelector('textarea[name="evolution_description"]');
+                        if (newEvoInput) newEvoInput.value = evoDescValue;
+                    }
+                    if (activeTicketId) {
+                         const titleEl = modalContent.querySelector('.modal-title');
+                         const title = titleEl ? titleEl.textContent : `OS ${formatTicketId(activeTicketId)}`;
+                         const state = openTickets.get(activeTicketId);
+                         if (state) {
+                             state.html = html;
+                             state.title = title;
+                         }
+                    }
+
+                    if (!isAutoSave) {
+                        const toastContainer = document.querySelector('.toast-container');
+                        if (toastContainer) {
+                            const toast = document.createElement('div');
+                            toast.className = 'toast align-items-center text-white bg-success border-0';
+                            toast.role = 'alert';
+                            toast.ariaLive = 'assertive';
+                            toast.ariaAtomic = 'true';
+                            toast.innerHTML = `
+                                <div class="d-flex">
+                                    <div class="toast-body">
+                                        <i class="fas fa-check-circle me-2"></i>
+                                        Ordem de Serviço atualizada com sucesso!
+                                    </div>
+                                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                                </div>
+                            `;
+                            toastContainer.appendChild(toast);
+                            const bsToast = new bootstrap.Toast(toast);
+                            bsToast.show();
+                            
+                            toast.addEventListener('hidden.bs.toast', () => {
+                                toast.remove();
+                            });
+                        }
+                    }
+
+                    ensureModalHandlersBound();
+                    saveToStorage();
+                });
+            })
+            .catch(() => {
+                alert('Erro ao salvar as alterações. Tente novamente.');
+            });
+        }
+
+        function ensureModalHandlersBound() {
+            if (modalContent.dataset.handlersBound === '1') return;
+            modalContent.dataset.handlersBound = '1';
+
+            // Drag Variables
+            let isDraggingModal = false;
+            let dragStartX = 0, dragStartY = 0;
+            let dialogStartLeft = 0, dialogStartTop = 0;
+
+            // Resize Variables
+            let isResizing = false;
+            let currentResizer = null;
+            let originalWidth = 0;
+            let originalHeight = 0;
+            let originalX = 0;
+            let originalY = 0;
+            let originalMouseX = 0;
+            let originalMouseY = 0;
+
+            // --- Drag Logic ---
+            function startDrag(e) {
+                if (e.button !== 0) return;
+                // Ignore if clicking on a resizer
+                if (e.target.classList.contains('resizer')) return;
+                
+                const header = e.target.closest('.modal-header');
+                if (!header || !modalContent.contains(header)) return;
+                if (e.target.closest('button, a, input, select, textarea')) return;
+                if (isDialogFullscreen()) return;
+
+                const dialog = getDialog();
+                if (!dialog) return;
+
+                const rect = dialog.getBoundingClientRect();
+                dialog.style.position = 'fixed';
+                dialog.style.margin = '0';
+                dialog.style.left = `${rect.left}px`;
+                dialog.style.top = `${rect.top}px`;
+                dialog.style.width = `${rect.width}px`;
+                dialog.style.maxWidth = `${rect.width}px`; // Force fixed width to prevent auto-resize
+
+                isDraggingModal = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                dialogStartLeft = rect.left;
+                dialogStartTop = rect.top;
+                document.body.style.userSelect = 'none';
+                header.style.cursor = 'grabbing';
+            }
+
+            function onDragMove(e) {
+                if (isDraggingModal) {
+                    const dialog = getDialog();
+                    if (!dialog) return;
+
+                    const dx = e.clientX - dragStartX;
+                    const dy = e.clientY - dragStartY;
+                    dialog.style.left = `${dialogStartLeft + dx}px`;
+                    dialog.style.top = `${dialogStartTop + dy}px`;
+                } else if (isResizing) {
+                    const dialog = getDialog();
+                    if (!dialog) return;
+                    
+                    if (currentResizer.classList.contains('resizer-se')) {
+                        const width = originalWidth + (e.clientX - originalMouseX);
+                        const height = originalHeight + (e.clientY - originalMouseY);
+                        if (width > 300) dialog.style.width = `${width}px`;
+                        if (width > 300) dialog.style.maxWidth = `${width}px`;
+                        // Note: Height in bootstrap modal is driven by content, but we can set min-height or height
+                        // For height resize to work, we might need to set height on modal-content or body
+                        // Let's set height on .modal-content
+                        if (height > 200) modalContent.style.height = `${height}px`;
+                    } else if (currentResizer.classList.contains('resizer-e')) {
+                        const width = originalWidth + (e.clientX - originalMouseX);
+                        if (width > 300) dialog.style.width = `${width}px`;
+                        if (width > 300) dialog.style.maxWidth = `${width}px`;
+                    } else if (currentResizer.classList.contains('resizer-s')) {
+                         const height = originalHeight + (e.clientY - originalMouseY);
+                         if (height > 200) modalContent.style.height = `${height}px`;
+                    }
+                }
+            }
+
+            function endDrag() {
+                if (isDraggingModal) {
+                    isDraggingModal = false;
+                    document.body.style.userSelect = '';
+                    const header = modalContent.querySelector('.modal-header');
+                    if (header) header.style.cursor = 'move';
+                }
+                if (isResizing) {
+                    isResizing = false;
+                    document.body.style.userSelect = '';
+                }
+            }
+
+            // --- Resize Logic ---
+            function initResize() {
+                const dialog = getDialog();
+                if (!dialog) return;
+                
+                // Add resizers if not present
+                if (!dialog.querySelector('.resizer')) {
+                    const resizerSE = document.createElement('div');
+                    resizerSE.className = 'resizer resizer-se';
+                    dialog.appendChild(resizerSE);
+
+                    const resizerE = document.createElement('div');
+                    resizerE.className = 'resizer resizer-e';
+                    dialog.appendChild(resizerE);
+
+                    const resizerS = document.createElement('div');
+                    resizerS.className = 'resizer resizer-s';
+                    dialog.appendChild(resizerS);
+                    
+                    // Attach events to resizers
+                    [resizerSE, resizerE, resizerS].forEach(el => {
+                        el.addEventListener('mousedown', function(e) {
+                            if (e.button !== 0) return;
+                            e.stopPropagation(); // Prevent drag
+                            isResizing = true;
+                            currentResizer = el;
+                            originalMouseX = e.clientX;
+                            originalMouseY = e.clientY;
+                            
+                            const rect = dialog.getBoundingClientRect();
+                            originalWidth = rect.width;
+                            originalHeight = modalContent.getBoundingClientRect().height; // Resize content height
+                            originalX = rect.left;
+                            originalY = rect.top;
+                            
+                            document.body.style.userSelect = 'none';
+                        });
+                    });
+                }
+            }
+            
+            // Initialize resize handles
+            initResize();
+
+            modalContent.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('mouseup', endDrag);
+
+            modalContent.addEventListener('click', function(e) {
+                const minimizeBtn = e.target.closest('.modal-minimize-btn');
+                if (minimizeBtn && modalContent.contains(minimizeBtn)) {
+                    e.preventDefault();
+                    minimizeCurrentTicket();
+                    return;
+                }
+
+                const maximizeBtn = e.target.closest('.modal-maximize-btn');
+                if (maximizeBtn && modalContent.contains(maximizeBtn)) {
+                    e.preventDefault();
+                    const nextState = !isDialogFullscreen();
+                    if (nextState) {
+                        const dialog = getDialog();
+                        if (dialog) dialog.removeAttribute('style');
+                        modalContent.style.height = ''; // Reset height
+                    }
+                    setDialogFullscreen(nextState);
+                    const icon = maximizeBtn.querySelector('i');
+                    if (icon) icon.className = nextState ? 'far fa-window-restore' : 'far fa-window-maximize';
+                    maximizeBtn.title = nextState ? 'Restaurar tamanho' : 'Maximizar';
+                    
+                    const header = modalContent.querySelector('.modal-header');
+                    if (header) header.style.cursor = nextState ? 'default' : 'move';
+                    return;
+                }
+
+                const toggleBtn = e.target.closest('.edit-toggle');
+                if (toggleBtn && modalContent.contains(toggleBtn)) {
+                    e.preventDefault();
+                    const field = getFieldFromToggle(toggleBtn);
+                    if (field) {
+                        unlockField(field);
+                        field.dataset.originalValue = field.value;
+                        toggleBtn.style.display = 'none';
+                        field.focus();
+                    }
+                }
+            });
+
+            modalContent.addEventListener('focusout', function(e) {
+                const field = e.target;
+                if (!modalContent.contains(field)) return;
+                if (!['INPUT', 'SELECT', 'TEXTAREA'].includes(field.tagName)) return;
+                const name = field.getAttribute('name') || '';
+                if (name === 'evolution_description' || name === 'evolution_image') return;
+                if (field.dataset.originalValue === undefined) return;
+
+                if (field.value !== field.dataset.originalValue) {
+                    lockField(field);
+                    showToggleForField(field);
+                    submitTicketForm(true);
+                    return;
+                }
+                if (!field.hasAttribute('disabled')) {
+                    lockField(field);
+                    showToggleForField(field);
+                }
+            });
+
+            modalContent.addEventListener('keydown', function(e) {
+                const field = e.target;
+                if (modalContent.contains(field) && ['INPUT', 'SELECT'].includes(field.tagName) && e.key === 'Enter') {
+                    e.preventDefault();
+                    field.blur();
+                }
+            });
+
+            modalContent.addEventListener('submit', function(e) {
+                if (e.target.id === 'ticketEditForm') {
+                    e.preventDefault();
+                    submitTicketForm(false);
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

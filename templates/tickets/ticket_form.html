@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-10 col-lg-11">
+            <div class="card shadow-sm border-0 rounded-3 mt-4 mb-5">
+                <div class="card-header bg-white border-bottom pt-4 px-4 pb-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-primary">{{ title }}</h5>
+                        <p class="text-muted small mb-0">Preencha os dados abaixo para registrar a ordem de serviço.</p>
+                    </div>
+                    <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="fas fa-arrow-left me-1"></i> Voltar
+                    </a>
+                </div>
+                
+                <div class="card-body px-4 py-4">
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Seção 1: Informações Principais -->
+                        <div class="mb-4">
+                            <h6 class="text-secondary text-uppercase fw-bold small mb-3">
+                                <i class="fas fa-info-circle me-2"></i>Informações Principais
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
+                                    {% render_field form.client class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.client.errors }}</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.system.id_for_label }}" class="form-label small fw-bold mb-1">Sistema</label>
+                                    {% render_field form.system class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.system.errors }}</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
+                                    {% render_field form.status class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.status.errors }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Seção 2: Localização e Classificação -->
+                        <div class="mb-4">
+                            <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
+                                <i class="fas fa-map-marker-alt me-2"></i>Localização e Classificação
+                            </h6>
+                            <div class="row g-3">
+                                <!-- Linha Localização -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.area_group.id_for_label }}" class="form-label small fw-bold mb-1">Grupo de Área</label>
+                                    {% render_field form.area_group class="form-control form-control-sm" placeholder="Ex: Bloco A" %}
+                                    <div class="text-danger small">{{ form.area_group.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.area_subgroup.id_for_label }}" class="form-label small fw-bold mb-1">Subgrupo</label>
+                                    {% render_field form.area_subgroup class="form-control form-control-sm" placeholder="Ex: 1º Andar" %}
+                                    <div class="text-danger small">{{ form.area_subgroup.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.area.id_for_label }}" class="form-label small fw-bold mb-1">Área Específica</label>
+                                    {% render_field form.area class="form-control form-control-sm" placeholder="Ex: Sala 101" %}
+                                    <div class="text-danger small">{{ form.area.errors }}</div>
+                                </div>
+
+                                <!-- Linha Equipamento e Tipos -->
+                                <div class="col-md-4">
+                                    <label for="{{ form.equipment.id_for_label }}" class="form-label small fw-bold mb-1">Equipamento</label>
+                                    {% render_field form.equipment class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.equipment.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.call_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
+                                    {% render_field form.call_type class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.call_type.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.problem_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Problema</label>
+                                    {% render_field form.problem_type class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.problem_type.errors }}</div>
+                                </div>
+                                
+                                <!-- Oculto (Legacy) -->
+                                <div class="d-none">
+                                    {% render_field form.order_type %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Seção 3: Responsáveis e Prazo -->
+                        <div class="mb-4">
+                            <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
+                                <i class="fas fa-users me-2"></i>Responsáveis e Prazo
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.requester.id_for_label }}" class="form-label small fw-bold mb-1">Solicitante</label>
+                                    {% render_field form.requester class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.requester.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.technician.id_for_label }}" class="form-label small fw-bold mb-1">Técnico Responsável</label>
+                                    {% render_field form.technician class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.technician.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.deadline.id_for_label }}" class="form-label small fw-bold mb-1">Data Limite (Deadline)</label>
+                                    {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                                    <div class="text-danger small">{{ form.deadline.errors }}</div>
+                                </div>
+                                {% if form.finished_at %}
+                                <div class="col-md-4">
+                                    <label for="{{ form.finished_at.id_for_label }}" class="form-label small fw-bold mb-1">Data de Finalização</label>
+                                    {% render_field form.finished_at class="form-control form-control-sm" type="datetime-local" %}
+                                    <div class="text-danger small">{{ form.finished_at.errors }}</div>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Seção 4: Detalhamento -->
+                        <div class="mb-4">
+                            <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
+                                <i class="fas fa-align-left me-2"></i>Detalhamento
+                            </h6>
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição Detalhada</label>
+                                    {% render_field form.description class="form-control" rows="4" placeholder="Descreva os detalhes da solicitação..." %}
+                                    <div class="text-danger small">{{ form.description.errors }}</div>
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.image.id_for_label }}" class="form-label small fw-bold mb-1">Imagem / Anexo</label>
+                                    {% render_field form.image class="form-control form-control-sm" %}
+                                    <div class="text-danger small">{{ form.image.errors }}</div>
+                                    {% if form.instance.image %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">Imagem Atual:</small><br>
+                                            <img src="{{ form.instance.image.url }}" alt="Imagem do Ticket" class="img-thumbnail" style="max-height: 100px;">
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <a href="{% url 'ticket_list' %}" class="btn btn-light border px-4 btn-sm">Cancelar</a>
+                            <button type="submit" class="btn btn-primary-custom px-5 btn-sm fw-bold">
+                                <i class="fas fa-save me-2"></i>Salvar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            {% if updates %}
+            <!-- Histórico de Evoluções (Apenas na Edição) -->
+            <div class="card shadow-sm border-0 rounded-3 mb-5">
+                <div class="card-header bg-white border-bottom pt-4 px-4 pb-3">
+                    <h5 class="mb-0 fw-bold text-primary">Histórico de Evoluções</h5>
+                </div>
+                <div class="card-body px-4 py-4">
+                    <div class="timeline">
+                        {% for update in updates %}
+                        <div class="d-flex mb-4">
+                            <div class="flex-shrink-0 me-3">
+                                <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-comment-dots text-primary"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-bold">{{ update.created_by.get_full_name|default:update.created_by.username }}</h6>
+                                    <small class="text-muted">{{ update.created_at|date:"d/m/Y H:i" }}</small>
+                                </div>
+                                <p class="mb-2 text-secondary">{{ update.description }}</p>
+                                {% if update.image %}
+                                    <a href="{{ update.image.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-image me-1"></i> Ver Anexo
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

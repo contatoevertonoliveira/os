@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Sistemas (Badges)</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'system_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Novo Sistema
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Cor</th>
+                        <th>Preview</th>
+                        <th>Descrição</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for system in systems %}
+                    <tr>
+                        <td class="fw-bold">{{ system.name }}</td>
+                        <td>{{ system.color }}</td>
+                        <td><span class="badge" style="background-color: {{ system.color }}">{{ system.name }}</span></td>
+                        <td>{{ system.description|default:"-" }}</td>
+                        <td>
+                            <a href="{% url 'system_update' system.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if request.user.profile.role in 'admin,super_admin' %}
+                            <a href="{% url 'system_delete' system.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4">Nenhum sistema cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
