@@ -1,0 +1,12 @@
+[Unit]
+Description=gunicorn daemon for imob
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/imob
+ExecStart=/root/imob/.venv/bin/gunicorn --access-logfile - --workers 3 --bind 0.0.0.0:8001 core.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
