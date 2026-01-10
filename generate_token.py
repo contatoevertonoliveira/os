@@ -1,23 +1,44 @@
+import os
+import django
+from django.conf import settings
+
+# Configura o Django manualmente para scripts soltos
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'jumperfour.settings')
+django.setup()
+
 from django.contrib.auth.models import User
 from tickets.models import UserProfile
 import uuid
 
-# Substitua 'seu_usuario' pelo nome do seu superusuário
-USERNAME = 'admin' 
+USERNAME = 'admin'
+
+print("--- INICIANDO GERADOR DE TOKEN ---")
 
 try:
+    print(f"Buscando usuário '{USERNAME}'...")
     user = User.objects.get(username=USERNAME)
+    print(f"Usuário encontrado: {user.email}")
     
-    # Verifica se já tem perfil, se não, cria
+    print("Verificando perfil...")
     profile, created = UserProfile.objects.get_or_create(user=user)
     
-    # Gera um novo token se não tiver ou atualiza se quiser forçar
+    if created:
+        print("Perfil criado agora.")
+    else:
+        print("Perfil já existia.")
+    
     if not profile.token:
+        print("Token vazio. Gerando novo...")
         profile.token = str(uuid.uuid4())
         profile.save()
-        print(f"Token GERADO para {USERNAME}: {profile.token}")
+        print(f"NOVO Token gerado: {profile.token}")
     else:
-        print(f"Token ATUAL para {USERNAME}: {profile.token}")
-        
+        print(f"Token EXISTENTE: {profile.token}")
+
 except User.DoesNotExist:
-    print(f"ERRO: Usuário '{USERNAME}' não encontrado. Crie o superusuário primeiro com 'python manage.py createsuperuser'")
+    print(f"ERRO CRÍTICO: Usuário '{USERNAME}' não existe no banco de dados.")
+    print("Rode 'python manage.py createsuperuser' primeiro!")
+except Exception as e:
+    print(f"ERRO INESPERADO: {e}")
+
+print("--- FIM ---")
