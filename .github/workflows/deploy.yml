@@ -36,6 +36,10 @@ jobs:
             python manage.py migrate
             python manage.py collectstatic --noinput
             
+            # Atualiza o arquivo de serviço do Gunicorn (caso tenha mudado)
+            cp deploy/gunicorn.service /etc/systemd/system/gunicorn.service
+            systemctl daemon-reload
+            
             # Reinicia o serviço para pegar as alterações
             systemctl restart gunicorn
             service nginx reload
