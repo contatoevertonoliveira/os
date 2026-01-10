@@ -611,10 +611,12 @@
             updateSidebarTooltips(isCollapsed);
         });
 
-        // Inactivity Logout (30 minutes)
+        // Inactivity Logout (Configurable)
         (function() {
             let time;
-            const timeout = 1800000; // 30 minutes in ms
+            // Default to 30 minutes if variable not set
+            const timeoutMinutes = {{ session_timeout_minutes|default:30 }};
+            const timeout = timeoutMinutes * 60 * 1000; 
 
             function logout() {
                 const logoutForm = document.getElementById('logoutForm');

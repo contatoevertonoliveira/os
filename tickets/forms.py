@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from .models import UserProfile, Ticket, TicketUpdate, System, Client
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings
 
 class ClientForm(forms.ModelForm):
     class Meta:
@@ -171,3 +171,11 @@ class UserProfileForm(forms.ModelForm):
             profile.save()
             
         return profile
+
+class SystemSettingsForm(forms.ModelForm):
+    class Meta:
+        model = SystemSettings
+        fields = ['session_timeout_minutes']
+        widgets = {
+            'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
+        }

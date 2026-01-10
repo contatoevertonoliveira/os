@@ -6,9 +6,9 @@ from django.db.models import Count, Exists, OuterRef
 from django.contrib.auth import login
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import Ticket, Client, UserProfile, Equipment, OrderType, ProblemType, TicketUpdate, TicketFavorite, System
+from .models import Ticket, Client, UserProfile, Equipment, OrderType, ProblemType, TicketUpdate, TicketFavorite, System, SystemSettings
 from django.contrib.auth.models import User
-from .forms import TechnicianForm, TicketForm, TicketUpdateForm, TicketEvolutionForm, UserProfileForm, ClientForm
+from .forms import TechnicianForm, TicketForm, TicketUpdateForm, TicketEvolutionForm, UserProfileForm, ClientForm, SystemSettingsForm
 
 from django.contrib.messages.views import SuccessMessageMixin
 
@@ -39,8 +39,15 @@ class ProfileView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['title'] = 'Meu Perfil'
         return context
 
-class SettingsView(LoginRequiredMixin, AdminRequiredMixin, TemplateView):
+class SettingsView(LoginRequiredMixin, AdminRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = SystemSettings
+    form_class = SystemSettingsForm
     template_name = 'settings.html'
+    success_url = reverse_lazy('settings')
+    success_message = "Configurações atualizadas com sucesso!"
+
+    def get_object(self, queryset=None):
+        return SystemSettings.objects.first() or SystemSettings.objects.create()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -33,24 +33,32 @@
                 <h6 class="mb-0 fw-bold">Configurações Gerais</h6>
             </div>
             <div class="card-body">
-                <form>
-                    <div class="mb-3">
-                        <label for="systemName" class="form-label">Nome do Sistema</label>
-                        <input type="text" class="form-control" id="systemName" value="OS Tickets">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <h6 class="mb-3 text-muted">Sessão e Segurança</h6>
+                    <div class="mb-4">
+                        <label for="{{ form.session_timeout_minutes.id_for_label }}" class="form-label fw-bold">{{ form.session_timeout_minutes.label }}</label>
+                        {{ form.session_timeout_minutes }}
+                        <div class="form-text text-muted">{{ form.session_timeout_minutes.help_text }}</div>
+                        {% if form.session_timeout_minutes.errors %}
+                            <div class="text-danger small mt-1">{{ form.session_timeout_minutes.errors }}</div>
+                        {% endif %}
                     </div>
-                    <div class="mb-3">
-                        <label for="timezone" class="form-label">Fuso Horário Padrão</label>
-                        <select class="form-select" id="timezone">
-                            <option value="America/Sao_Paulo" selected>America/Sao_Paulo (GMT-3)</option>
-                            <option value="UTC">UTC</option>
-                        </select>
+
+                    <hr class="my-4">
+
+                    <!-- Placeholder for future settings (kept static for visual consistency if needed, but disabled/hidden if not implemented) -->
+                    <!-- 
+                    <div class="mb-3 opacity-50">
+                        <label class="form-label">Nome do Sistema (Em breve)</label>
+                        <input type="text" class="form-control" value="OS Tickets" disabled>
                     </div>
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="maintenanceMode">
-                        <label class="form-check-label" for="maintenanceMode">Modo de Manutenção</label>
-                        <div class="form-text">Impede o acesso de usuários não administradores.</div>
-                    </div>
-                    <button type="submit" class="btn btn-primary-custom">Salvar Alterações</button>
+                    -->
+                    
+                    <button type="submit" class="btn btn-primary-custom">
+                        <i class="fas fa-save me-2"></i>Salvar Alterações
+                    </button>
                 </form>
             </div>
         </div>

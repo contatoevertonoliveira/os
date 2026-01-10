@@ -107,6 +107,20 @@ class System(models.Model):
         verbose_name = "Sistema"
         verbose_name_plural = "Sistemas"
 
+class SystemSettings(models.Model):
+    session_timeout_minutes = models.PositiveIntegerField(
+        default=30, 
+        verbose_name="Tempo de Sessão (minutos)", 
+        help_text="Tempo de inatividade para desconectar o usuário automaticamente."
+    )
+
+    def __str__(self):
+        return "Configurações do Sistema"
+
+    class Meta:
+        verbose_name = "Configuração do Sistema"
+        verbose_name_plural = "Configurações do Sistema"
+
 class Ticket(models.Model):
     STATUS_CHOICES = (
         ('open', 'Em Aberto'),

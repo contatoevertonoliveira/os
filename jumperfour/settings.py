@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-5*fx=)er&%b%7jwvzxsoizfs+4_z%&)*3!)b5=m=f_bmy1hh)3
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'tickets.middleware.SessionTimeoutMiddleware',
 ]
 
 ROOT_URLCONF = 'jumperfour.urls'
@@ -63,6 +64,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'tickets.context_processors.system_settings',
             ],
         },
     },
