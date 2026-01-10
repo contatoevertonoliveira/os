@@ -29,3 +29,4 @@ jobs:
             
             # Reinicia o serviço para pegar as alterações
             systemctl restart gunicorn
+            service nginx reload
