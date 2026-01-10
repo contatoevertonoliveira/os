@@ -12,12 +12,21 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /root/os
+            
+            # Garante que o git confie no diretório (evita erro de 'dubious ownership')
+            git config --global --add safe.directory /root/os
+            
             # Atualiza o código
             git pull origin master
+            
+            # Carrega variáveis de ambiente do arquivo .env (CRUCIAL para o migrate funcionar)
+            if [ -f .env ]; then
+              export $(grep -v '^#' .env | xargs)
+            fi
             
             # Ativa ambiente e instala dependências
             source .venv/bin/activate
