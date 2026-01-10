@@ -11,8 +11,12 @@ from .views import (
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView
 )
+from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
 urlpatterns = [
+    path('api/tickets/', TicketAPIView.as_view(), name='api_tickets'),
+    path('api/clients/', ClientAPIView.as_view(), name='api_clients'),
+    path('api/equipments/', EquipmentAPIView.as_view(), name='api_equipments'),
     path('', DashboardView.as_view(), name='dashboard'),
     
     # Tasks
