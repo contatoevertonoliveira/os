@@ -1,0 +1,31 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /root/os
+            # Atualiza o código
+            git pull origin master
+            
+            # Ativa ambiente e instala dependências
+            source .venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Aplica migrações de banco de dados e coleta estáticos
+            python manage.py migrate
+            python manage.py collectstatic --noinput
+            
+            # Reinicia o serviço para pegar as alterações
+            systemctl restart gunicorn
