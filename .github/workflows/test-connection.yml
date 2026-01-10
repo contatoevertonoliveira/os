@@ -1,0 +1,19 @@
+name: Test VPS Connection
+on: workflow_dispatch # Permite rodar manualmente pelo botão no GitHub
+
+jobs:
+  test-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check SSH Connection
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "✅ Conexão SSH estabelecida com sucesso!"
+            echo "Usuário: $(whoami)"
+            echo "Diretório atual: $(pwd)"
+            echo "Espaço em disco:"
+            df -h /
