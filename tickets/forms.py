@@ -4,18 +4,13 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings
 
-class TokenLoginForm(AuthenticationForm):
+class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
-    username = None
-    password = None
 
     def __init__(self, request=None, *args, **kwargs):
-        super().__init__(request=None, *args, **kwargs)
-        if 'username' in self.fields:
-            del self.fields['username']
-        if 'password' in self.fields:
-            del self.fields['password']
         self.request = request
+        self.user_cache = None
+        super().__init__(*args, **kwargs)
 
     def clean(self):
         token = self.cleaned_data.get('token')
@@ -31,6 +26,26 @@ class TokenLoginForm(AuthenticationForm):
                 self.confirm_login_allowed(self.user_cache)
         
         return self.cleaned_data
+    
+    def confirm_login_allowed(self, user):
+        """
+        Controls whether the given User may log in. This is a policy check,
+        independent of end-user authentication. This default behavior is to
+        allow login by active users, and reject login by inactive users.
+        
+        If the given user cannot log in, this method should raise a
+        ``forms.ValidationError``.
+        
+        If the given user may log in, this method should return None.
+        """
+        if not user.is_active:
+            raise forms.ValidationError(
+                "Esta conta está inativa.",
+                code='inactive',
+            )
+    
+    def get_user(self):
+        return self.user_cache
 
 class ClientForm(forms.ModelForm):
     class Meta:
