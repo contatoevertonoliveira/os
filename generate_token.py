@@ -1,6 +1,9 @@
 import os
 import django
+import dotenv
 from django.conf import settings
+
+dotenv.load_dotenv()
 
 # Configura o Django manualmente para scripts soltos
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'jumperfour.settings')

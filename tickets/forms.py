@@ -97,7 +97,7 @@ class TechnicianForm(forms.ModelForm):
             else:
                 profile = UserProfile(user=user)
             
-            profile.role = 'standard'
+            profile.role = 'technician'
             profile.job_title = self.cleaned_data['job_title']
             profile.station = self.cleaned_data['station']
             profile.save()
@@ -111,13 +111,13 @@ class TechnicianChoiceField(forms.ModelChoiceField):
 
 class TicketForm(forms.ModelForm):
     technician = TechnicianChoiceField(
-        queryset=User.objects.filter(profile__role='standard'),
+        queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
         required=False,
         label="Técnico Responsável",
         empty_label="Selecione um técnico"
     )
     requester = TechnicianChoiceField(
-        queryset=User.objects.filter(profile__role='standard'),
+        queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
         required=False,
         label="Solicitante",
         empty_label="Selecione um solicitante"

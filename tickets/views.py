@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView, View
+from django.contrib.messages.views import SuccessMessageMixin
+from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
@@ -14,8 +16,37 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # Counts
         context['total_tickets'] = Ticket.objects.count()
-        context['open_tickets'] = Ticket.objects.filter(status='open').count()
+        context['tickets_open'] = Ticket.objects.filter(status='open').count()
+        context['tickets_pending'] = Ticket.objects.filter(status='pending').count()
+        context['tickets_finished'] = Ticket.objects.filter(status='finished').count()
+        
+        # Charts Data - Status
+        status_counts = []
+        status_labels = []
+        for status_code, status_label in Ticket.STATUS_CHOICES:
+            count = Ticket.objects.filter(status=status_code).count()
+            status_counts.append(count)
+            status_labels.append(status_label)
+        
+        context['chart_status_labels'] = status_labels
+        context['chart_status_data'] = status_counts
+        
+        # Charts Data - Techs
+        techs = User.objects.filter(profile__role='technician')
+        tech_labels = []
+        tech_data = []
+        for tech in techs:
+            count = Ticket.objects.filter(technician=tech).count()
+            if count > 0:
+                tech_labels.append(tech.username)
+                tech_data.append(count)
+                
+        context['chart_tech_labels'] = tech_labels
+        context['chart_tech_data'] = tech_data
+        
         context['my_tickets'] = Ticket.objects.filter(technician=self.request.user).count()
         return context
 
@@ -45,22 +76,28 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     model = Ticket
     template_name = 'tickets/ticket_detail.html'
 
-class TicketCreateView(LoginRequiredMixin, CreateView):
+class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Ticket
     form_class = TicketForm
     template_name = 'tickets/ticket_form.html'
     success_url = reverse_lazy('ticket_list')
+    success_message = "Ordem de Serviço criada com sucesso!"
 
-class TicketUpdateView(LoginRequiredMixin, UpdateView):
+class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
     form_class = TicketForm
     template_name = 'tickets/ticket_form.html'
     success_url = reverse_lazy('ticket_list')
+    success_message = "Ordem de Serviço atualizada com sucesso!"
 
 class TicketDeleteView(LoginRequiredMixin, DeleteView):
     model = Ticket
     template_name = 'ticket_confirm_delete.html'
     success_url = reverse_lazy('ticket_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, "Ordem de Serviço excluída com sucesso!")
+        return super().form_valid(form)
 
 class TicketModalView(LoginRequiredMixin, DetailView):
     model = Ticket
@@ -160,29 +197,35 @@ class ProblemTypeDeleteView(LoginRequiredMixin, DeleteView):
 
 # Technician Views
 class TechnicianListView(LoginRequiredMixin, ListView):
-    model = UserProfile
+    model = User
     template_name = 'cadastros/technician_list.html'
     context_object_name = 'technicians'
     
     def get_queryset(self):
-        return UserProfile.objects.filter(role__in=['technician', 'standard']) # Adjust based on logic
+        return User.objects.filter(profile__role__in=['technician', 'standard'])
 
-class TechnicianCreateView(LoginRequiredMixin, CreateView):
+class TechnicianCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = User
     form_class = TechnicianForm
     template_name = 'cadastros/technician_form.html'
     success_url = reverse_lazy('technician_list')
+    success_message = "Técnico cadastrado com sucesso!"
 
-class TechnicianUpdateView(LoginRequiredMixin, UpdateView):
+class TechnicianUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = User
     form_class = TechnicianForm
     template_name = 'cadastros/technician_form.html'
     success_url = reverse_lazy('technician_list')
+    success_message = "Técnico atualizado com sucesso!"
 
 class TechnicianDeleteView(LoginRequiredMixin, DeleteView):
     model = User
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('technician_list')
+
+    def form_valid(self, form):
+        messages.success(self.request, "Técnico excluído com sucesso!")
+        return super().form_valid(form)
 
 # System Views
 class SystemListView(LoginRequiredMixin, ListView):

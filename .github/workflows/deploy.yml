@@ -23,11 +23,6 @@ jobs:
             # Atualiza o código
             git pull origin master
             
-            # Carrega variáveis de ambiente do arquivo .env (CRUCIAL para o migrate funcionar)
-            if [ -f .env ]; then
-              export $(grep -v '^#' .env | xargs)
-            fi
-            
             # Ativa ambiente e instala dependências
             source .venv/bin/activate
             pip install -r requirements.txt
