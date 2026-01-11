@@ -134,7 +134,6 @@ class TicketForm(forms.ModelForm):
         widgets = {
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
-            'estimated_time': forms.TextInput(attrs={'placeholder': 'HH:MM:SS ou DD HH:MM:SS'}),
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
         }
     
@@ -143,6 +142,51 @@ class TicketForm(forms.ModelForm):
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
+
+    def clean_estimated_time(self):
+        data = self.cleaned_data.get('estimated_time')
+        if not data:
+            return None
+            
+        if isinstance(data, timedelta):
+            return data
+            
+        if isinstance(data, str):
+            # Try standard Django duration parsing first (if it was a DurationField)
+            # But since we made it CharField, we parse manually
+            
+            # Check for standard HH:MM:SS
+            if re.match(r'^\d+:\d+(:\d+)?$', data):
+                parts = list(map(int, data.split(':')))
+                if len(parts) == 2:
+                    return timedelta(hours=parts[0], minutes=parts[1])
+                elif len(parts) == 3:
+                    return timedelta(hours=parts[0], minutes=parts[1], seconds=parts[2])
+            
+            # Custom formats: 2h, 2.5h, 2h30m, 30m
+            data_clean = data.lower().replace(' ', '')
+            total_seconds = 0
+            matched = False
+            
+            # Extract hours
+            h_match = re.search(r'(\d+(?:\.\d+)?)h', data_clean)
+            if h_match:
+                total_seconds += float(h_match.group(1)) * 3600
+                matched = True
+                
+            # Extract minutes
+            m_match = re.search(r'(\d+(?:\.\d+)?)m', data_clean)
+            if m_match:
+                total_seconds += float(m_match.group(1)) * 60
+                matched = True
+                
+            if matched and total_seconds > 0:
+                return timedelta(seconds=total_seconds)
+                
+            # If no custom format matched, try to interpret as int minutes if purely numeric (optional, but maybe risky)
+            # Let's stick to explicit formats for now, or fallback to standard
+            
+        return data  # Return string if parsing failed (will cause model validation error probably)
 
 class TicketUpdateForm(TicketForm):
     class Meta(TicketForm.Meta):

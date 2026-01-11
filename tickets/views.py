@@ -10,6 +10,10 @@ from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
+from django.utils import timezone
+from datetime import timedelta, datetime
+from django.db.models.functions import TruncDay
+from django.db.models import Count, Q
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard.html'
@@ -17,54 +21,146 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
+        # Period handling
+        period = self.request.GET.get('period', 'week')
+        now = timezone.now()
+        
+        # Set default range (week)
+        start_date = now - timedelta(days=7)
+        end_date = now
+        
+        if period == 'today':
+            start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = now
+        elif period == 'yesterday':
+            start_date = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = (now - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=999999)
+        elif period == 'week':
+            start_date = now - timedelta(days=7)
+            end_date = now
+        elif period == 'month':
+            start_date = now - timedelta(days=30)
+            end_date = now
+        elif period == 'year':
+            start_date = now - timedelta(days=365)
+            end_date = now
+        elif period == 'custom':
+            start_str = self.request.GET.get('start_date')
+            end_str = self.request.GET.get('end_date')
+            if start_str and end_str:
+                try:
+                    start_date = datetime.strptime(start_str, '%Y-%m-%d')
+                    start_date = timezone.make_aware(start_date)
+                    end_date = datetime.strptime(end_str, '%Y-%m-%d')
+                    end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                    end_date = timezone.make_aware(end_date)
+                except ValueError:
+                    pass # Fallback to default
+        
+        context['selected_period'] = period
+        context['start_date'] = start_date
+        context['end_date'] = end_date
+        
+        # Filter Tickets
+        tickets_qs = Ticket.objects.filter(created_at__range=(start_date, end_date))
+        
         # Counts
-        context['total_tickets'] = Ticket.objects.count()
-        context['tickets_open'] = Ticket.objects.filter(status='open').count()
-        context['tickets_pending'] = Ticket.objects.filter(status='pending').count()
-        context['tickets_finished'] = Ticket.objects.filter(status='finished').count()
+        context['total_tickets'] = tickets_qs.count()
+        context['tickets_open'] = tickets_qs.filter(status='open').count()
+        context['tickets_pending'] = tickets_qs.filter(status='pending').count()
+        context['tickets_finished'] = tickets_qs.filter(status='finished').count()
         
         # Charts Data - Status
         status_counts = []
         status_labels = []
         for status_code, status_label in Ticket.STATUS_CHOICES:
-            count = Ticket.objects.filter(status=status_code).count()
+            count = tickets_qs.filter(status=status_code).count()
             status_counts.append(count)
             status_labels.append(status_label)
         
         context['chart_status_labels'] = status_labels
         context['chart_status_data'] = status_counts
         
-        # Charts Data - Techs
+        # Charts Data - Tech Productivity (Line Chart with Photos)
+        # We need data grouped by day for each tech
         techs = User.objects.filter(profile__role='technician')
-        tech_labels = []
-        tech_data = []
-        for tech in techs:
-            count = Ticket.objects.filter(technician=tech).count()
-            if count > 0:
-                tech_labels.append(tech.username)
-                tech_data.append(count)
-                
-        context['chart_tech_labels'] = tech_labels
-        context['chart_tech_data'] = tech_data
+        tech_chart_datasets = []
         
-        # Charts Data - Systems
+        # Generate date labels for the X-axis (all days in range)
+        date_labels = []
+        current_d = start_date
+        while current_d <= end_date:
+            date_labels.append(current_d.strftime('%d/%m'))
+            current_d += timedelta(days=1)
+            
+        context['chart_tech_labels'] = date_labels
+        
+        for tech in techs:
+            # Get completed tickets for this tech in the period
+            tech_tickets = tickets_qs.filter(technician=tech, status='finished')
+            if tech_tickets.exists():
+                # Group by day
+                daily_counts = tech_tickets.annotate(day=TruncDay('created_at')).values('day').annotate(count=Count('id')).order_by('day')
+                
+                # Map counts to the date_labels
+                data_points = []
+                counts_dict = {item['day'].strftime('%d/%m'): item['count'] for item in daily_counts}
+                
+                for label in date_labels:
+                    data_points.append(counts_dict.get(label, 0))
+                
+                # Tech Photo URL
+                photo_url = None
+                if hasattr(tech, 'profile') and tech.profile.photo:
+                    photo_url = tech.profile.photo.url
+                
+                tech_chart_datasets.append({
+                    'label': tech.username,
+                    'data': data_points,
+                    'photo': photo_url,
+                    'borderColor': tech.profile.color if tech.profile.color else '#26923B'
+                })
+        
+        context['chart_tech_datasets'] = tech_chart_datasets
+        
+        # Charts Data - Systems (Failures: Resolved vs Unresolved)
         systems = System.objects.all()
         system_labels = []
-        system_data = []
-        system_colors = []
+        system_resolved = []
+        system_unresolved = []
         
         for system in systems:
-            count = Ticket.objects.filter(systems=system).count()
-            if count > 0:
-                system_labels.append(system.name)
-                system_data.append(count)
-                system_colors.append(system.color if system.color else '#6c757d')
+            sys_tickets = tickets_qs.filter(systems=system)
+            if sys_tickets.exists():
+                resolved = sys_tickets.filter(status='finished').count()
+                unresolved = sys_tickets.filter(Q(status='open') | Q(status='pending')).count()
                 
-        context['chart_system_labels'] = system_labels
-        context['chart_system_data'] = system_data
-        context['chart_system_colors'] = system_colors
+                system_labels.append(system.name)
+                system_resolved.append(resolved)
+                system_unresolved.append(unresolved)
+                
+        context['chart_system_labels'] = system_labels # Keeping this for the Polar chart if needed, or reusing
+        context['chart_system_data'] = [] # Placeholder if we remove the Polar chart or keep it
+        # Actually, let's keep the Polar chart as "Tickets by System" (volume) 
+        # and add the new one as "System Health" (Resolved vs Unresolved)
         
-        context['my_tickets'] = Ticket.objects.filter(technician=self.request.user).count()
+        # Re-populating the Polar chart data (Volume)
+        polar_data = []
+        polar_colors = []
+        for system in systems:
+             count = tickets_qs.filter(systems=system).count()
+             if count > 0:
+                 polar_data.append(count)
+                 polar_colors.append(system.color if system.color else '#6c757d')
+        context['chart_system_polar_data'] = polar_data
+        context['chart_system_colors'] = polar_colors
+        
+        # New System Health Data
+        context['chart_sys_health_labels'] = system_labels
+        context['chart_sys_resolved'] = system_resolved
+        context['chart_sys_unresolved'] = system_unresolved
+        
+        context['my_tickets'] = tickets_qs.filter(technician=self.request.user).count()
         return context
 
 class TokenLoginView(LoginView):

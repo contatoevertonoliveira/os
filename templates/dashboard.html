@@ -114,9 +114,27 @@
                 <i class="fas fa-download me-1"></i> Exportar
             </button>
         </div>
-        <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle">
-            <i class="fas fa-calendar me-1"></i> Esta semana
-        </button>
+        <div class="dropdown d-inline-block">
+            <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-calendar me-1"></i> 
+                {% if selected_period == 'today' %}Hoje
+                {% elif selected_period == 'yesterday' %}Ontem
+                {% elif selected_period == 'week' %}Esta semana
+                {% elif selected_period == 'month' %}Este mês
+                {% elif selected_period == 'year' %}Este ano
+                {% elif selected_period == 'custom' %}Personalizado
+                {% else %}Esta semana{% endif %}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="periodDropdown">
+                <li><a class="dropdown-item {% if selected_period == 'today' %}active{% endif %}" href="?period=today">Hoje</a></li>
+                <li><a class="dropdown-item {% if selected_period == 'yesterday' %}active{% endif %}" href="?period=yesterday">Ontem</a></li>
+                <li><a class="dropdown-item {% if selected_period == 'week' %}active{% endif %}" href="?period=week">Esta semana</a></li>
+                <li><a class="dropdown-item {% if selected_period == 'month' %}active{% endif %}" href="?period=month">Este mês</a></li>
+                <li><a class="dropdown-item {% if selected_period == 'year' %}active{% endif %}" href="?period=year">Este ano</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item {% if selected_period == 'custom' %}active{% endif %}" href="#" data-bs-toggle="modal" data-bs-target="#customPeriodModal">Personalizado...</a></li>
+            </ul>
+        </div>
     </div>
 </div>
 
@@ -196,20 +214,28 @@
         <div class="card chart-card">
             <div class="card-header chart-header">
                 <span><i class="fas fa-chart-line me-2 text-success"></i>Produtividade Recente</span>
-                 <!-- Placeholder for future functionality -->
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
-             <!-- Using a different visualization here or just moving Tech chart here? 
-                  Tech chart is "Productivity by Technician", maybe better as Bar or Line. 
-                  Let's put Tech chart here but keep it as Line or Bar.
-                  Actually, user wanted "Professional" look. 
-                  Let's keep Tech chart but maybe vertical bar? 
-                  Or keep the previous layout but split 4-4-4?
-                  Tech chart was "Tickets assigned".
-             -->
             <div class="card-body chart-body">
                  <div style="height: 300px; position: relative;">
                     <canvas id="techChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Health Row -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card chart-card">
+            <div class="card-header chart-header">
+                <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
+                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
+            </div>
+            <div class="card-body chart-body">
+                 <div style="height: 350px; position: relative;">
+                    <canvas id="systemHealthChart"></canvas>
                 </div>
             </div>
         </div>
@@ -225,6 +251,35 @@
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked>
         <label class="form-check-label" for="autoRefreshToggle">Auto-refresh (60s)</label>
+    </div>
+</div>
+
+<!-- Custom Period Modal -->
+<div class="modal fade" id="customPeriodModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Período Personalizado</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="" method="GET">
+                <div class="modal-body">
+                    <input type="hidden" name="period" value="custom">
+                    <div class="mb-3">
+                        <label class="form-label">Data Início</label>
+                        <input type="date" class="form-control" name="start_date" required value="{{ start_date|date:'Y-m-d' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" class="form-control" name="end_date" required value="{{ end_date|date:'Y-m-d' }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -369,32 +424,43 @@
         }]
     });
 
-    // Tech Chart (Line with Area/Depth)
+    // Tech Chart (Line with Photos)
     const ctxTech = document.getElementById('techChart').getContext('2d');
     
-    // Gradient for Line Chart Fill
-    const gradientTech = ctxTech.createLinearGradient(0, 0, 0, 300);
-    gradientTech.addColorStop(0, 'rgba(38, 196, 91, 0.4)');
-    gradientTech.addColorStop(1, 'rgba(38, 196, 91, 0.0)');
+    const techDatasets = [];
+    
+    {% for dataset in chart_tech_datasets %}
+        var img_{{ forloop.counter }} = new Image();
+        // Use a transparent placeholder initially or the actual URL
+        img_{{ forloop.counter }}.src = '{{ dataset.photo|default:"" }}';
+        
+        // If no photo, use a default style (circle) by setting pointStyle to 'circle' 
+        // Logic: if src is empty, pointStyle will be 'circle' in the object below? 
+        // No, we need to handle it.
+        var pointStyle_{{ forloop.counter }} = 'circle';
+        if ('{{ dataset.photo }}' !== 'None' && '{{ dataset.photo }}' !== '') {
+            pointStyle_{{ forloop.counter }} = img_{{ forloop.counter }};
+        }
+
+        techDatasets.push({
+            label: '{{ dataset.label }}',
+            data: {{ dataset.data|safe }},
+            borderColor: '{{ dataset.borderColor }}',
+            backgroundColor: '{{ dataset.borderColor }}',
+            borderWidth: 3,
+            pointStyle: pointStyle_{{ forloop.counter }},
+            pointRadius: 15,
+            pointHoverRadius: 20,
+            fill: false,
+            tension: 0.4
+        });
+    {% endfor %}
 
     const techChart = new Chart(ctxTech, {
         type: 'line',
         data: {
             labels: {{ chart_tech_labels|safe }},
-            datasets: [{
-                label: 'Tickets',
-                data: {{ chart_tech_data|safe }},
-                backgroundColor: gradientTech,
-                borderColor: '#26923B',
-                borderWidth: 3,
-                pointBackgroundColor: '#fff',
-                pointBorderColor: '#26923B',
-                pointBorderWidth: 2,
-                pointRadius: 5,
-                pointHoverRadius: 7,
-                fill: true,
-                tension: 0.4
-            }]
+            datasets: techDatasets
         },
         options: {
             responsive: true,
@@ -411,7 +477,10 @@
                 }
             },
             plugins: {
-                legend: { display: false },
+                legend: { 
+                    position: 'bottom',
+                    labels: { usePointStyle: true, boxWidth: 10 }
+                },
                 tooltip: {
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
                     titleColor: '#000',
@@ -419,9 +488,70 @@
                     borderColor: '#ddd',
                     borderWidth: 1,
                     padding: 10,
-                    displayColors: false
+                    usePointStyle: true
                 }
             }
+        }
+    });
+
+    // System Health Chart (Stacked Bar)
+    const ctxSysHealth = document.getElementById('systemHealthChart').getContext('2d');
+    
+    const sysHealthChart = new Chart(ctxSysHealth, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_sys_health_labels|safe }},
+            datasets: [
+                {
+                    label: 'Resolvidos',
+                    data: {{ chart_sys_resolved|safe }},
+                    backgroundColor: '#26923B', // Success Green
+                    borderRadius: 4,
+                },
+                {
+                    label: 'Pendentes/Abertos',
+                    data: {{ chart_sys_unresolved|safe }},
+                    backgroundColor: '#dc3545', // Danger Red
+                    borderRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: { display: false }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                }
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#000',
+                    bodyColor: '#000',
+                    borderColor: '#ddd',
+                    borderWidth: 1
+                }
+            },
+            plugins: [{
+                id: 'shadowPlugin',
+                beforeDraw: (chart) => {
+                    const ctx = chart.ctx;
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+                    ctx.shadowBlur = 5;
+                    ctx.shadowOffsetX = 2;
+                    ctx.shadowOffsetY = 2;
+                }
+            }]
         }
     });
 
