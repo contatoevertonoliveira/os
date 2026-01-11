@@ -43,9 +43,9 @@
                             <a href="{% url 'technician_update' tech.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </a>
-                            <a href="{% url 'technician_delete' tech.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'technician_delete' tech.id %}', '{{ tech.username|escapejs }}')">
                                 <i class="fas fa-trash"></i>
-                            </a>
+                            </button>
                         </td>
                     </tr>
                     {% empty %}

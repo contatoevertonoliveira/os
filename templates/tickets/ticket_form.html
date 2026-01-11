@@ -240,6 +240,50 @@
 </div>
 {% endblock %}
 
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const startDateInput = document.getElementById('id_start_date');
+        const deadlineInput = document.getElementById('id_deadline');
+        const estimatedTimeInput = document.getElementById('id_estimated_time');
+
+        function calculateEstimatedTime() {
+            if (startDateInput.value && deadlineInput.value) {
+                const start = new Date(startDateInput.value + 'T00:00:00');
+                const end = new Date(deadlineInput.value + 'T00:00:00');
+                
+                // Calculate difference in milliseconds
+                const diffTime = end - start;
+                // Convert to days (add 1 to include both start and end dates)
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; 
+
+                if (diffDays > 0) {
+                    // 8 hours 48 minutes per day = 528 minutes per day
+                    const minutesPerDay = 528;
+                    const totalMinutes = diffDays * minutesPerDay;
+                    
+                    const hours = Math.floor(totalMinutes / 60);
+                    const minutes = totalMinutes % 60;
+                    
+                    // Format: HH:MM:00
+                    const formattedTime = `${hours}:${minutes.toString().padStart(2, '0')}:00`;
+                    estimatedTimeInput.value = formattedTime;
+                } else {
+                    // If end date is before start date, do nothing or clear? 
+                    // Let's clear to avoid confusion
+                    estimatedTimeInput.value = '';
+                }
+            }
+        }
+
+        if (startDateInput && deadlineInput && estimatedTimeInput) {
+            startDateInput.addEventListener('change', calculateEstimatedTime);
+            deadlineInput.addEventListener('change', calculateEstimatedTime);
+        }
+    });
+</script>
+{% endblock %}
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Define colors from template

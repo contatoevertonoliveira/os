@@ -53,9 +53,9 @@
                                 <i class="fas fa-eye"></i>
                             </button>
                             {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
-                            <a href="{% url 'ticket_delete' ticket.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'ticket_delete' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}')">
                                 <i class="fas fa-trash"></i>
-                            </a>
+                            </button>
                             {% endif %}
                         </td>
                     </tr>

@@ -192,8 +192,8 @@ class TicketUpdateForm(TicketForm):
     class Meta(TicketForm.Meta):
         fields = TicketForm.Meta.fields + ['finished_at']
         widgets = {
-            'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
-            'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'estimated_time': forms.TextInput(attrs={'placeholder': 'HH:MM:SS ou DD HH:MM:SS'}),
             'finished_at': forms.DateTimeInput(
                 attrs={'type': 'datetime-local'},

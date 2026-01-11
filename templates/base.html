@@ -542,8 +542,45 @@
         {% endif %}
     </div>
 
+    <!-- Generic Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteConfirmationModal" tabindex="-1" aria-labelledby="deleteConfirmationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteConfirmationModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirmar Exclusão
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">Tem certeza que deseja excluir <strong id="deleteItemName">este item</strong>?</p>
+                    <p class="text-muted small mt-2 mb-0">Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <form id="deleteForm" method="post" action="">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Excluir</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function confirmDelete(url, itemName) {
+            const modal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
+            const deleteForm = document.getElementById('deleteForm');
+            const deleteItemName = document.getElementById('deleteItemName');
+            
+            deleteForm.action = url;
+            deleteItemName.textContent = itemName || 'este item';
+            
+            modal.show();
+        }
+    </script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
