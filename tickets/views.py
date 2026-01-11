@@ -22,6 +22,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 class TokenLoginView(LoginView):
     template_name = 'login.html'
     redirect_authenticated_user = True
+    
+    def form_valid(self, form):
+        # Garante que o usuário está ativo
+        user = form.get_user()
+        if not user.is_active:
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('dashboard')
 
 # Ticket Views
 class TicketListView(LoginRequiredMixin, ListView):
