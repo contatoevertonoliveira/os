@@ -135,7 +135,7 @@ class TicketForm(forms.ModelForm):
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'estimated_time': forms.TextInput(attrs={'placeholder': 'HH:MM:SS ou DD HH:MM:SS'}),
-            'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
+            'systems': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -151,7 +151,7 @@ class TicketUpdateForm(TicketForm):
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'estimated_time': forms.TextInput(attrs={'placeholder': 'HH:MM:SS ou DD HH:MM:SS'}),
-            'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
+            'systems': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'}),
             'finished_at': forms.DateTimeInput(
                 attrs={'type': 'datetime-local'},
                 format='%Y-%m-%dT%H:%M'

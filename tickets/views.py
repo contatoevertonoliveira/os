@@ -72,9 +72,20 @@ class TicketListView(LoginRequiredMixin, ListView):
     context_object_name = 'tickets'
     ordering = ['-created_at']
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Passa URLs de retorno para templates que possam ser reutilizados
+        return context
+
 class TicketDetailView(LoginRequiredMixin, DetailView):
     model = Ticket
     template_name = 'tickets/ticket_detail.html'
+    context_object_name = 'ticket'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('ticket_list')
+        return context
 
 class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Ticket
@@ -83,18 +94,36 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_url = reverse_lazy('ticket_list')
     success_message = "Ordem de Serviço criada com sucesso!"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Nova Ordem de Serviço"
+        context['back_url'] = reverse_lazy('ticket_list')
+        return context
+
 class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
-    form_class = TicketForm
+    form_class = TicketUpdateForm
     template_name = 'tickets/ticket_form.html'
     success_url = reverse_lazy('ticket_list')
     success_message = "Ordem de Serviço atualizada com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar OS #{self.object.formatted_id}"
+        context['back_url'] = reverse_lazy('ticket_list')
+        context['updates'] = self.object.updates.all()
+        return context
 
 class TicketDeleteView(LoginRequiredMixin, DeleteView):
     model = Ticket
     template_name = 'ticket_confirm_delete.html'
     success_url = reverse_lazy('ticket_list')
     
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('ticket_list')
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, "Ordem de Serviço excluída com sucesso!")
         return super().form_valid(form)
@@ -109,22 +138,41 @@ class ClientListView(LoginRequiredMixin, ListView):
     template_name = 'cadastros/client_list.html'
     context_object_name = 'clients'
 
-class ClientCreateView(LoginRequiredMixin, CreateView):
+class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Client
     form_class = ClientForm
     template_name = 'cadastros/client_form.html'
     success_url = reverse_lazy('client_list')
+    success_message = "Cliente cadastrado com sucesso!"
 
-class ClientUpdateView(LoginRequiredMixin, UpdateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Cliente"
+        context['back_url'] = reverse_lazy('client_list')
+        return context
+
+class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Client
     form_class = ClientForm
     template_name = 'cadastros/client_form.html'
     success_url = reverse_lazy('client_list')
+    success_message = "Cliente atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Cliente: {self.object.name}"
+        context['back_url'] = reverse_lazy('client_list')
+        return context
 
 class ClientDeleteView(LoginRequiredMixin, DeleteView):
     model = Client
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('client_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('client_list')
+        return context
 
 # Equipment Views
 class EquipmentListView(LoginRequiredMixin, ListView):
@@ -132,22 +180,41 @@ class EquipmentListView(LoginRequiredMixin, ListView):
     template_name = 'cadastros/equipment_list.html'
     context_object_name = 'equipments'
 
-class EquipmentCreateView(LoginRequiredMixin, CreateView):
+class EquipmentCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Equipment
     fields = '__all__'
     template_name = 'cadastros/equipment_form.html'
     success_url = reverse_lazy('equipment_list')
+    success_message = "Equipamento cadastrado com sucesso!"
 
-class EquipmentUpdateView(LoginRequiredMixin, UpdateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Equipamento"
+        context['back_url'] = reverse_lazy('equipment_list')
+        return context
+
+class EquipmentUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Equipment
     fields = '__all__'
     template_name = 'cadastros/equipment_form.html'
     success_url = reverse_lazy('equipment_list')
+    success_message = "Equipamento atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Equipamento: {self.object.name}"
+        context['back_url'] = reverse_lazy('equipment_list')
+        return context
 
 class EquipmentDeleteView(LoginRequiredMixin, DeleteView):
     model = Equipment
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('equipment_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('equipment_list')
+        return context
 
 # OrderType Views
 class OrderTypeListView(LoginRequiredMixin, ListView):
@@ -155,22 +222,41 @@ class OrderTypeListView(LoginRequiredMixin, ListView):
     template_name = 'cadastros/ordertype_list.html'
     context_object_name = 'ordertypes'
 
-class OrderTypeCreateView(LoginRequiredMixin, CreateView):
+class OrderTypeCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = OrderType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('ordertype_list')
+    success_message = "Tipo de Ordem cadastrado com sucesso!"
 
-class OrderTypeUpdateView(LoginRequiredMixin, UpdateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Tipo de Ordem"
+        context['back_url'] = reverse_lazy('ordertype_list')
+        return context
+
+class OrderTypeUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = OrderType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('ordertype_list')
+    success_message = "Tipo de Ordem atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Tipo de Ordem: {self.object.name}"
+        context['back_url'] = reverse_lazy('ordertype_list')
+        return context
 
 class OrderTypeDeleteView(LoginRequiredMixin, DeleteView):
     model = OrderType
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('ordertype_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('ordertype_list')
+        return context
 
 # ProblemType Views
 class ProblemTypeListView(LoginRequiredMixin, ListView):
@@ -178,22 +264,41 @@ class ProblemTypeListView(LoginRequiredMixin, ListView):
     template_name = 'cadastros/problemtype_list.html'
     context_object_name = 'problemtypes'
 
-class ProblemTypeCreateView(LoginRequiredMixin, CreateView):
+class ProblemTypeCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = ProblemType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('problemtype_list')
+    success_message = "Tipo de Problema cadastrado com sucesso!"
 
-class ProblemTypeUpdateView(LoginRequiredMixin, UpdateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Tipo de Problema"
+        context['back_url'] = reverse_lazy('problemtype_list')
+        return context
+
+class ProblemTypeUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = ProblemType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('problemtype_list')
+    success_message = "Tipo de Problema atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Tipo de Problema: {self.object.name}"
+        context['back_url'] = reverse_lazy('problemtype_list')
+        return context
 
 class ProblemTypeDeleteView(LoginRequiredMixin, DeleteView):
     model = ProblemType
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('problemtype_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('problemtype_list')
+        return context
 
 # Technician Views
 class TechnicianListView(LoginRequiredMixin, ListView):
@@ -211,6 +316,12 @@ class TechnicianCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_url = reverse_lazy('technician_list')
     success_message = "Técnico cadastrado com sucesso!"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Técnico"
+        context['back_url'] = reverse_lazy('technician_list')
+        return context
+
 class TechnicianUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = User
     form_class = TechnicianForm
@@ -218,10 +329,21 @@ class TechnicianUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     success_url = reverse_lazy('technician_list')
     success_message = "Técnico atualizado com sucesso!"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Técnico: {self.object.first_name}"
+        context['back_url'] = reverse_lazy('technician_list')
+        return context
+
 class TechnicianDeleteView(LoginRequiredMixin, DeleteView):
     model = User
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('technician_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('technician_list')
+        return context
 
     def form_valid(self, form):
         messages.success(self.request, "Técnico excluído com sucesso!")
@@ -233,22 +355,41 @@ class SystemListView(LoginRequiredMixin, ListView):
     template_name = 'cadastros/system_list.html'
     context_object_name = 'systems'
 
-class SystemCreateView(LoginRequiredMixin, CreateView):
+class SystemCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = System
     fields = '__all__'
     template_name = 'cadastros/system_form.html'
     success_url = reverse_lazy('system_list')
+    success_message = "Sistema cadastrado com sucesso!"
 
-class SystemUpdateView(LoginRequiredMixin, UpdateView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Sistema"
+        context['back_url'] = reverse_lazy('system_list')
+        return context
+
+class SystemUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = System
     fields = '__all__'
     template_name = 'cadastros/system_form.html'
     success_url = reverse_lazy('system_list')
+    success_message = "Sistema atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Sistema: {self.object.name}"
+        context['back_url'] = reverse_lazy('system_list')
+        return context
 
 class SystemDeleteView(LoginRequiredMixin, DeleteView):
     model = System
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('system_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('system_list')
+        return context
 
 # Profile & Settings
 class ProfileView(LoginRequiredMixin, DetailView):
@@ -260,14 +401,22 @@ class ProfileView(LoginRequiredMixin, DetailView):
             return self.request.user.profile
         return None
 
-class SettingsView(LoginRequiredMixin, TemplateView):
+class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     template_name = 'settings.html'
+    form_class = SystemSettingsForm
+    success_url = reverse_lazy('settings')
+    success_message = "Configurações atualizadas com sucesso!"
+    
+    def get_object(self, queryset=None):
+        obj, created = SystemSettings.objects.get_or_create(pk=1)
+        return obj
 
 # Tasks
 class TaskListView(LoginRequiredMixin, ListView):
-    model = Ticket # Placeholder
+    model = Ticket
     template_name = 'tasks/task_list.html'
-    context_object_name = 'tasks'
+    context_object_name = 'tickets'  # Corrigido para corresponder ao template que usa 'tickets'
+    ordering = ['client__name']  # Ordenação necessária para o regroup no template
 
 class TaskFavoriteView(LoginRequiredMixin, View):
     def post(self, request, pk):

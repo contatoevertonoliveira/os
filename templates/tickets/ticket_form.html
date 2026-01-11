@@ -32,9 +32,9 @@
                                     <div class="text-danger small">{{ form.client.errors }}</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <label for="{{ form.system.id_for_label }}" class="form-label small fw-bold mb-1">Sistema</label>
-                                    {% render_field form.system class="form-select form-select-sm" %}
-                                    <div class="text-danger small">{{ form.system.errors }}</div>
+                                    <label for="{{ form.systems.id_for_label }}" class="form-label small fw-bold mb-1">Sistemas</label>
+                                    {% render_field form.systems class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.systems.errors }}</div>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
@@ -148,7 +148,7 @@
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-                            <a href="{% url 'ticket_list' %}" class="btn btn-light border px-4 btn-sm">Cancelar</a>
+                            <a href="{{ back_url }}" class="btn btn-light border px-4 btn-sm">Cancelar</a>
                             <button type="submit" class="btn btn-primary-custom px-5 btn-sm fw-bold">
                                 <i class="fas fa-save me-2"></i>Salvar
                             </button>
