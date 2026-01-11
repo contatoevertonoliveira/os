@@ -176,7 +176,7 @@
                     {% endif %}
 
                     <div class="mt-4 pt-3 border-top text-end">
-                        <button type="submit" class="btn btn-primary-custom btn-sm px-4 fw-bold">
+                        <button type="submit" name="save_action" value="close" class="btn btn-primary-custom btn-sm px-4 fw-bold">
                             <i class="fas fa-save me-1"></i> Salvar Alterações
                         </button>
                     </div>
@@ -298,7 +298,7 @@
                         </div>
                         <div class="d-flex gap-2">
                             <input type="file" name="evolution_image" class="form-control form-control-sm w-75">
-                            <button type="submit" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
+                            <button type="submit" name="save_action" value="stay" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
                                 <i class="fas fa-paper-plane"></i>
                             </button>
                         </div>
@@ -315,22 +315,53 @@
                                 {% for update in updates %}
                                 <div class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
                                     <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
-                                    <div class="card shadow-sm border-0">
+                                    <div class="card shadow-sm border-0 group-hover-actions">
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between mb-1">
                                                 <span class="fw-bold small text-primary">
                                                     {{ update.created_by.get_full_name|default:update.created_by.username }}
                                                 </span>
-                                                <small class="text-muted" style="font-size: 0.7rem;">
-                                                    {{ update.created_at|date:"d/m H:i" }}
-                                                </small>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <small class="text-muted" style="font-size: 0.7rem;">
+                                                        {{ update.created_at|date:"d/m H:i" }}
+                                                    </small>
+                                                    
+                                                    <!-- Actions (Visible on Hover or Toggle) -->
+                                                    <div class="update-actions">
+                                                        <button type="button" class="btn btn-link p-0 text-secondary" onclick="toggleEditUpdate('{{ update.id }}')" title="Editar">
+                                                            <i class="fas fa-pencil-alt fa-xs"></i>
+                                                        </button>
+                                                        <form action="{% url 'ticket_update_delete' update.id %}" method="post" class="d-inline update-delete-form" onsubmit="return confirm('Excluir esta evolução?');">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-link p-0 text-danger ms-1" title="Excluir">
+                                                                <i class="fas fa-trash fa-xs"></i>
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
-                                            {% if update.image %}
-                                                <a href="{{ update.image.url }}" target="_blank" class="badge bg-light text-secondary border text-decoration-none mt-1">
-                                                    <i class="fas fa-paperclip"></i> Anexo
-                                                </a>
-                                            {% endif %}
+                                            
+                                            <!-- View Mode -->
+                                            <div id="update-view-{{ update.id }}">
+                                                <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
+                                                {% if update.image %}
+                                                    <a href="{{ update.image.url }}" target="_blank" class="badge bg-light text-secondary border text-decoration-none mt-1">
+                                                        <i class="fas fa-paperclip"></i> Anexo
+                                                    </a>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <!-- Edit Mode -->
+                                            <div id="update-edit-{{ update.id }}" class="d-none mt-2">
+                                                <form action="{% url 'ticket_update_edit' update.id %}" method="post" class="update-edit-form">
+                                                    {% csrf_token %}
+                                                    <textarea name="description" class="form-control form-control-sm mb-2" rows="3">{{ update.description }}</textarea>
+                                                    <div class="d-flex justify-content-end gap-1">
+                                                        <button type="button" class="btn btn-sm btn-light border" onclick="toggleEditUpdate('{{ update.id }}')">Cancelar</button>
+                                                        <button type="submit" class="btn btn-sm btn-primary">Salvar</button>
+                                                    </div>
+                                                </form>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -363,5 +394,13 @@
     }
     .modal-body::-webkit-scrollbar-thumb:hover {
         background: #bbb;
+    }
+    
+    /* Evolution Actions */
+    .update-actions {
+        display: none;
+    }
+    .group-hover-actions:hover .update-actions {
+        display: block;
     }
 </style>

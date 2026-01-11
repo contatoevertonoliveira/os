@@ -6,7 +6,7 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.http import JsonResponse
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
@@ -46,6 +46,23 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 
         context['chart_tech_labels'] = tech_labels
         context['chart_tech_data'] = tech_data
+        
+        # Charts Data - Systems
+        systems = System.objects.all()
+        system_labels = []
+        system_data = []
+        system_colors = []
+        
+        for system in systems:
+            count = Ticket.objects.filter(systems=system).count()
+            if count > 0:
+                system_labels.append(system.name)
+                system_data.append(count)
+                system_colors.append(system.color if system.color else '#6c757d')
+                
+        context['chart_system_labels'] = system_labels
+        context['chart_system_data'] = system_data
+        context['chart_system_colors'] = system_colors
         
         context['my_tickets'] = Ticket.objects.filter(technician=self.request.user).count()
         return context
@@ -144,12 +161,14 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         return context
 
     def form_valid(self, form):
-        response = super().form_valid(form)
+        # Save the ticket changes first
+        self.object = form.save()
         
         # Process Evolution
         evolution_desc = self.request.POST.get('evolution_description')
         evolution_img = self.request.FILES.get('evolution_image')
         
+        has_evolution = False
         if evolution_desc or evolution_img:
             TicketUpdate.objects.create(
                 ticket=self.object,
@@ -157,9 +176,31 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
                 description=evolution_desc,
                 image=evolution_img
             )
-            messages.success(self.request, "Evolução registrada com sucesso!")
+            has_evolution = True
             
-        return response
+        # Determine action
+        save_action = self.request.POST.get('save_action')
+        
+        if save_action == 'close':
+            # Redirect behavior (Standard SuccessMessageMixin behavior)
+            messages.success(self.request, self.success_message)
+            return redirect(self.get_success_url())
+            
+        else:
+            # Stay/Refresh behavior (for 'stay' or AutoSave)
+            if has_evolution:
+                messages.success(self.request, "Evolução registrada com sucesso!")
+            elif save_action == 'stay':
+                messages.success(self.request, "Alterações salvas!")
+            
+            # For AutoSave (save_action is None), we usually don't want a flash message
+            # or we want it handled by JS. 
+            # But the view doesn't know it's AutoSave unless we pass a flag.
+            # However, if we return rendered HTML, the JS replaces the modal content.
+            # The JS for AutoSave does NOT show a toast if isAutoSave is true.
+            
+            context = self.get_context_data(form=form)
+            return render(self.request, self.template_name, context)
 
 # Client Views
 class ClientListView(LoginRequiredMixin, ListView):
@@ -378,6 +419,47 @@ class TechnicianDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(self.request, "Técnico excluído com sucesso!")
         return super().form_valid(form)
 
+class TicketUpdateDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        update = get_object_or_404(TicketUpdate, pk=pk)
+        ticket = update.ticket
+        
+        # Check permissions if needed (e.g., only creator or admin)
+        # For now allowing deletion by logged in users as per request "user can delete"
+        
+        update.delete()
+        messages.success(request, "Evolução excluída com sucesso!")
+        
+        # Render the modal body again
+        # We need the form for the modal
+        form = TicketModalForm(instance=ticket)
+        context = {
+            'ticket': ticket,
+            'form': form,
+            'updates': ticket.updates.all().order_by('-created_at')
+        }
+        return render(request, 'tickets/ticket_modal_body.html', context)
+
+class TicketUpdateEditView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        update = get_object_or_404(TicketUpdate, pk=pk)
+        ticket = update.ticket
+        
+        new_description = request.POST.get('description')
+        if new_description:
+            update.description = new_description
+            update.save()
+            messages.success(request, "Evolução atualizada com sucesso!")
+        
+        # Render the modal body again
+        form = TicketModalForm(instance=ticket)
+        context = {
+            'ticket': ticket,
+            'form': form,
+            'updates': ticket.updates.all().order_by('-created_at')
+        }
+        return render(request, 'tickets/ticket_modal_body.html', context)
+
 # System Views
 class SystemListView(LoginRequiredMixin, ListView):
     model = System
@@ -452,9 +534,38 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
 class TaskListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tasks/task_list.html'
-    context_object_name = 'tickets'  # Corrigido para corresponder ao template que usa 'tickets'
-    ordering = ['client__name']  # Ordenação necessária para o regroup no template
+    context_object_name = 'tickets'
+
+    def get_queryset(self):
+        queryset = Ticket.objects.select_related('client', 'technician', 'technician__profile').prefetch_related('systems')
+        
+        queryset = queryset.annotate(
+            is_favorite=Exists(
+                TicketFavorite.objects.filter(
+                    ticket=OuterRef('pk'),
+                    user=self.request.user
+                )
+            ),
+            my_favorite_created_at=Subquery(
+                TicketFavorite.objects.filter(
+                    ticket=OuterRef('pk'),
+                    user=self.request.user
+                ).values('created_at')[:1]
+            )
+        )
+        
+        # Ordenar por cliente (para o regroup), favoritos primeiro, depois ordem de seleção
+        return queryset.order_by('client__name', '-is_favorite', 'my_favorite_created_at')
 
 class TaskFavoriteView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        return JsonResponse({'status': 'ok'})
+        ticket = get_object_or_404(Ticket, pk=pk)
+        favorite, created = TicketFavorite.objects.get_or_create(user=request.user, ticket=ticket)
+        
+        if not created:
+            favorite.delete()
+            is_favorite = False
+        else:
+            is_favorite = True
+            
+        return JsonResponse({'status': 'ok', 'is_favorite': is_favorite})

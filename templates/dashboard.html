@@ -1,80 +1,214 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Dashboard</h1>
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --danger-gradient: linear-gradient(135deg, #ff6b6b 0%, #f06595 100%);
+        --warning-gradient: linear-gradient(135deg, #fcc419 0%, #fab005 100%);
+        --success-gradient: linear-gradient(135deg, #37b24d 0%, #2b8a3e 100%);
+        --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --card-hover-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+
+    .dashboard-header {
+        background: white;
+        border-radius: 15px;
+        box-shadow: var(--card-shadow);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .card-dashboard {
+        border: none;
+        border-radius: 16px;
+        transition: all 0.3s ease;
+        overflow: hidden;
+        position: relative;
+        box-shadow: var(--card-shadow);
+    }
+
+    .card-dashboard:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--card-hover-shadow);
+    }
+
+    .card-dashboard .card-body {
+        padding: 1.5rem;
+        z-index: 1;
+        position: relative;
+    }
+
+    .bg-gradient-primary { background: var(--primary-gradient); }
+    .bg-gradient-danger { background: var(--danger-gradient); }
+    .bg-gradient-warning { background: var(--warning-gradient); }
+    .bg-gradient-success { background: var(--success-gradient); }
+
+    .card-icon-bg {
+        position: absolute;
+        right: -20px;
+        bottom: -20px;
+        font-size: 8rem;
+        opacity: 0.15;
+        transform: rotate(-15deg);
+        transition: all 0.3s ease;
+    }
+
+    .card-dashboard:hover .card-icon-bg {
+        transform: rotate(0deg) scale(1.1);
+        opacity: 0.2;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+        font-weight: 600;
+    }
+
+    .chart-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        border: none;
+        height: 100%;
+    }
+
+    .chart-header {
+        background: transparent;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        padding: 1.5rem;
+        font-weight: 700;
+        color: #495057;
+        font-size: 1.1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chart-body {
+        padding: 1.5rem;
+        position: relative;
+    }
+</style>
+
+<div class="dashboard-header d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center">
+    <div>
+        <h1 class="h2 fw-bold text-dark mb-1">Dashboard Executivo</h1>
+        <p class="text-muted mb-0">Visão geral dos indicadores de performance</p>
+    </div>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary">Compartilhar</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary">Exportar</button>
+            <button type="button" class="btn btn-sm btn-light border shadow-sm" onclick="navigator.clipboard.writeText(window.location.href); alert('Link copiado para a área de transferência!');">
+                <i class="fas fa-share-alt me-1"></i> Compartilhar
+            </button>
+            <button type="button" class="btn btn-sm btn-light border shadow-sm" onclick="window.print();">
+                <i class="fas fa-download me-1"></i> Exportar
+            </button>
         </div>
-        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
-            <i class="fas fa-calendar"></i> Esta semana
+        <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle">
+            <i class="fas fa-calendar me-1"></i> Esta semana
         </button>
     </div>
 </div>
 
 <!-- Stats Cards -->
-<div class="row mb-4">
+<div class="row g-4 mb-4">
     <div class="col-md-3">
-        <div class="card card-custom bg-primary text-white h-100">
+        <div class="card card-dashboard bg-gradient-primary text-white h-100">
             <div class="card-body">
-                <h6 class="card-title">Total de Tickets</h6>
-                <h2 class="display-4">{{ total_tickets }}</h2>
-                <p class="card-text"><i class="fas fa-ticket-alt"></i> Geral</p>
+                <div class="stat-label">Total de Tickets</div>
+                <div class="stat-value">{{ total_tickets }}</div>
+                <div class="small"><i class="fas fa-chart-line me-1"></i> Visão Geral</div>
             </div>
+            <i class="fas fa-ticket-alt card-icon-bg"></i>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-custom bg-danger text-white h-100">
+        <div class="card card-dashboard bg-gradient-danger text-white h-100">
             <div class="card-body">
-                <h6 class="card-title">Em Aberto</h6>
-                <h2 class="display-4">{{ tickets_open }}</h2>
-                <p class="card-text"><i class="fas fa-clock"></i> Aguardando atendimento</p>
+                <div class="stat-label">Em Aberto</div>
+                <div class="stat-value">{{ tickets_open }}</div>
+                <div class="small"><i class="fas fa-clock me-1"></i> Aguardando</div>
             </div>
+            <i class="fas fa-exclamation-circle card-icon-bg"></i>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-custom bg-warning text-dark h-100">
+        <div class="card card-dashboard bg-gradient-warning text-white h-100">
             <div class="card-body">
-                <h6 class="card-title">Aguardando Aprovação</h6>
-                <h2 class="display-4">{{ tickets_pending }}</h2>
-                <p class="card-text"><i class="fas fa-pause-circle"></i> Pendências</p>
+                <div class="stat-label">Pendentes</div>
+                <div class="stat-value">{{ tickets_pending }}</div>
+                <div class="small"><i class="fas fa-pause-circle me-1"></i> Em Análise</div>
             </div>
+            <i class="fas fa-hourglass-half card-icon-bg"></i>
         </div>
     </div>
     <div class="col-md-3">
-        <div class="card card-custom bg-success text-white h-100">
+        <div class="card card-dashboard bg-gradient-success text-white h-100">
             <div class="card-body">
-                <h6 class="card-title">Finalizados</h6>
-                <h2 class="display-4">{{ tickets_finished }}</h2>
-                <p class="card-text"><i class="fas fa-check-circle"></i> Concluídos</p>
+                <div class="stat-label">Finalizados</div>
+                <div class="stat-value">{{ tickets_finished }}</div>
+                <div class="small"><i class="fas fa-check-circle me-1"></i> Concluídos</div>
             </div>
+            <i class="fas fa-clipboard-check card-icon-bg"></i>
         </div>
     </div>
 </div>
 
 <!-- Charts Row -->
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="card card-custom">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Status das Ordens de Serviço</h5>
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card chart-card">
+            <div class="card-header chart-header">
+                <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
+                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
-            <div class="card-body">
+            <div class="card-body chart-body">
                 <div style="height: 300px; position: relative;">
                     <canvas id="statusChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6 mb-4">
-        <div class="card card-custom">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Tickets por Técnico</h5>
+    <div class="col-md-4">
+        <div class="card chart-card">
+            <div class="card-header chart-header">
+                <span><i class="fas fa-server me-2 text-info"></i>Tickets por Sistema</span>
+                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
-            <div class="card-body">
+            <div class="card-body chart-body">
                 <div style="height: 300px; position: relative;">
+                    <canvas id="systemChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card chart-card">
+            <div class="card-header chart-header">
+                <span><i class="fas fa-chart-line me-2 text-success"></i>Produtividade Recente</span>
+                 <!-- Placeholder for future functionality -->
+                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
+            </div>
+             <!-- Using a different visualization here or just moving Tech chart here? 
+                  Tech chart is "Productivity by Technician", maybe better as Bar or Line. 
+                  Let's put Tech chart here but keep it as Line or Bar.
+                  Actually, user wanted "Professional" look. 
+                  Let's keep Tech chart but maybe vertical bar? 
+                  Or keep the previous layout but split 4-4-4?
+                  Tech chart was "Tickets assigned".
+             -->
+            <div class="card-body chart-body">
+                 <div style="height: 300px; position: relative;">
                     <canvas id="techChart"></canvas>
                 </div>
             </div>
@@ -82,12 +216,47 @@
     </div>
 </div>
 
+<!-- Last Updated & Auto Refresh Control -->
+<div class="d-flex justify-content-end align-items-center text-muted small mb-4">
+    <div class="me-3">
+        <i class="fas fa-sync-alt me-1" id="refreshIcon"></i>
+        Atualizado em: <span id="lastUpdated">--:--</span>
+    </div>
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="autoRefreshToggle" checked>
+        <label class="form-check-label" for="autoRefreshToggle">Auto-refresh (60s)</label>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Status Chart
+    // Configuration for nicer charts
+    Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
+    Chart.defaults.color = '#6c757d';
+
+    // Status Chart (Doughnut with 3D feel)
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
+    
+    // Create gradients for status chart
+    const gradientOpen = ctxStatus.createLinearGradient(0, 0, 0, 400);
+    gradientOpen.addColorStop(0, '#4facfe');
+    gradientOpen.addColorStop(1, '#00f2fe');
+
+    const gradientPending = ctxStatus.createLinearGradient(0, 0, 0, 400);
+    gradientPending.addColorStop(0, '#f6d365');
+    gradientPending.addColorStop(1, '#fda085');
+
+    const gradientFinished = ctxStatus.createLinearGradient(0, 0, 0, 400);
+    gradientFinished.addColorStop(0, '#43e97b');
+    gradientFinished.addColorStop(1, '#38f9d7');
+
+    const gradientOther = ctxStatus.createLinearGradient(0, 0, 0, 400);
+    gradientOther.addColorStop(0, '#a18cd1');
+    gradientOther.addColorStop(1, '#fbc2eb');
+
     const statusChart = new Chart(ctxStatus, {
         type: 'doughnut',
         data: {
@@ -95,44 +264,201 @@
             datasets: [{
                 data: {{ chart_status_data|safe }},
                 backgroundColor: [
-                    '#3498db', // Open
-                    '#f39c12', // Pending/In Progress
-                    '#e74c3c', // ???
-                    '#26923B', // Finished
-                    '#95a5a6'  // Canceled
+                    gradientOpen,     // Open (Blueish)
+                    gradientPending,  // Pending (Yellow/Orange)
+                    '#ff6b6b',        // Danger/Other
+                    gradientFinished, // Finished (Greenish)
+                    '#95a5a6'
                 ],
-                borderWidth: 1
+                borderWidth: 0,
+                hoverOffset: 15,
+                shadowOffsetX: 3,
+                shadowOffsetY: 3,
+                shadowBlur: 10,
+                shadowColor: 'rgba(0, 0, 0, 0.3)'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '65%',
             plugins: {
-                legend: { position: 'bottom' }
+                legend: {
+                    position: 'right',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        font: { size: 12, weight: 600 }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#000',
+                    bodyColor: '#000',
+                    borderColor: '#ddd',
+                    borderWidth: 1,
+                    padding: 12,
+                    displayColors: true,
+                    boxPadding: 4
+                }
+            },
+            layout: {
+                padding: 20
             }
-        }
+        },
+        plugins: [{
+            id: 'shadowPlugin',
+            beforeDraw: (chart) => {
+                const ctx = chart.ctx;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 5;
+            }
+        }]
     });
 
-    // Tech Chart
-    const ctxTech = document.getElementById('techChart').getContext('2d');
-    const techChart = new Chart(ctxTech, {
-        type: 'bar',
+    // System Chart (Polar Area)
+    const ctxSystem = document.getElementById('systemChart').getContext('2d');
+    
+    const systemChart = new Chart(ctxSystem, {
+        type: 'polarArea',
         data: {
-            labels: {{ chart_tech_labels|safe }},
+            labels: {{ chart_system_labels|safe }},
             datasets: [{
-                label: 'Tickets Atribuídos',
-                data: {{ chart_tech_data|safe }},
-                backgroundColor: '#26C45B',
-                borderColor: '#26923B',
-                borderWidth: 1
+                data: {{ chart_system_data|safe }},
+                backgroundColor: {{ chart_system_colors|safe }},
+                borderWidth: 0,
+                hoverOffset: 10
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                r: {
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                    ticks: { display: false, backdropColor: 'transparent' }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, padding: 15, font: { size: 11 } }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#000',
+                    bodyColor: '#000',
+                    borderColor: '#ddd',
+                    borderWidth: 1,
+                    padding: 10
+                }
+            },
+            layout: { padding: 10 }
+        },
+        plugins: [{
+            id: 'shadowPlugin',
+            beforeDraw: (chart) => {
+                const ctx = chart.ctx;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 3;
+                ctx.shadowOffsetY = 3;
             }
+        }]
+    });
+
+    // Tech Chart (Line with Area/Depth)
+    const ctxTech = document.getElementById('techChart').getContext('2d');
+    
+    // Gradient for Line Chart Fill
+    const gradientTech = ctxTech.createLinearGradient(0, 0, 0, 300);
+    gradientTech.addColorStop(0, 'rgba(38, 196, 91, 0.4)');
+    gradientTech.addColorStop(1, 'rgba(38, 196, 91, 0.0)');
+
+    const techChart = new Chart(ctxTech, {
+        type: 'line',
+        data: {
+            labels: {{ chart_tech_labels|safe }},
+            datasets: [{
+                label: 'Tickets',
+                data: {{ chart_tech_data|safe }},
+                backgroundColor: gradientTech,
+                borderColor: '#26923B',
+                borderWidth: 3,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#26923B',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0, 0, 0, 0.05)', borderDash: [5, 5] },
+                    ticks: { stepSize: 1, padding: 5, font: { size: 10 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { padding: 5, font: { size: 10 } }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#000',
+                    bodyColor: '#000',
+                    borderColor: '#ddd',
+                    borderWidth: 1,
+                    padding: 10,
+                    displayColors: false
+                }
+            }
+        }
+    });
+
+    // Auto Refresh Logic
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    const refreshIcon = document.getElementById('refreshIcon');
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    
+    function updateTime() {
+        const now = new Date();
+        lastUpdatedEl.textContent = now.toLocaleTimeString();
+    }
+    
+    updateTime(); // Set initial time
+
+    let refreshTimer;
+
+    function startTimer() {
+        refreshTimer = setInterval(() => {
+            refreshIcon.classList.add('fa-spin');
+            setTimeout(() => window.location.reload(), 500);
+        }, 60000); // 60 seconds
+    }
+
+    function stopTimer() {
+        clearInterval(refreshTimer);
+    }
+
+    if(autoRefreshToggle.checked) {
+        startTimer();
+    }
+
+    autoRefreshToggle.addEventListener('change', function() {
+        if(this.checked) {
+            startTimer();
+        } else {
+            stopTimer();
         }
     });
 </script>

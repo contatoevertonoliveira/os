@@ -32,8 +32,9 @@
                              data-call-type="{{ ticket.get_call_type_display|default:'' }}"
                              data-deadline="{{ ticket.deadline|date:'d/m/Y'|default:'Indefinido' }}"
                              data-start-date="{% if ticket.start_date %}{{ ticket.start_date|date:'d/m/Y' }}{% else %}{{ ticket.created_at|date:'d/m/Y' }}{% endif %}"
+                             data-estimated-time="{{ ticket.estimated_time|default:'' }}"
                              data-technician-name="{{ ticket.technician.first_name|default:ticket.technician.username|default:'Sem técnico' }}"
-                             data-technician-photo="{% if ticket.technician.profile.photo %}{{ ticket.technician.profile.photo.url }}{% endif %}"
+                             data-technician-photo="{% if ticket.technician.profile.photo %}{{ ticket.technician.profile.photo.url }}?v={% now "U" %}{% endif %}"
                              data-technician-initials="{{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}"
                              data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
                              style="cursor: pointer;">
@@ -87,12 +88,15 @@
                                 <div class="d-flex justify-content-between align-items-end mt-2">
                                     <div class="text-muted small" style="font-size: 0.75rem;">
                                         <i class="far fa-clock me-1"></i>{{ ticket.deadline|date:"d/m"|default:"--" }}
+                                        {% if ticket.estimated_time %}
+                                        <span class="ms-2" title="Tempo Estimado"><i class="fas fa-hourglass-half me-1"></i>{{ ticket.estimated_time }}</span>
+                                        {% endif %}
                                     </div>
                                     
                                     <div class="technicians-avatars">
                                         {% if ticket.technician %}
                                             {% if ticket.technician.profile.photo %}
-                                                <img src="{{ ticket.technician.profile.photo.url }}" class="rounded-circle border border-dark" width="28" height="28" title="{{ ticket.technician.first_name }}">
+                                                <img src="{{ ticket.technician.profile.photo.url }}?v={% now "U" %}" class="rounded-circle border border-dark" width="28" height="28" title="{{ ticket.technician.first_name }}">
                                             {% else %}
                                                 <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 28px; height: 28px; font-size: 0.8rem;">
                                                     {{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}
@@ -378,6 +382,7 @@
                 btn.querySelector('i').classList.remove('fas');
                 btn.querySelector('i').classList.add('far');
             }
+            fetchUpdates(true); // Force refresh to reorder
         })
         .catch(error => console.error('Error:', error));
     }
@@ -392,9 +397,8 @@
         }, 5000);
     });
     
-    // Refresh function... (rest of the code)
-    function fetchUpdates() {
-        if (isInteracting) return;
+    function fetchUpdates(force = false) {
+        if (isInteracting && !force) return;
         
         fetch(window.location.href)
             .then(response => response.text())

@@ -170,6 +170,31 @@
 
         // --- Helper Functions ---
 
+        window.toggleEditUpdate = function(id) {
+            const viewDiv = document.getElementById(`update-view-${id}`);
+            const editDiv = document.getElementById(`update-edit-${id}`);
+            
+            if (viewDiv && editDiv) {
+                if (editDiv.classList.contains('d-none')) {
+                    editDiv.classList.remove('d-none');
+                    viewDiv.classList.add('d-none');
+                } else {
+                    editDiv.classList.add('d-none');
+                    viewDiv.classList.remove('d-none');
+                }
+            }
+        };
+
+        function executeScripts(container) {
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(script => {
+                const newScript = document.createElement('script');
+                Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.appendChild(document.createTextNode(script.innerHTML));
+                script.parentNode.replaceChild(newScript, script);
+            });
+        }
+
         function formatTicketId(id) {
             return `JMP${String(id).padStart(5, '0')}`;
         }
@@ -372,6 +397,7 @@
                         title: title
                     });
                     
+                    executeScripts(modalContent);
                     ensureModalHandlersBound();
                     saveToStorage();
                 })
@@ -457,7 +483,7 @@
             if (field.tagName === 'SELECT') field.classList.add('form-select');
         }
 
-        function submitTicketForm(isAutoSave) {
+        function submitTicketForm(isAutoSave, submitter) {
             const form = getForm();
             if (!form) return;
 
@@ -468,6 +494,12 @@
             disabledInputs.forEach(input => input.removeAttribute('disabled'));
 
             const formData = new FormData(form);
+            
+            // Add submitter button if present
+            if (submitter && submitter.name) {
+                formData.append(submitter.name, submitter.value);
+            }
+
             const actionUrl = form.getAttribute('action');
 
             disabledInputs.forEach(input => input.setAttribute('disabled', 'disabled'));
@@ -503,6 +535,8 @@
                              state.title = title;
                          }
                     }
+
+                    executeScripts(modalContent);
 
                     if (!isAutoSave) {
                         const toastContainer = document.querySelector('.toast-container');
@@ -755,7 +789,36 @@
             modalContent.addEventListener('submit', function(e) {
                 if (e.target.id === 'ticketEditForm') {
                     e.preventDefault();
-                    submitTicketForm(false);
+                    submitTicketForm(false, e.submitter);
+                } else if (e.target.classList.contains('update-edit-form') || e.target.classList.contains('update-delete-form')) {
+                    e.preventDefault();
+                    
+                    const form = e.target;
+                    const formData = new FormData(form);
+                    const url = form.action;
+                    
+                    fetch(url, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        }
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        modalContent.innerHTML = html;
+                        executeScripts(modalContent);
+                        
+                        // Update state if needed
+                        if (activeTicketId) {
+                             const state = openTickets.get(activeTicketId);
+                             if (state) {
+                                 state.html = html;
+                             }
+                        }
+                    })
+                    .catch(err => console.error(err));
                 }
             });
         }

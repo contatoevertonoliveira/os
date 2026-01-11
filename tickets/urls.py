@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
     DashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
+    TicketUpdateEditView, TicketUpdateDeleteView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
     OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
@@ -34,6 +35,10 @@ urlpatterns = [
     path('tickets/<int:pk>/modal/', TicketModalView.as_view(), name='ticket_modal'),
     path('tickets/<int:pk>/edit/', TicketUpdateView.as_view(), name='ticket_update'),
     path('tickets/<int:pk>/delete/', TicketDeleteView.as_view(), name='ticket_delete'),
+    
+    # Evolution Updates
+    path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
+    path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
 
     # Cadastros
     path('clients/', ClientListView.as_view(), name='client_list'),
