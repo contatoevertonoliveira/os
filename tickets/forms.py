@@ -1,6 +1,36 @@
 from django import forms
 from django.contrib.auth.models import User
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import authenticate
 from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings
+
+class TokenLoginForm(AuthenticationForm):
+    token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
+    username = None
+    password = None
+
+    def __init__(self, request=None, *args, **kwargs):
+        super().__init__(request=None, *args, **kwargs)
+        if 'username' in self.fields:
+            del self.fields['username']
+        if 'password' in self.fields:
+            del self.fields['password']
+        self.request = request
+
+    def clean(self):
+        token = self.cleaned_data.get('token')
+        
+        if token:
+            self.user_cache = authenticate(self.request, token=token)
+            if self.user_cache is None:
+                raise forms.ValidationError(
+                    "Token inválido ou expirado. Verifique e tente novamente.",
+                    code='invalid_login',
+                )
+            else:
+                self.confirm_login_allowed(self.user_cache)
+        
+        return self.cleaned_data
 
 class ClientForm(forms.ModelForm):
     class Meta:

@@ -57,6 +57,11 @@ MIDDLEWARE = [
     'tickets.middleware.SessionTimeoutMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'tickets.backends.TokenBackend',
+]
+
 ROOT_URLCONF = 'jumperfour.urls'
 
 TEMPLATES = [

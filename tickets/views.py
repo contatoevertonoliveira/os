@@ -21,6 +21,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
 class TokenLoginView(LoginView):
     template_name = 'login.html'
+    authentication_form = TokenLoginForm
     redirect_authenticated_user = True
     
     def form_valid(self, form):
