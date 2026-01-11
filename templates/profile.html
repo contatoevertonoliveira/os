@@ -6,126 +6,160 @@
     <h1 class="h2">{{ title }}</h1>
 </div>
 
-<div class="row">
-    <!-- Left Column: Photo & Token -->
-    <div class="col-md-4 mb-4">
-        <div class="card card-custom border-0 shadow-sm text-center h-100">
-            <div class="card-body p-4">
-                <div class="mb-3">
-                    {% if user.profile.photo %}
-                        <img src="{{ user.profile.photo.url }}" alt="Profile Photo" class="rounded-circle img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;">
-                    {% else %}
-                        <div class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center text-white" style="width: 150px; height: 150px; font-size: 4rem;">
-                            {{ user.first_name|first|default:user.username|first|upper }}
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="row">
+        <!-- Left Column: Photo & Token -->
+        <div class="col-md-4 mb-4">
+            <div class="card card-custom border-0 shadow-sm text-center h-100">
+                <div class="card-body p-4">
+                    <div class="mb-3 position-relative d-inline-block" style="cursor: pointer;" onclick="document.getElementById('profilePhotoInput').click()">
+                        {% render_field form.photo class="d-none" id="profilePhotoInput" accept="image/*" %}
+                        
+                        {% if user.profile.photo %}
+                            <img src="{{ user.profile.photo.url }}" id="profilePhotoPreview" alt="Profile Photo" class="rounded-circle img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;">
+                        {% else %}
+                            <div id="profilePhotoPlaceholder" class="rounded-circle bg-secondary d-inline-flex align-items-center justify-content-center text-white img-thumbnail" style="width: 150px; height: 150px; font-size: 4rem;">
+                                {{ user.first_name|first|default:user.username|first|upper }}
+                            </div>
+                            <img src="" id="profilePhotoPreview" alt="Profile Photo" class="rounded-circle img-thumbnail d-none" style="width: 150px; height: 150px; object-fit: cover;">
+                        {% endif %}
+                        
+                        <!-- Overlay for hover effect -->
+                        <div class="position-absolute top-0 start-0 w-100 h-100 rounded-circle d-flex align-items-center justify-content-center bg-dark bg-opacity-50 opacity-0 hover-opacity-100 transition-opacity">
+                            <i class="fas fa-camera text-white fa-2x"></i>
                         </div>
-                    {% endif %}
-                </div>
-                <h5 class="card-title fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h5>
-                <p class="text-muted small mb-3">{{ user.profile.job_title|default:"Cargo não definido" }}</p>
-                <span class="badge bg-primary mb-4">{{ user.profile.get_role_display }}</span>
-
-                <div class="border-top pt-3">
-                    <label class="small text-muted fw-bold mb-1 d-block text-start">SEU TOKEN DE ACESSO</label>
-                    <div class="input-group input-group-sm mb-2">
-                        <input type="text" class="form-control bg-light" value="{{ user.profile.token }}" readonly id="tokenInput">
-                        <button class="btn btn-outline-secondary" type="button" onclick="copyToken()">
-                            <i class="fas fa-copy"></i>
-                        </button>
                     </div>
-                    <small class="text-muted d-block text-start" style="font-size: 0.75rem;">
-                        <i class="fas fa-lock me-1"></i> Este token é pessoal e intransferível.
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Right Column: Edit Form -->
-    <div class="col-md-8 mb-4">
-        <div class="card card-custom border-0 shadow-sm h-100">
-            <div class="card-header bg-white border-bottom py-3">
-                <h6 class="mb-0 fw-bold text-primary"><i class="fas fa-user-edit me-2"></i>Editar Informações</h6>
-            </div>
-            <div class="card-body p-4">
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
+                    <div class="small text-muted mb-2">Clique na foto para alterar</div>
                     
-                    {% if form.errors %}
-                        <div class="alert alert-danger small py-2 mb-3">
-                            <i class="fas fa-exclamation-triangle me-1"></i> Por favor, verifique os erros abaixo.
-                        </div>
-                    {% endif %}
+                    <h5 class="card-title fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h5>
+                    <p class="text-muted small mb-3">{{ user.profile.job_title|default:"Cargo não definido" }}</p>
+                    <span class="badge bg-primary mb-4">{{ user.profile.get_role_display }}</span>
 
-                    <!-- Personal Info -->
-                    <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">Dados Pessoais</h6>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Nome Completo</label>
-                            {% render_field form.first_name class="form-control" %}
-                            {% if form.first_name.errors %}
-                                <div class="text-danger small">{{ form.first_name.errors.0 }}</div>
-                            {% endif %}
+                    <div class="border-top pt-3">
+                        <label class="small text-muted fw-bold mb-1 d-block text-start">SEU TOKEN DE ACESSO</label>
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" class="form-control bg-light" value="{{ user.profile.token }}" readonly id="tokenInput">
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyToken(event)">
+                                <i class="fas fa-copy"></i>
+                            </button>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Email</label>
-                            {% render_field form.email class="form-control" %}
-                            {% if form.email.errors %}
-                                <div class="text-danger small">{{ form.email.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Telefone Próprio</label>
-                            {% render_field form.personal_phone class="form-control" placeholder="(00) 00000-0000" %}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Foto de Perfil</label>
-                            {% render_field form.photo class="form-control" %}
-                        </div>
+                        <small class="text-muted d-block text-start" style="font-size: 0.75rem;">
+                            <i class="fas fa-lock me-1"></i> Este token é pessoal e intransferível.
+                        </small>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Work Info -->
-                    <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">Dados Profissionais</h6>
-                    <div class="row g-3 mb-4">
-                         <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Telefone Empresa</label>
-                            {% render_field form.company_phone class="form-control" placeholder="Ramal ou Corporativo" %}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Posto de Alocação</label>
-                            {% render_field form.station class="form-control" %}
-                            {% if form.station.field.disabled %}
-                                <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> Definido pelo administrador</small>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-12">
-                            <label class="form-label small fw-bold text-muted mb-1">Nível de Acesso</label>
-                            {% render_field form.role class="form-select" %}
-                            {% if form.role.field.disabled %}
-                                <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> Definido pelo administrador</small>
-                            {% endif %}
-                        </div>
-                    </div>
+        <!-- Right Column: Edit Form -->
+        <div class="col-md-8 mb-4">
+            <div class="card card-custom border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="fas fa-user-edit me-2"></i>Editar Informações</h6>
+                </div>
+                <div class="card-body p-4">
+                        {% if form.errors %}
+                            <div class="alert alert-danger small py-2 mb-3">
+                                <i class="fas fa-exclamation-triangle me-1"></i> Por favor, verifique os erros abaixo.
+                            </div>
+                        {% endif %}
 
-                    <div class="d-flex justify-content-end pt-3 border-top">
-                        <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
-                            <i class="fas fa-save me-1"></i> Salvar Alterações
-                        </button>
-                    </div>
-                </form>
+                        <!-- Personal Info -->
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">Dados Pessoais</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Nome Completo</label>
+                                {% render_field form.first_name class="form-control" %}
+                                {% if form.first_name.errors %}
+                                    <div class="text-danger small">{{ form.first_name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Email</label>
+                                {% render_field form.email class="form-control" %}
+                                {% if form.email.errors %}
+                                    <div class="text-danger small">{{ form.email.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Telefone Próprio</label>
+                                {% render_field form.personal_phone class="form-control" placeholder="(00) 00000-0000" %}
+                            </div>
+                        </div>
+
+                        <!-- Work Info -->
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">Dados Profissionais</h6>
+                        <div class="row g-3 mb-4">
+                             <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Telefone Empresa</label>
+                                {% render_field form.company_phone class="form-control" placeholder="Ramal ou Corporativo" %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Posto de Alocação</label>
+                                {% render_field form.station class="form-control" %}
+                                {% if form.station.field.disabled %}
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> Definido pelo administrador</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label small fw-bold text-muted mb-1">Nível de Acesso</label>
+                                {% render_field form.role class="form-select" %}
+                                {% if form.role.field.disabled %}
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> Definido pelo administrador</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end pt-3 border-top">
+                            <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
+                                <i class="fas fa-save me-1"></i> Salvar Alterações
+                            </button>
+                        </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
+</form>
+
+<style>
+    .hover-opacity-100:hover {
+        opacity: 1 !important;
+    }
+    .transition-opacity {
+        transition: opacity 0.3s ease;
+    }
+</style>
 
 <script>
-    function copyToken() {
+    function copyToken(event) {
+        event.preventDefault(); // Prevent form submission
         var copyText = document.getElementById("tokenInput");
         copyText.select();
         copyText.setSelectionRange(0, 99999); /* For mobile devices */
         navigator.clipboard.writeText(copyText.value);
-        
-        // Optional: Tooltip or toast to indicate success could be added here
         alert("Token copiado para a área de transferência!");
     }
+
+    // Photo Preview Logic
+    document.getElementById('profilePhotoInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('profilePhotoPreview');
+                const placeholder = document.getElementById('profilePhotoPlaceholder');
+                
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('d-none');
+                }
+                if (placeholder) {
+                    placeholder.classList.add('d-none');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 </script>
 {% endblock %}

@@ -178,6 +178,17 @@ class Ticket(models.Model):
     def formatted_id(self):
         return f"JMP{self.id:05d}"
 
+    @property
+    def status_color(self):
+        colors = {
+            'open': 'primary',
+            'in_progress': 'warning',
+            'pending': 'info',
+            'finished': 'success',
+            'canceled': 'danger'
+        }
+        return colors.get(self.status, 'secondary')
+
     def __str__(self):
         return f"{self.formatted_id} - {self.client.name}"
     

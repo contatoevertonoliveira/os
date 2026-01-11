@@ -128,9 +128,38 @@ class TicketDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(self.request, "Ordem de Serviço excluída com sucesso!")
         return super().form_valid(form)
 
-class TicketModalView(LoginRequiredMixin, DetailView):
+class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
+    form_class = TicketModalForm
     template_name = 'tickets/ticket_modal_body.html'
+    success_message = "Ordem de Serviço atualizada com sucesso!"
+    
+    def get_success_url(self):
+        # Retorna para a página anterior ou lista de tickets
+        return self.request.META.get('HTTP_REFERER', reverse_lazy('ticket_list'))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['updates'] = self.object.updates.all().order_by('-created_at')
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        
+        # Process Evolution
+        evolution_desc = self.request.POST.get('evolution_description')
+        evolution_img = self.request.FILES.get('evolution_image')
+        
+        if evolution_desc or evolution_img:
+            TicketUpdate.objects.create(
+                ticket=self.object,
+                created_by=self.request.user,
+                description=evolution_desc,
+                image=evolution_img
+            )
+            messages.success(self.request, "Evolução registrada com sucesso!")
+            
+        return response
 
 # Client Views
 class ClientListView(LoginRequiredMixin, ListView):
@@ -392,14 +421,22 @@ class SystemDeleteView(LoginRequiredMixin, DeleteView):
         return context
 
 # Profile & Settings
-class ProfileView(LoginRequiredMixin, DetailView):
+class ProfileView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = UserProfile
     template_name = 'profile.html'
+    form_class = UserProfileForm
+    success_url = reverse_lazy('profile')
+    success_message = "Perfil atualizado com sucesso!"
     
-    def get_object(self):
+    def get_object(self, queryset=None):
         if hasattr(self.request.user, 'profile'):
             return self.request.user.profile
         return None
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
 
 class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     template_name = 'settings.html'

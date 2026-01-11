@@ -163,6 +163,13 @@ class TicketUpdateForm(TicketForm):
         # Ensure the input format matches the HTML5 datetime-local requirement
         self.fields['finished_at'].input_formats = ('%Y-%m-%dT%H:%M',)
 
+class TicketModalForm(TicketUpdateForm):
+    class Meta(TicketUpdateForm.Meta):
+        widgets = {
+            **TicketUpdateForm.Meta.widgets,
+            'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
+        }
+
 class TicketEvolutionForm(forms.ModelForm):
     class Meta:
         model = TicketUpdate

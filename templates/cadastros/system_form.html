@@ -27,13 +27,48 @@
 
                         <div class="mb-3">
                             <label for="{{ form.color.id_for_label }}" class="form-label small fw-bold mb-1">Cor</label>
-                            <div class="input-group">
-                                {% render_field form.color class="form-control form-control-color" type="color" title="Escolha a cor" style="max-width: 60px;" %}
-                                {% render_field form.color class="form-control" type="text" placeholder="#000000" %}
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Color Picker Helper (not sent in form) -->
+                                <input type="color" class="form-control form-control-color" id="colorPicker" value="{{ form.color.value|default:'#6c757d' }}" title="Escolha a cor" style="max-width: 60px;">
+                                
+                                <!-- Real Form Field -->
+                                {% render_field form.color class="form-control" id="colorInput" placeholder="#000000" style="max-width: 120px;" %}
+                                
+                                <!-- Preview Badge -->
+                                <div class="d-flex flex-column align-items-center ms-2">
+                                    <span class="badge border border-dark text-dark mb-1" id="colorPreview" style="background-color: {{ form.color.value|default:'#6c757d' }}; min-width: 80px; font-weight: normal;">Exemplo</span>
+                                    <small class="text-muted" style="font-size: 0.7rem;">Pré-visualização</small>
+                                </div>
                             </div>
                             <div class="text-danger small">{{ form.color.errors }}</div>
                             <small class="text-muted">Selecione no seletor ou digite o código HEX.</small>
                         </div>
+
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const colorPicker = document.getElementById('colorPicker');
+                                const colorInput = document.getElementById('colorInput');
+                                const colorPreview = document.getElementById('colorPreview');
+
+                                function updateColor(color) {
+                                    colorPreview.style.backgroundColor = color;
+                                    // Ensure text contrast if needed, currently keeping dark text with border
+                                }
+
+                                colorPicker.addEventListener('input', function() {
+                                    colorInput.value = this.value;
+                                    updateColor(this.value);
+                                });
+
+                                colorInput.addEventListener('input', function() {
+                                    const val = this.value;
+                                    if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
+                                        colorPicker.value = val;
+                                        updateColor(val);
+                                    }
+                                });
+                            });
+                        </script>
 
                         <div class="mb-4">
                             <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição</label>
