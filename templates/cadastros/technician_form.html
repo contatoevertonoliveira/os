@@ -17,7 +17,7 @@
                 </div>
                 
                 <div class="card-body px-4 py-4">
-                    <form method="post" novalidate>
+                    <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
                         
                         <h6 class="text-secondary text-uppercase fw-bold small mb-3">
@@ -56,6 +56,17 @@
                                 <label for="{{ form.station.id_for_label }}" class="form-label small fw-bold mb-1">Posto de Alocação</label>
                                 {% render_field form.station class="form-control" placeholder="Ex: Sede Principal" %}
                                 <div class="text-danger small">{{ form.station.errors }}</div>
+                            </div>
+                            <div class="col-12">
+                                <label for="{{ form.photo.id_for_label }}" class="form-label small fw-bold mb-1">Foto de Perfil</label>
+                                {% render_field form.photo class="form-control" %}
+                                <div class="text-danger small">{{ form.photo.errors }}</div>
+                                {% if form.instance.profile.photo %}
+                                <div class="mt-2">
+                                    <img src="{{ form.instance.profile.photo.url }}" alt="Foto atual" class="img-thumbnail" style="height: 100px;">
+                                    <p class="small text-muted">Foto atual</p>
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
 

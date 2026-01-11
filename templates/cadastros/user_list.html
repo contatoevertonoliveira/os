@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Gerenciamento de Usuários</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'user_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Novo Usuário
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Usuário (Login)</th>
+                        <th>Email</th>
+                        <th>Nível de Acesso</th>
+                        <th>Cargo/Posto</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in users %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if user_item.profile.photo %}
+                                <img src="{{ user_item.profile.photo.url }}" alt="" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;">
+                                {% else %}
+                                <div class="rounded-circle me-2 bg-secondary d-flex align-items-center justify-content-center text-white small" style="width: 32px; height: 32px;">
+                                    {{ user_item.first_name|first|default:user_item.username|first|upper }}
+                                </div>
+                                {% endif %}
+                                {{ user_item.get_full_name|default:user_item.username }}
+                            </div>
+                        </td>
+                        <td>{{ user_item.username }}</td>
+                        <td>{{ user_item.email|default:"-" }}</td>
+                        <td>
+                            <span class="badge {% if user_item.profile.role == 'super_admin' %}bg-danger{% elif user_item.profile.role == 'admin' %}bg-warning text-dark{% elif user_item.profile.role == 'technician' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                {{ user_item.profile.get_role_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if user_item.profile.job_title %}{{ user_item.profile.job_title }}{% endif %}
+                            {% if user_item.profile.job_title and user_item.profile.station %} - {% endif %}
+                            {% if user_item.profile.station %}{{ user_item.profile.station }}{% endif %}
+                            {% if not user_item.profile.job_title and not user_item.profile.station %}-{% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'user_update' user_item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if request.user.id != user_item.id %}
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmDelete('{% url 'user_delete' user_item.id %}', '{{ user_item.get_full_name|default:user_item.username|escapejs }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">Nenhum usuário cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

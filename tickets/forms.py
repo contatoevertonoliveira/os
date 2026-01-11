@@ -71,6 +71,7 @@ class TechnicianForm(forms.ModelForm):
     # Profile fields
     job_title = forms.CharField(label="Cargo do Técnico", max_length=100, required=False)
     station = forms.CharField(label="Posto de Alocação", max_length=100, required=False)
+    photo = forms.ImageField(label="Foto de Perfil", required=False)
 
     class Meta:
         model = User
@@ -82,6 +83,7 @@ class TechnicianForm(forms.ModelForm):
             if hasattr(self.instance, 'profile'):
                 self.fields['job_title'].initial = self.instance.profile.job_title
                 self.fields['station'].initial = self.instance.profile.station
+                self.fields['photo'].initial = self.instance.profile.photo
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -100,6 +102,8 @@ class TechnicianForm(forms.ModelForm):
             profile.role = 'technician'
             profile.job_title = self.cleaned_data['job_title']
             profile.station = self.cleaned_data['station']
+            if self.cleaned_data.get('photo'):
+                profile.photo = self.cleaned_data['photo']
             profile.save()
         return user
 
@@ -274,3 +278,58 @@ class SystemSettingsForm(forms.ModelForm):
         widgets = {
             'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
         }
+
+class UserManagementForm(forms.ModelForm):
+    first_name = forms.CharField(label="Nome Completo", max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    username = forms.CharField(label="Login (Usuário)", max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    email = forms.EmailField(label="Email", required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
+    password = forms.CharField(label="Senha", widget=forms.PasswordInput(attrs={'class': 'form-control'}), required=False, help_text="Deixe em branco para manter a senha atual.")
+    
+    # Profile fields
+    role = forms.ChoiceField(label="Nível de Acesso", choices=UserProfile.ROLE_CHOICES, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
+    job_title = forms.CharField(label="Cargo", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    station = forms.CharField(label="Posto de Alocação", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    personal_phone = forms.CharField(label="Telefone Pessoal", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
+    company_phone = forms.CharField(label="Telefone Empresa", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
+    photo = forms.ImageField(label="Foto de Perfil", required=False, widget=forms.FileInput(attrs={'class': 'form-control'}))
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'username', 'email', 'password']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            if hasattr(self.instance, 'profile'):
+                self.fields['role'].initial = self.instance.profile.role
+                self.fields['job_title'].initial = self.instance.profile.job_title
+                self.fields['station'].initial = self.instance.profile.station
+                self.fields['personal_phone'].initial = self.instance.profile.personal_phone
+                self.fields['company_phone'].initial = self.instance.profile.company_phone
+                self.fields['photo'].initial = self.instance.profile.photo
+        else:
+             self.fields['password'].required = True
+             self.fields['password'].help_text = "Senha inicial para o usuário."
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        
+        if commit:
+            user.save()
+            # Create or update profile
+            profile, created = UserProfile.objects.get_or_create(user=user)
+            
+            profile.role = self.cleaned_data['role']
+            profile.job_title = self.cleaned_data['job_title']
+            profile.station = self.cleaned_data['station']
+            profile.personal_phone = self.cleaned_data['personal_phone']
+            profile.company_phone = self.cleaned_data['company_phone']
+            
+            if self.cleaned_data.get('photo'):
+                 profile.photo = self.cleaned_data['photo']
+            
+            profile.save()
+        return user

@@ -9,6 +9,7 @@ from .views import (
     ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView,
     TechnicianListView, TechnicianCreateView, TechnicianUpdateView, TechnicianDeleteView,
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
+    UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView
 )
@@ -70,4 +71,9 @@ urlpatterns = [
     path('systems/new/', SystemCreateView.as_view(), name='system_create'),
     path('systems/<int:pk>/edit/', SystemUpdateView.as_view(), name='system_update'),
     path('systems/<int:pk>/delete/', SystemDeleteView.as_view(), name='system_delete'),
+
+    path('users/', UserListView.as_view(), name='user_list'),
+    path('users/new/', UserCreateView.as_view(), name='user_create'),
+    path('users/<int:pk>/edit/', UserUpdateView.as_view(), name='user_update'),
+    path('users/<int:pk>/delete/', UserDeleteView.as_view(), name='user_delete'),
 ]

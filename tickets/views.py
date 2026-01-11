@@ -665,3 +665,57 @@ class TaskFavoriteView(LoginRequiredMixin, View):
             is_favorite = True
             
         return JsonResponse({'status': 'ok', 'is_favorite': is_favorite})
+
+# User Management Views
+class AdminRequiredMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not hasattr(request.user, 'profile') or request.user.profile.role not in ['admin', 'super_admin']:
+             from django.core.exceptions import PermissionDenied
+             raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+class UserListView(AdminRequiredMixin, ListView):
+    model = User
+    template_name = 'cadastros/user_list.html'
+    context_object_name = 'users'
+    
+    def get_queryset(self):
+        return User.objects.select_related('profile').all().order_by('first_name')
+
+class UserCreateView(AdminRequiredMixin, SuccessMessageMixin, CreateView):
+    model = User
+    form_class = UserManagementForm
+    template_name = 'cadastros/user_form.html'
+    success_url = reverse_lazy('user_list')
+    success_message = "Usuário cadastrado com sucesso!"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Usuário"
+        context['back_url'] = reverse_lazy('user_list')
+        return context
+
+class UserUpdateView(AdminRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = User
+    form_class = UserManagementForm
+    template_name = 'cadastros/user_form.html'
+    success_url = reverse_lazy('user_list')
+    success_message = "Usuário atualizado com sucesso!"
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Usuário: {self.object.get_full_name() or self.object.username}"
+        context['back_url'] = reverse_lazy('user_list')
+        return context
+
+class UserDeleteView(AdminRequiredMixin, DeleteView):
+    model = User
+    template_name = 'cadastros/generic_confirm_delete.html'
+    success_url = reverse_lazy('user_list')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('user_list')
+        return context
