@@ -44,18 +44,18 @@ jobs:
             systemctl stop gunicorn || true
             systemctl disable gunicorn || true
  
-            # Atualiza configuração do Nginx de forma direta e segura
-            # Define o caminho padrão para o arquivo de configuração
-            NGINX_CONF="/etc/nginx/sites-available/os_jumperfour"
-            
+            # Atualiza configuração do Nginx de forma direta
             # Copia a nova configuração
-            cp deploy/nginx.conf $NGINX_CONF
+            cp deploy/nginx.conf /etc/nginx/sites-available/os_jumperfour
             
             # Cria o link simbólico
-            ln -sf $NGINX_CONF /etc/nginx/sites-enabled/os_jumperfour
+            ln -sf /etc/nginx/sites-available/os_jumperfour /etc/nginx/sites-enabled/os_jumperfour
             
             # Remove link antigo incorreto se existir
             rm -f /etc/nginx/sites-enabled/os
+            
+            # Remove arquivo default se existir para evitar conflitos
+            rm -f /etc/nginx/sites-enabled/default
             
             # Testa a configuração antes de recarregar
             nginx -t
