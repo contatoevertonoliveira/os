@@ -63,4 +63,7 @@ jobs:
             # Reinicia o serviço específico do OS
             systemctl enable os_gunicorn
             systemctl restart os_gunicorn
+            
+            # Reinicia o Nginx completamente para garantir que a nova porta seja usada
+            service nginx restart
             service nginx reload
