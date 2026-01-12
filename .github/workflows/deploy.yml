@@ -18,13 +18,15 @@ jobs:
           timeout: 60s
           command_timeout: 30m
           script: |
+            set -e
             cd /root/os
             
             # Garante que o git confie no diretório (evita erro de 'dubious ownership')
             git config --global --add safe.directory /root/os
             
-            # Atualiza o código
-            git pull origin master
+            # Atualiza o código (Força o estado do repositório, descartando mudanças locais)
+            git fetch origin master
+            git reset --hard origin/master
             
             # Ativa ambiente e instala dependências
             source .venv/bin/activate
