@@ -12,7 +12,6 @@ from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
 from django.utils import timezone
 from datetime import timedelta, datetime
-from django.db.models.functions import TruncDay
 from django.db.models import Count, Q
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -99,13 +98,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             # Get completed tickets for this tech in the period
             tech_tickets = tickets_qs.filter(technicians=tech, status='finished')
             if tech_tickets.exists():
-                # Group by day
-                daily_counts = tech_tickets.annotate(day=TruncDay('created_at')).values('day').annotate(count=Count('id')).order_by('day')
+                # Group by day using Python to avoid DB timezone errors
+                counts_dict = {}
+                for created_at in tech_tickets.values_list('created_at', flat=True):
+                    if created_at:
+                        local_created_at = timezone.localtime(created_at)
+                        day_str = local_created_at.strftime('%d/%m')
+                        counts_dict[day_str] = counts_dict.get(day_str, 0) + 1
                 
                 # Map counts to the date_labels
                 data_points = []
-                counts_dict = {item['day'].strftime('%d/%m'): item['count'] for item in daily_counts}
-                
                 for label in date_labels:
                     data_points.append(counts_dict.get(label, 0))
                 
