@@ -229,13 +229,16 @@ class TicketModalForm(TicketUpdateForm):
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
         }
 
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
 class TicketEvolutionForm(forms.ModelForm):
     class Meta:
         model = TicketUpdate
         fields = ['description', 'image']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Descreva a evolução do atendimento...'}),
-            'image': forms.FileInput(attrs={'class': 'form-control', 'multiple': True}),
+            'image': MultipleFileInput(attrs={'class': 'form-control'}),
         }
 
 class UserProfileForm(forms.ModelForm):
