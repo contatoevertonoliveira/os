@@ -43,16 +43,23 @@ jobs:
             # Para o serviço antigo se estiver rodando (limpeza)
             systemctl stop gunicorn || true
             systemctl disable gunicorn || true
-
-            # Atualiza configuração do Nginx (Busca o arquivo correto pelo server_name e substitui)
-            # Se não encontrar, cria como 'os' e habilita
-            if grep -l "osjumperfour.felixsystems.com.br" /etc/nginx/sites-enabled/*; then
-              grep -l "osjumperfour.felixsystems.com.br" /etc/nginx/sites-enabled/* | xargs -I {} cp deploy/nginx.conf {}
-            else
-              cp deploy/nginx.conf /etc/nginx/sites-available/os
-              ln -sf /etc/nginx/sites-available/os /etc/nginx/sites-enabled/os
-            fi
-
+ 
+            # Atualiza configuração do Nginx de forma direta e segura
+            # Define o caminho padrão para o arquivo de configuração
+            NGINX_CONF="/etc/nginx/sites-available/os_jumperfour"
+            
+            # Copia a nova configuração
+            cp deploy/nginx.conf $NGINX_CONF
+            
+            # Cria o link simbólico
+            ln -sf $NGINX_CONF /etc/nginx/sites-enabled/os_jumperfour
+            
+            # Remove link antigo incorreto se existir
+            rm -f /etc/nginx/sites-enabled/os
+            
+            # Testa a configuração antes de recarregar
+            nginx -t
+ 
             # Reinicia o serviço específico do OS
             systemctl enable os_gunicorn
             systemctl restart os_gunicorn
