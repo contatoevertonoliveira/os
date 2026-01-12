@@ -1,5 +1,5 @@
 [Unit]
-Description=gunicorn daemon
+Description=gunicorn daemon for os
 After=network.target
 
 [Service]
@@ -7,7 +7,7 @@ User=root
 Group=www-data
 WorkingDirectory=/root/os
 EnvironmentFile=/root/os/.env
-ExecStart=/root/os/.venv/bin/gunicorn --access-logfile - --workers 3 --bind 0.0.0.0:8000 jumperfour.wsgi:application
+ExecStart=/root/os/.venv/bin/gunicorn --access-logfile - --workers 3 --bind 0.0.0.0:8002 jumperfour.wsgi:application
 
 [Install]
 WantedBy=multi-user.target
