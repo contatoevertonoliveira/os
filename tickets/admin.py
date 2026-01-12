@@ -8,6 +8,10 @@ class ClientAdmin(admin.ModelAdmin):
 
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
-    list_display = ('id', 'client', 'technician', 'status', 'created_at')
-    list_filter = ('status', 'technician', 'created_at')
+    list_display = ('id', 'client', 'get_technicians', 'status', 'created_at')
+    list_filter = ('status', 'technicians', 'created_at')
     search_fields = ('client__name', 'description')
+
+    def get_technicians(self, obj):
+        return ", ".join([t.username for t in obj.technicians.all()])
+    get_technicians.short_description = 'Técnicos'

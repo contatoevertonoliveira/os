@@ -36,11 +36,11 @@
                         <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
                         <td>
-                            {% if ticket.technician %}
-                                {{ ticket.technician.username }}
-                            {% else %}
+                            {% for tech in ticket.technicians.all %}
+                                {{ tech.username }}{% if not forloop.last %}, {% endif %}
+                            {% empty %}
                                 <span class="text-muted">-</span>
-                            {% endif %}
+                            {% endfor %}
                         </td>
                         <td>
                             <span class="badge badge-{{ ticket.status }}">

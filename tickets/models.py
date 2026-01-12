@@ -145,7 +145,7 @@ class Ticket(models.Model):
     )
     
     client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Cliente")
-    technician = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Técnico Responsável", related_name='assigned_tickets')
+    technicians = models.ManyToManyField(User, verbose_name="Técnicos Responsáveis", blank=True, related_name='assigned_tickets')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante", related_name='requested_tickets')
     
     systems = models.ManyToManyField(System, verbose_name="Sistemas", blank=True, related_name="tickets")

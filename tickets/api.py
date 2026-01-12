@@ -29,7 +29,7 @@ class TokenAuthMixin:
 
 class TicketAPIView(TokenAuthMixin, View):
     def get(self, request):
-        tickets = Ticket.objects.all().select_related('client', 'technician')
+        tickets = Ticket.objects.all().select_related('client').prefetch_related('technicians')
         data = []
         for ticket in tickets:
             data.append({
@@ -37,7 +37,7 @@ class TicketAPIView(TokenAuthMixin, View):
                 'codigo': ticket.formatted_id,
                 'cliente': ticket.client.name,
                 'status': ticket.get_status_display(),
-                'tecnico': ticket.technician.username if ticket.technician else 'Sem técnico',
+                'tecnico': ', '.join([t.username for t in ticket.technicians.all()]) if ticket.technicians.exists() else 'Sem técnico',
                 'criado_em': ticket.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'descricao': ticket.description,
                 'tipo_chamado': ticket.get_call_type_display() if ticket.call_type else None,

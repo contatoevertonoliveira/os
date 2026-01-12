@@ -97,7 +97,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         for tech in techs:
             # Get completed tickets for this tech in the period
-            tech_tickets = tickets_qs.filter(technician=tech, status='finished')
+            tech_tickets = tickets_qs.filter(technicians=tech, status='finished')
             if tech_tickets.exists():
                 # Group by day
                 daily_counts = tech_tickets.annotate(day=TruncDay('created_at')).values('day').annotate(count=Count('id')).order_by('day')
@@ -160,7 +160,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['chart_sys_resolved'] = system_resolved
         context['chart_sys_unresolved'] = system_unresolved
         
-        context['my_tickets'] = tickets_qs.filter(technician=self.request.user).count()
+        context['my_tickets'] = tickets_qs.filter(technicians=self.request.user).count()
         return context
 
 class TokenLoginView(LoginView):
@@ -259,6 +259,12 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def form_valid(self, form):
         # Save the ticket changes first
         self.object = form.save()
+        
+        # Auto-assign current user to technicians if they are a technician/standard and not already assigned
+        user = self.request.user
+        if hasattr(user, 'profile') and user.profile.role in ['technician', 'standard']:
+            if not self.object.technicians.filter(id=user.id).exists():
+                self.object.technicians.add(user)
         
         # Process Evolution
         evolution_desc = self.request.POST.get('evolution_description')
@@ -633,7 +639,7 @@ class TaskListView(LoginRequiredMixin, ListView):
     context_object_name = 'tickets'
 
     def get_queryset(self):
-        queryset = Ticket.objects.select_related('client', 'technician', 'technician__profile').prefetch_related('systems')
+        queryset = Ticket.objects.select_related('client').prefetch_related('systems', 'technicians', 'technicians__profile')
         
         queryset = queryset.annotate(
             is_favorite=Exists(

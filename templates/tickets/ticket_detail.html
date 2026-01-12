@@ -125,13 +125,13 @@
                         <small class="text-muted d-block">Técnico</small>
                         <div class="d-flex align-items-center">
                             <span>
-                                {% if ticket.technician %}
-                                    {{ ticket.technician.get_full_name|default:ticket.technician.username }}
-                                {% else %}
+                                {% for tech in ticket.technicians.all %}
+                                    {{ tech.get_full_name|default:tech.username }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
                                     -
-                                {% endif %}
+                                {% endfor %}
                             </span>
-                            <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Técnico"><i class="fas fa-pencil-alt fa-xs"></i></a>
+                            <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Técnicos"><i class="fas fa-pencil-alt fa-xs"></i></a>
                         </div>
                     </div>
                     <div class="col-md-3">

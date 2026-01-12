@@ -33,9 +33,7 @@
                              data-deadline="{{ ticket.deadline|date:'d/m/Y'|default:'Indefinido' }}"
                              data-start-date="{% if ticket.start_date %}{{ ticket.start_date|date:'d/m/Y' }}{% else %}{{ ticket.created_at|date:'d/m/Y' }}{% endif %}"
                              data-estimated-time="{{ ticket.estimated_time|default:'' }}"
-                             data-technician-name="{{ ticket.technician.first_name|default:ticket.technician.username|default:'Sem técnico' }}"
-                             data-technician-photo="{% if ticket.technician.profile.photo %}{{ ticket.technician.profile.photo.url }}?v={% now "U" %}{% endif %}"
-                             data-technician-initials="{{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}"
+                             data-technicians='[{% for tech in ticket.technicians.all %}{"name": "{{ tech.first_name|default:tech.username }}", "photo": "{% if tech.profile.photo %}{{ tech.profile.photo.url }}?v={% now "U" %}{% endif %}", "initials": "{{ tech.first_name|first|default:tech.username|first|upper }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
                              data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
                              style="cursor: pointer;">
                             
@@ -93,16 +91,24 @@
                                         {% endif %}
                                     </div>
                                     
-                                    <div class="technicians-avatars">
-                                        {% if ticket.technician %}
-                                            {% if ticket.technician.profile.photo %}
-                                                <img src="{{ ticket.technician.profile.photo.url }}?v={% now "U" %}" class="rounded-circle border border-dark" width="28" height="28" title="{{ ticket.technician.first_name }}">
-                                            {% else %}
-                                                <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 28px; height: 28px; font-size: 0.8rem;">
-                                                    {{ ticket.technician.first_name|first|default:ticket.technician.username|first|upper }}
-                                                </div>
-                                            {% endif %}
-                                        {% endif %}
+                                    <div class="technicians-avatars d-flex justify-content-end ps-2">
+                                        {% for tech in ticket.technicians.all %}
+                                            <div class="tech-avatar-wrapper" style="margin-left: -10px; z-index: {{ forloop.revcounter }}; transition: transform 0.2s;">
+                                                {% if tech.profile.photo %}
+                                                    <img src="{{ tech.profile.photo.url }}?v={% now "U" %}" 
+                                                         class="rounded-circle border border-dark" 
+                                                         width="28" height="28" 
+                                                         title="{{ tech.first_name|default:tech.username }}"
+                                                         style="background-color: #fff;">
+                                                {% else %}
+                                                    <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" 
+                                                         style="width: 28px; height: 28px; font-size: 0.8rem; background-color: #343a40;"
+                                                         title="{{ tech.first_name|default:tech.username }}">
+                                                        {{ tech.first_name|first|default:tech.username|first|upper }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
                                     </div>
                                 </div>
                                 
@@ -314,14 +320,51 @@
         document.getElementById('modalStartDate').textContent = data.startDate;
         document.getElementById('modalEstimatedTime').textContent = data.estimatedTime || '--:--';
         document.getElementById('modalDeadline').textContent = data.deadline;
-        document.getElementById('modalTechName').textContent = data.technicianName;
         
-        // Avatar
+        // Technicians
         const avatarContainer = document.getElementById('modalTechAvatar');
-        if (data.technicianPhoto) {
-            avatarContainer.innerHTML = `<img src="${data.technicianPhoto}" class="rounded-circle border border-dark" width="48" height="48">`;
-        } else {
-            avatarContainer.innerHTML = `<div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 48px; height: 48px; font-size: 1.2rem;">${data.technicianInitials}</div>`;
+        const nameContainer = document.getElementById('modalTechName');
+        
+        avatarContainer.innerHTML = '';
+        nameContainer.textContent = '';
+        
+        try {
+            let techsObj;
+            if (typeof data.technicians === 'string') {
+                techsObj = JSON.parse(data.technicians);
+            } else {
+                techsObj = data.technicians;
+            }
+            
+            if (techsObj && techsObj.length > 0) {
+                 const avatarWrapper = document.createElement('div');
+                 avatarWrapper.className = 'd-flex';
+                 
+                 let names = [];
+                 
+                 techsObj.forEach((tech, index) => {
+                     const div = document.createElement('div');
+                     div.style.marginLeft = index > 0 ? '-15px' : '0';
+                     div.style.zIndex = techsObj.length - index;
+                     
+                     if (tech.photo) {
+                         div.innerHTML = `<img src="${tech.photo}" class="rounded-circle border border-dark" width="48" height="48" title="${tech.name}" style="background-color: #fff;">`;
+                     } else {
+                         div.innerHTML = `<div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 48px; height: 48px; font-size: 1.2rem; background-color: #343a40;" title="${tech.name}">${tech.initials}</div>`;
+                     }
+                     avatarWrapper.appendChild(div);
+                     names.push(tech.name);
+                 });
+                 
+                 avatarContainer.appendChild(avatarWrapper);
+                 nameContainer.textContent = names.join(', ');
+            } else {
+                 avatarContainer.innerHTML = '<div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width: 48px; height: 48px;"><i class="fas fa-user-slash"></i></div>';
+                 nameContainer.textContent = 'Sem técnico';
+            }
+        } catch (e) {
+            console.error('Error parsing technicians:', e);
+             nameContainer.textContent = 'Erro ao carregar técnicos';
         }
         
         // Systems

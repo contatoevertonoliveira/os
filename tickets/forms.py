@@ -113,12 +113,18 @@ class TechnicianChoiceField(forms.ModelChoiceField):
             return f"{obj.get_full_name()} ({obj.username})"
         return obj.username
 
+class TechnicianMultipleChoiceField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        if obj.first_name or obj.last_name:
+            return f"{obj.get_full_name()} ({obj.username})"
+        return obj.username
+
 class TicketForm(forms.ModelForm):
-    technician = TechnicianChoiceField(
+    technicians = TechnicianMultipleChoiceField(
         queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
         required=False,
-        label="Técnico Responsável",
-        empty_label="Selecione um técnico"
+        label="Técnicos Responsáveis",
+        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'})
     )
     requester = TechnicianChoiceField(
         queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
@@ -132,12 +138,12 @@ class TicketForm(forms.ModelForm):
         fields = [
             'client', 'systems', 'area_group', 'area_subgroup', 'area',
             'equipment', 'order_type', 'call_type', 'problem_type',
-            'requester', 'technician', 'start_date', 'deadline', 'estimated_time', 
+            'requester', 'technicians', 'start_date', 'deadline', 'estimated_time', 
             'description', 'image', 'status'
         ]
         widgets = {
-            'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
-            'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
         }
     
