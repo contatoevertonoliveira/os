@@ -66,4 +66,14 @@ jobs:
             
             # Reinicia o Nginx completamente para garantir que a nova porta seja usada
             service nginx restart
+            
+            # Re-aplica configuração SSL via Certbot (corrige o arquivo nginx que foi sobrescrito)
+            # Se o certbot falhar (não instalado?), não quebra o deploy, mas avisa
+            if command -v certbot > /dev/null; then
+              certbot --nginx -d osjumperfour.felixsystems.com.br --non-interactive --redirect --keep-until-expiring || true
+            else
+              echo "Certbot não encontrado, pulando configuração SSL automática"
+            fi
+            
+            service nginx reload
             service nginx reload
