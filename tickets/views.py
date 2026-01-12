@@ -120,7 +120,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     'label': tech.username,
                     'data': data_points,
                     'photo': photo_url,
-                    'borderColor': tech.profile.color if tech.profile.color else '#26923B'
+                    'borderColor': '#26923B'  # Default color since UserProfile doesn't have color field yet
                 })
         
         context['chart_tech_datasets'] = tech_chart_datasets
