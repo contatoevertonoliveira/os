@@ -267,7 +267,7 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
                 self.object.technicians.add(user)
         
         # Process Evolution
-        evolution_desc = self.request.POST.get('evolution_description')
+        evolution_desc = self.request.POST.get('evolution_description', '')
         evolution_imgs = self.request.FILES.getlist('evolution_image')
         
         has_evolution = False
@@ -276,10 +276,12 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
                 ticket=self.object,
                 created_by=self.request.user,
                 description=evolution_desc,
-                image=evolution_imgs[0] if evolution_imgs else None
+                image=None
             )
             
             for img in evolution_imgs:
+                if hasattr(img, 'seek'):
+                    img.seek(0)
                 TicketUpdateImage.objects.create(
                     update=update,
                     image=img
