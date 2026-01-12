@@ -242,3 +242,12 @@ class TicketUpdate(models.Model):
         ordering = ['created_at']
         verbose_name = "Evolução do Chamado"
         verbose_name_plural = "Evoluções do Chamado"
+
+class TicketUpdateImage(models.Model):
+    update = models.ForeignKey(TicketUpdate, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='ticket_updates/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Imagem da Evolução"
+        verbose_name_plural = "Imagens da Evolução"

@@ -235,7 +235,7 @@ class TicketEvolutionForm(forms.ModelForm):
         fields = ['description', 'image']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3, 'class': 'form-control', 'placeholder': 'Descreva a evolução do atendimento...'}),
-            'image': forms.FileInput(attrs={'class': 'form-control'}),
+            'image': forms.FileInput(attrs={'class': 'form-control', 'multiple': True}),
         }
 
 class UserProfileForm(forms.ModelForm):

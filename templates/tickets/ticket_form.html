@@ -227,7 +227,22 @@
                                     <small class="text-muted">{{ update.created_at|date:"d/m/Y H:i" }}</small>
                                 </div>
                                 <p class="mb-2 text-secondary">{{ update.description }}</p>
-                                {% if update.image %}
+                                {% if update.images.exists %}
+                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                        {% for img_obj in update.images.all %}
+                                            <div class="position-relative d-inline-block">
+                                                <img src="{{ img_obj.image.url }}" 
+                                                     alt="Imagem da Evolução" 
+                                                     class="img-thumbnail open-gallery-btn shadow-sm" 
+                                                     style="width: 100px; height: 100px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
+                                                     onmouseover="this.style.transform='scale(1.05)'"
+                                                     onmouseout="this.style.transform='scale(1)'"
+                                                     data-image-url="{{ img_obj.image.url }}"
+                                                     data-image-desc="{{ update.description|default:''|escapejs }}">
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% elif update.image %}
                                     <div class="mt-2">
                                         <img src="{{ update.image.url }}" 
                                              alt="Imagem da Evolução" 

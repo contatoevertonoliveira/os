@@ -268,16 +268,23 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         
         # Process Evolution
         evolution_desc = self.request.POST.get('evolution_description')
-        evolution_img = self.request.FILES.get('evolution_image')
+        evolution_imgs = self.request.FILES.getlist('evolution_image')
         
         has_evolution = False
-        if evolution_desc or evolution_img:
-            TicketUpdate.objects.create(
+        if evolution_desc or evolution_imgs:
+            update = TicketUpdate.objects.create(
                 ticket=self.object,
                 created_by=self.request.user,
                 description=evolution_desc,
-                image=evolution_img
+                image=evolution_imgs[0] if evolution_imgs else None
             )
+            
+            for img in evolution_imgs:
+                TicketUpdateImage.objects.create(
+                    update=update,
+                    image=img
+                )
+                
             has_evolution = True
             
         # Determine action
@@ -526,21 +533,12 @@ class TicketUpdateDeleteView(LoginRequiredMixin, View):
         update = get_object_or_404(TicketUpdate, pk=pk)
         ticket = update.ticket
         
-        # Check permissions if needed (e.g., only creator or admin)
-        # For now allowing deletion by logged in users as per request "user can delete"
+        # Check permissions if needed
         
         update.delete()
-        messages.success(request, "Evolução excluída com sucesso!")
         
-        # Render the modal body again
-        # We need the form for the modal
-        form = TicketModalForm(instance=ticket)
-        context = {
-            'ticket': ticket,
-            'form': form,
-            'updates': ticket.updates.all().order_by('-created_at')
-        }
-        return render(request, 'tickets/ticket_modal_body.html', context)
+        # Return JSON for AJAX requests
+        return JsonResponse({'status': 'success', 'message': 'Evolução excluída com sucesso!'})
 
 class TicketUpdateEditView(LoginRequiredMixin, View):
     def post(self, request, pk):
