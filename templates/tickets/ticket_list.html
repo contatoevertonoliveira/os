@@ -32,7 +32,14 @@
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
                         <td>{{ ticket.formatted_id }}</td>
-                        <td>{{ ticket.client.name }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if ticket.client.logo %}
+                                    <img src="{{ ticket.client.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 24px; height: 24px; object-fit: cover;">
+                                {% endif %}
+                                {{ ticket.client.name }}
+                            </div>
+                        </td>
                         <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
                         <td>
