@@ -13,8 +13,13 @@
             <div class="col-md-6 col-lg-4 col-xl-3">
                 <div class="client-column h-100">
                     <div class="client-header mb-3 pb-2 border-bottom border-2 border-dark d-flex justify-content-between align-items-center">
-                        <h5 class="fw-bold text-uppercase m-0 text-dark">
-                            <i class="fas fa-building me-2 text-secondary"></i>{{ client.grouper.name }}
+                        <h5 class="fw-bold text-uppercase m-0 text-dark d-flex align-items-center">
+                            {% if client.grouper.logo %}
+                                <img src="{{ client.grouper.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 30px; height: 30px; object-fit: cover;">
+                            {% else %}
+                                <i class="fas fa-building me-2 text-secondary"></i>
+                            {% endif %}
+                            {{ client.grouper.name }}
                         </h5>
                         <span class="badge bg-dark rounded-pill">{{ client.list|length }}</span>
                     </div>
@@ -86,7 +91,9 @@
                                 <div class="d-flex justify-content-between align-items-end mt-2">
                                     <div class="text-muted small" style="font-size: 0.75rem;">
                                         <i class="far fa-clock me-1"></i>{{ ticket.deadline|date:"d/m"|default:"--" }}
-                                        {% if ticket.estimated_time %}
+                                        {% if ticket.calculated_hours %}
+                                        <span class="ms-2" title="Tempo Estimado (Calculado)"><i class="fas fa-hourglass-half me-1"></i>{{ ticket.calculated_hours }}h</span>
+                                        {% elif ticket.estimated_time %}
                                         <span class="ms-2" title="Tempo Estimado"><i class="fas fa-hourglass-half me-1"></i>{{ ticket.estimated_time }}</span>
                                         {% endif %}
                                     </div>

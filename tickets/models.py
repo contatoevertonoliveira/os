@@ -27,6 +27,7 @@ class UserProfile(models.Model):
 
 class Client(models.Model):
     name = models.CharField(max_length=200, verbose_name="Nome do Cliente")
+    logo = models.ImageField(upload_to='client_logos/', verbose_name="Logomarca", blank=True, null=True)
     email = models.EmailField(verbose_name="Email", blank=True, null=True)
     phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
     phone2 = models.CharField(max_length=20, verbose_name="Telefone 2", blank=True, null=True)
@@ -177,6 +178,30 @@ class Ticket(models.Model):
     @property
     def formatted_id(self):
         return f"JMP{self.id:05d}"
+
+    @property
+    def calculated_hours(self):
+        if not self.start_date or not self.deadline:
+            return None
+            
+        # Ensure we are comparing dates, ignoring time if it was set
+        start = self.start_date.date()
+        end = self.deadline.date()
+        
+        if end < start:
+            return None
+            
+        # Calculate days difference (inclusive)
+        days = (end - start).days + 1
+        
+        # 8.8 hours per day (8h 48m)
+        total_hours = days * 8.8
+        
+        # Format for display
+        hours = int(total_hours)
+        minutes = int((total_hours - hours) * 60)
+        
+        return f"{hours}:{minutes:02d}"
 
     @property
     def status_color(self):

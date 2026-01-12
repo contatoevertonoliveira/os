@@ -51,7 +51,7 @@ class ClientForm(forms.ModelForm):
     class Meta:
         model = Client
         fields = [
-            'name', 'email', 'phone', 'phone2', 'address',
+            'name', 'logo', 'email', 'phone', 'phone2', 'address',
             'contact1_name', 'contact1_phone', 'contact1_email',
             'contact2_name', 'contact2_phone', 'contact2_email'
         ]
@@ -62,6 +62,12 @@ class ClientForm(forms.ModelForm):
             'contact2_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'address': forms.Textarea(attrs={'rows': 2}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['logo'].widget.attrs.update({'class': 'form-control'})
+
 
 class TechnicianForm(forms.ModelForm):
     first_name = forms.CharField(label="Nome do Técnico", max_length=150, required=True)
