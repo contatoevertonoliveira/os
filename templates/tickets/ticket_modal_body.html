@@ -167,10 +167,13 @@
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-muted mb-1">Anexo Inicial</label>
                         <div class="p-2 border rounded bg-light d-flex align-items-center">
-                             <a href="{{ ticket.image.url }}" target="_blank" class="text-decoration-none d-flex align-items-center gap-2">
-                                <i class="fas fa-image text-secondary"></i>
-                                <span class="small text-dark">Ver Imagem Anexada</span>
-                             </a>
+                             <img src="{{ ticket.image.url }}" 
+                                  alt="Anexo Inicial" 
+                                  class="img-thumbnail open-gallery-btn me-2" 
+                                  style="width: 60px; height: 60px; object-fit: cover; cursor: pointer;"
+                                  data-image-url="{{ ticket.image.url }}"
+                                  data-image-desc="Anexo Inicial">
+                             <span class="small text-dark">Imagem Anexada</span>
                         </div>
                     </div>
                     {% endif %}
@@ -345,9 +348,16 @@
                                             <div id="update-view-{{ update.id }}">
                                                 <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
                                                 {% if update.image %}
-                                                    <a href="{{ update.image.url }}" target="_blank" class="badge bg-light text-secondary border text-decoration-none mt-1">
-                                                        <i class="fas fa-paperclip"></i> Anexo
-                                                    </a>
+                                                    <div class="mt-2 position-relative d-inline-block">
+                                                        <img src="{{ update.image.url }}" 
+                                                             alt="Imagem da Evolução" 
+                                                             class="img-thumbnail open-gallery-btn shadow-sm" 
+                                                             style="width: 100px; height: 100px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
+                                                             onmouseover="this.style.transform='scale(1.05)'"
+                                                             onmouseout="this.style.transform='scale(1)'"
+                                                             data-image-url="{{ update.image.url }}"
+                                                             data-image-desc="{{ update.description|default:''|escapejs }}">
+                                                    </div>
                                                 {% endif %}
                                             </div>
                                             

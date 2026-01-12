@@ -228,9 +228,16 @@
                                 </div>
                                 <p class="mb-2 text-secondary">{{ update.description }}</p>
                                 {% if update.image %}
-                                    <a href="{{ update.image.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                        <i class="fas fa-image me-1"></i> Ver Anexo
-                                    </a>
+                                    <div class="mt-2">
+                                        <img src="{{ update.image.url }}" 
+                                             alt="Imagem da Evolução" 
+                                             class="img-thumbnail open-gallery-btn shadow-sm" 
+                                             style="width: 100px; height: 100px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
+                                             onmouseover="this.style.transform='scale(1.05)'"
+                                             onmouseout="this.style.transform='scale(1)'"
+                                             data-image-url="{{ update.image.url }}"
+                                             data-image-desc="{{ update.description|default:''|escapejs }}">
+                                    </div>
                                 {% endif %}
                             </div>
                         </div>

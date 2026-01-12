@@ -161,9 +161,14 @@
                 {% if ticket.image %}
                 <div class="mb-3">
                     <h6 class="text-primary border-bottom pb-1 mb-2">Imagem do Evento</h6>
-                    <a href="{{ ticket.image.url }}" target="_blank">
-                        <img src="{{ ticket.image.url }}" alt="Imagem do Evento" class="img-fluid rounded border" style="max-height: 400px;">
-                    </a>
+                    <img src="{{ ticket.image.url }}" 
+                         alt="Imagem do Evento" 
+                         class="img-fluid rounded border open-gallery-btn shadow-sm" 
+                         style="max-height: 400px; cursor: pointer; transition: transform 0.2s;"
+                         onmouseover="this.style.transform='scale(1.01)'"
+                         onmouseout="this.style.transform='scale(1)'"
+                         data-image-url="{{ ticket.image.url }}"
+                         data-image-desc="Imagem Inicial do Evento">
                 </div>
                 {% endif %}
             </div>
@@ -193,9 +198,14 @@
                         <div class="card-text mb-2">{{ update.description|linebreaks }}</div>
                         {% if update.image %}
                         <div class="mt-2">
-                            <a href="{{ update.image.url }}" target="_blank">
-                                <img src="{{ update.image.url }}" alt="Imagem da Evolução" class="img-thumbnail" style="max-height: 200px;">
-                            </a>
+                            <img src="{{ update.image.url }}" 
+                                 alt="Imagem da Evolução" 
+                                 class="img-thumbnail open-gallery-btn" 
+                                 style="max-height: 200px; cursor: pointer; transition: transform 0.2s;"
+                                 onmouseover="this.style.transform='scale(1.02)'"
+                                 onmouseout="this.style.transform='scale(1)'"
+                                 data-image-url="{{ update.image.url }}"
+                                 data-image-desc="{{ update.description|default:''|escapejs }}">
                         </div>
                         {% endif %}
                     </div>
