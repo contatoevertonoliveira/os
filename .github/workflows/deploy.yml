@@ -40,6 +40,19 @@ jobs:
             cp deploy/os_gunicorn.service /etc/systemd/system/os_gunicorn.service
             systemctl daemon-reload
             
+            # Para o serviço antigo se estiver rodando (limpeza)
+            systemctl stop gunicorn || true
+            systemctl disable gunicorn || true
+
+            # Atualiza configuração do Nginx (Busca o arquivo correto pelo server_name e substitui)
+            # Se não encontrar, cria como 'os' e habilita
+            if grep -l "osjumperfour.felixsystems.com.br" /etc/nginx/sites-enabled/*; then
+              grep -l "osjumperfour.felixsystems.com.br" /etc/nginx/sites-enabled/* | xargs -I {} cp deploy/nginx.conf {}
+            else
+              cp deploy/nginx.conf /etc/nginx/sites-available/os
+              ln -sf /etc/nginx/sites-available/os /etc/nginx/sites-enabled/os
+            fi
+
             # Reinicia o serviço específico do OS
             systemctl enable os_gunicorn
             systemctl restart os_gunicorn
