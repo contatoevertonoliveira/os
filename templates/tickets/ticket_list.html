@@ -18,11 +18,13 @@
                     <tr>
                         <th>#</th>
                         <th>Cliente</th>
-                        <th>Tipo</th>
+                        <th>Tipo de Chamado</th>
+                        <th>Tipo de Ordem</th>
                         <th>Equipamento</th>
                         <th>Técnico</th>
                         <th>Status</th>
                         <th>Data Criação</th>
+                        <th>Última Atualização</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -40,11 +42,12 @@
                                 {{ ticket.client.name }}
                             </div>
                         </td>
+                        <td>{{ ticket.get_call_type_display|default:"-" }}</td>
                         <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
                         <td>
                             {% for tech in ticket.technicians.all %}
-                                {{ tech.username }}{% if not forloop.last %}, {% endif %}
+                                <div>{{ tech.get_full_name|default:tech.username }}</div>
                             {% empty %}
                                 <span class="text-muted">-</span>
                             {% endfor %}
@@ -55,6 +58,7 @@
                             </span>
                         </td>
                         <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
                                 <i class="fas fa-eye"></i>
@@ -68,7 +72,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
+                        <td colspan="10" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
