@@ -274,6 +274,7 @@ class Notification(models.Model):
     related_ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
     
     is_read = models.BooleanField(default=False, verbose_name="Lida")
+    read_at = models.DateTimeField(null=True, blank=True, verbose_name="Lida em")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

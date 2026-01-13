@@ -818,33 +818,99 @@ class NotificationListView(LoginRequiredMixin, ListView):
 def mark_notification_read(request, pk):
     if request.method == 'POST':
         notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-        notification.is_read = True
-        notification.save()
+        if not notification.is_read:
+            notification.is_read = True
+            notification.read_at = timezone.now()
+            notification.save()
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
 
 @login_required
 def mark_all_notifications_read(request):
     if request.method == 'POST':
-        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
 
+class NotificationMonitorView(AdminRequiredMixin, ListView):
+    model = Notification
+    template_name = 'notifications/notification_monitor.html'
+    context_object_name = 'notifications'
+    paginate_by = 50
+
+    def get_queryset(self):
+        qs = Notification.objects.select_related('recipient', 'sender').all().order_by('-created_at')
+        
+        # Filters
+        notification_type = self.request.GET.get('type')
+        if notification_type:
+            qs = qs.filter(notification_type=notification_type)
+            
+        status = self.request.GET.get('status')
+        if status == 'read':
+            qs = qs.filter(is_read=True)
+        elif status == 'unread':
+            qs = qs.filter(is_read=False)
+            
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Monitoramento de Notificações"
+        context['type_choices'] = Notification.TYPE_CHOICES
+        return context
+
 class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Notification
-    fields = ['recipient', 'title', 'message']
+    form_class = SendMessageForm
     template_name = 'notifications/send_message_form.html'
     success_url = reverse_lazy('dashboard')
     success_message = "Mensagem enviada com sucesso!"
 
     def form_valid(self, form):
-        form.instance.sender = self.request.user
-        form.instance.notification_type = 'message'
-        return super().form_valid(form)
+        recipient = form.cleaned_data.get('recipient')
+        send_to_all = form.cleaned_data.get('send_to_all')
+        group = form.cleaned_data.get('group')
+        title = form.cleaned_data.get('title')
+        message = form.cleaned_data.get('message')
+        sender = self.request.user
+
+        recipients = set()
+
+        if recipient:
+            recipients.add(recipient)
+        
+        if send_to_all:
+            recipients.update(User.objects.filter(is_active=True).exclude(pk=sender.pk))
+        
+        if group:
+            if group == 'admin':
+                recipients.update(User.objects.filter(is_active=True, profile__role__in=['admin', 'super_admin']).exclude(pk=sender.pk))
+            elif group == 'technician':
+                recipients.update(User.objects.filter(is_active=True, profile__role='technician').exclude(pk=sender.pk))
+            elif group == 'client':
+                recipients.update(User.objects.filter(is_active=True, profile__role='client').exclude(pk=sender.pk))
+
+        # Create notifications
+        notifications = []
+        for user in recipients:
+            notifications.append(Notification(
+                recipient=user,
+                sender=sender,
+                title=title,
+                message=message,
+                notification_type='message'
+            ))
+        
+        if notifications:
+            Notification.objects.bulk_create(notifications)
+            messages.success(self.request, f"Mensagem enviada para {len(notifications)} destinatários.")
+        else:
+             messages.warning(self.request, "Nenhum destinatário encontrado.")
+
+        return redirect(self.success_url)
         
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        form = context['form']
-        form.fields['recipient'].queryset = User.objects.filter(is_active=True).exclude(pk=self.request.user.pk).order_by('first_name')
         context['title'] = "Nova Mensagem"
         return context

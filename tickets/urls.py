@@ -12,7 +12,7 @@ from .views import (
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView,
-    NotificationListView, SendMessageView, mark_notification_read, mark_all_notifications_read
+    NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -80,6 +80,7 @@ urlpatterns = [
 
     # Notifications
     path('notifications/', NotificationListView.as_view(), name='notification_list'),
+    path('notifications/monitor/', NotificationMonitorView.as_view(), name='notification_monitor'),
     path('notifications/send/', SendMessageView.as_view(), name='send_message'),
     path('notifications/<int:pk>/read/', mark_notification_read, name='mark_notification_read'),
     path('notifications/read-all/', mark_all_notifications_read, name='mark_all_notifications_read'),

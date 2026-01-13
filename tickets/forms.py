@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -366,3 +366,27 @@ class UserManagementForm(forms.ModelForm):
             
             profile.save()
         return user
+
+class SendMessageForm(forms.ModelForm):
+    recipient = forms.ModelChoiceField(queryset=User.objects.all(), required=False, label="Destinatário", widget=forms.Select(attrs={'class': 'form-select select2'}))
+    send_to_all = forms.BooleanField(required=False, label="Enviar para todos (Público)", widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    group = forms.ChoiceField(choices=[('', 'Selecione um grupo (opcional)'), ('technician', 'Técnicos'), ('client', 'Clientes'), ('admin', 'Administradores')], required=False, label="Enviar para Grupo", widget=forms.Select(attrs={'class': 'form-select'}))
+
+    class Meta:
+        model = Notification
+        fields = ['recipient', 'title', 'message']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Assunto'}),
+            'message': forms.Textarea(attrs={'class': 'form-control', 'rows': 5, 'placeholder': 'Escreva sua mensagem...'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        recipient = cleaned_data.get('recipient')
+        send_to_all = cleaned_data.get('send_to_all')
+        group = cleaned_data.get('group')
+
+        if not recipient and not send_to_all and not group:
+            raise forms.ValidationError("Selecione um destinatário, um grupo ou marque 'Enviar para todos'.")
+        
+        return cleaned_data

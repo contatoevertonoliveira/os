@@ -15,12 +15,30 @@
             <form method="post">
                 {% csrf_token %}
                 
-                <div class="mb-3">
-                    <label for="{{ form.recipient.id_for_label }}" class="form-label">Destinatário</label>
-                    {% render_field form.recipient class="form-select select2" %}
-                    {% if form.recipient.errors %}
-                        <div class="invalid-feedback d-block">{{ form.recipient.errors|first }}</div>
-                    {% endif %}
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                         <div class="form-check form-switch mb-3 p-3 bg-light rounded border">
+                            {% render_field form.send_to_all class="form-check-input" id="sendToAllSwitch" style="margin-left: -2.5em; margin-right: 1em;" %}
+                            <label class="form-check-label fw-bold" for="sendToAllSwitch" style="margin-left: 0.5em;">Enviar para todos (Mensagem Pública)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3" id="recipientSection">
+                    <div class="col-md-6">
+                        <label for="{{ form.recipient.id_for_label }}" class="form-label">Destinatário Específico</label>
+                        {% render_field form.recipient class="form-select select2" %}
+                        {% if form.recipient.errors %}
+                            <div class="invalid-feedback d-block">{{ form.recipient.errors|first }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="{{ form.group.id_for_label }}" class="form-label">Ou Enviar para Grupo</label>
+                        {% render_field form.group class="form-select" %}
+                        {% if form.group.errors %}
+                            <div class="invalid-feedback d-block">{{ form.group.errors|first }}</div>
+                        {% endif %}
+                    </div>
                 </div>
                 
                 <div class="mb-3">
@@ -48,4 +66,32 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sendToAllSwitch = document.getElementById('sendToAllSwitch');
+        const recipientSection = document.getElementById('recipientSection');
+        const recipientSelect = document.querySelector('[name="recipient"]');
+        const groupSelect = document.querySelector('[name="group"]');
+
+        function toggleRecipientFields() {
+            if (sendToAllSwitch.checked) {
+                recipientSection.style.opacity = '0.5';
+                recipientSection.style.pointerEvents = 'none';
+                recipientSelect.value = '';
+                groupSelect.value = '';
+                // If using Select2, trigger change
+                if (typeof $ !== 'undefined' && $(recipientSelect).data('select2')) {
+                    $(recipientSelect).trigger('change');
+                }
+            } else {
+                recipientSection.style.opacity = '1';
+                recipientSection.style.pointerEvents = 'auto';
+            }
+        }
+
+        sendToAllSwitch.addEventListener('change', toggleRecipientFields);
+        toggleRecipientFields(); // Initial state
+    });
+</script>
 {% endblock %}
