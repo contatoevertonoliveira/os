@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -67,6 +67,22 @@ class ClientForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self.fields['logo'].widget.attrs.update({'class': 'form-control'})
+
+
+class ClientHubForm(forms.ModelForm):
+    class Meta:
+        model = ClientHub
+        fields = ['name', 'address', 'phone']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do Hub/Loja'}),
+            'address': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Endereço'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
+        }
+
+ClientHubFormSet = forms.inlineformset_factory(
+    Client, ClientHub, form=ClientHubForm,
+    extra=1, can_delete=True
+)
 
 
 class TechnicianForm(forms.ModelForm):
@@ -145,13 +161,13 @@ class TechnicianMultipleChoiceField(forms.ModelMultipleChoiceField):
 
 class TicketForm(forms.ModelForm):
     technicians = TechnicianMultipleChoiceField(
-        queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
+        queryset=User.objects.filter(profile__role='technician', is_active=True).order_by('first_name'),
         required=False,
         label="Técnicos Responsáveis",
         widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'})
     )
     requester = TechnicianChoiceField(
-        queryset=User.objects.filter(profile__role__in=['standard', 'technician']),
+        queryset=User.objects.filter(is_active=True).order_by('first_name'),
         required=False,
         label="Solicitante",
         empty_label="Selecione um solicitante"
@@ -160,15 +176,17 @@ class TicketForm(forms.ModelForm):
     class Meta:
         model = Ticket
         fields = [
-            'client', 'systems', 'area_group', 'area_subgroup', 'area',
+            'client', 'hub', 'systems', 'area_group', 'area_subgroup', 'area',
             'equipment', 'order_type', 'call_type', 'problem_type',
             'requester', 'technicians', 'start_date', 'deadline', 'estimated_time', 
-            'description', 'image', 'status'
+            'description', 'final_description', 'image', 'status'
         ]
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
+            'hub': forms.Select(attrs={'class': 'form-select'}),
+            'final_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Descreva o que foi feito para resolver o problema...'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -176,6 +194,18 @@ class TicketForm(forms.ModelForm):
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
+        
+        # Dynamic filtering for hubs
+        self.fields['hub'].queryset = ClientHub.objects.none()
+
+        if 'client' in self.data:
+            try:
+                client_id = int(self.data.get('client'))
+                self.fields['hub'].queryset = ClientHub.objects.filter(client_id=client_id).order_by('name')
+            except (ValueError, TypeError):
+                pass  # invalid input from the client; ignore and fallback to empty queryset
+        elif self.instance.pk:
+            self.fields['hub'].queryset = self.instance.client.hubs.order_by('name')
 
     def clean_estimated_time(self):
         data = self.cleaned_data.get('estimated_time')

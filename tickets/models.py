@@ -56,6 +56,21 @@ class Client(models.Model):
         verbose_name = "Cliente"
         verbose_name_plural = "Clientes"
 
+class ClientHub(models.Model):
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='hubs', verbose_name="Cliente")
+    name = models.CharField(max_length=200, verbose_name="Nome do Hub/Loja")
+    address = models.TextField(verbose_name="Endereço", blank=True, null=True)
+    phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.client.name}"
+    
+    class Meta:
+        verbose_name = "Hub/Loja"
+        verbose_name_plural = "Hubs/Lojas"
+
 class EquipmentType(models.Model):
     name = models.CharField(max_length=100, verbose_name="Tipo de Equipamento")
     
@@ -150,6 +165,7 @@ class Ticket(models.Model):
     )
     
     client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Cliente")
+    hub = models.ForeignKey(ClientHub, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja")
     technicians = models.ManyToManyField(User, verbose_name="Técnicos Responsáveis", blank=True, related_name='assigned_tickets')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante", related_name='requested_tickets')
     
@@ -166,6 +182,7 @@ class Ticket(models.Model):
     problem_type = models.ForeignKey(ProblemType, on_delete=models.PROTECT, verbose_name="Tipo de Problema", null=True)
     
     description = models.TextField(verbose_name="Descrição Detalhada", blank=True)
+    final_description = models.TextField(verbose_name="Descrição Final (Resolução)", blank=True, null=True)
     image = models.ImageField(upload_to='tickets/', null=True, blank=True, verbose_name="Imagem do Evento")
     
     start_date = models.DateTimeField(null=True, blank=True, verbose_name="Data de Início")

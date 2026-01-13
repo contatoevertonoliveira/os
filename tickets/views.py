@@ -408,7 +408,22 @@ class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = "Novo Cliente"
         context['back_url'] = reverse_lazy('client_list')
+        if self.request.POST:
+            context['hubs'] = ClientHubFormSet(self.request.POST)
+        else:
+            context['hubs'] = ClientHubFormSet()
         return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        hubs = context['hubs']
+        if hubs.is_valid():
+            self.object = form.save()
+            hubs.instance = self.object
+            hubs.save()
+            return super().form_valid(form)
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
 
 class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Client
@@ -421,7 +436,22 @@ class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context = super().get_context_data(**kwargs)
         context['title'] = f"Editar Cliente: {self.object.name}"
         context['back_url'] = reverse_lazy('client_list')
+        if self.request.POST:
+            context['hubs'] = ClientHubFormSet(self.request.POST, instance=self.object)
+        else:
+            context['hubs'] = ClientHubFormSet(instance=self.object)
         return context
+
+    def form_valid(self, form):
+        context = self.get_context_data()
+        hubs = context['hubs']
+        if hubs.is_valid():
+            self.object = form.save()
+            hubs.instance = self.object
+            hubs.save()
+            return super().form_valid(form)
+        else:
+            return self.render_to_response(self.get_context_data(form=form))
 
 class ClientDeleteView(LoginRequiredMixin, DeleteView):
     model = Client
@@ -824,6 +854,15 @@ def mark_notification_read(request, pk):
             notification.save()
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def load_hubs(request):
+    client_id = request.GET.get('client_id')
+    if client_id:
+        hubs = list(ClientHub.objects.filter(client_id=client_id).order_by('name').values('id', 'name'))
+    else:
+        hubs = []
+    return JsonResponse(hubs, safe=False)
 
 @login_required
 def mark_all_notifications_read(request):

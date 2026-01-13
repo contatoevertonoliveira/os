@@ -12,7 +12,8 @@ from .views import (
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView,
-    NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read
+    NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
+    load_hubs
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -20,6 +21,7 @@ urlpatterns = [
     path('api/tickets/', TicketAPIView.as_view(), name='api_tickets'),
     path('api/clients/', ClientAPIView.as_view(), name='api_clients'),
     path('api/equipments/', EquipmentAPIView.as_view(), name='api_equipments'),
+    path('ajax/load-hubs/', load_hubs, name='ajax_load_hubs'),
     path('', DashboardView.as_view(), name='dashboard'),
     
     # Tasks

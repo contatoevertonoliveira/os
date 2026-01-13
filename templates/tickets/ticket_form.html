@@ -56,12 +56,17 @@
                                 <i class="fas fa-info-circle me-2"></i>Informações Principais
                             </h6>
                             <div class="row g-3">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
                                     {% render_field form.client class="form-select form-select-sm" %}
                                     <div class="text-danger small">{{ form.client.errors }}</div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <label for="{{ form.hub.id_for_label }}" class="form-label small fw-bold mb-1">Hub / Loja</label>
+                                    {% render_field form.hub class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.hub.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
                                     <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
                                     {% render_field form.status class="form-select form-select-sm" %}
                                     <div class="text-danger small">{{ form.status.errors }}</div>
@@ -181,6 +186,11 @@
                                     <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição Detalhada</label>
                                     {% render_field form.description class="form-control" rows="4" placeholder="Descreva os detalhes da solicitação..." %}
                                     <div class="text-danger small">{{ form.description.errors }}</div>
+                                </div>
+                                <div class="col-12">
+                                    <label for="{{ form.final_description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição Final (Resolução)</label>
+                                    {% render_field form.final_description class="form-control" rows="4" placeholder="Descreva o que foi feito para resolver o problema e finalizar a ocorrência..." %}
+                                    <div class="text-danger small">{{ form.final_description.errors }}</div>
                                 </div>
                                 <div class="col-12">
                                     <label for="{{ form.image.id_for_label }}" class="form-label small fw-bold mb-1">Imagem / Anexo</label>
@@ -305,6 +315,34 @@
         if (startDateInput && deadlineInput && estimatedTimeInput) {
             startDateInput.addEventListener('change', calculateEstimatedTime);
             deadlineInput.addEventListener('change', calculateEstimatedTime);
+        }
+
+        // Dynamic Hub Loading
+        const clientSelect = document.getElementById('id_client');
+        const hubSelect = document.getElementById('id_hub');
+        const hubUrl = "{% url 'ajax_load_hubs' %}";
+
+        if (clientSelect && hubSelect) {
+            clientSelect.addEventListener('change', function() {
+                const clientId = this.value;
+                
+                // Clear existing options
+                hubSelect.innerHTML = '<option value="">---------</option>';
+                
+                if (clientId) {
+                    fetch(`${hubUrl}?client_id=${clientId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            data.forEach(hub => {
+                                const option = document.createElement('option');
+                                option.value = hub.id;
+                                option.textContent = hub.name;
+                                hubSelect.appendChild(option);
+                            });
+                        })
+                        .catch(error => console.error('Error loading hubs:', error));
+                }
+            });
         }
     });
 </script>

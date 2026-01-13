@@ -188,7 +188,7 @@
         <div class="card chart-card">
             <div class="card-header chart-header">
                 <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
-                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
+                <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status')"><i class="fas fa-expand"></i></button>
             </div>
             <div class="card-body chart-body">
                 <div style="height: 300px; position: relative;">
@@ -231,7 +231,7 @@
         <div class="card chart-card">
             <div class="card-header chart-header">
                 <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
-                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
+                <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas')"><i class="fas fa-expand"></i></button>
             </div>
             <div class="card-body chart-body">
                  <div style="height: 350px; position: relative;">
@@ -333,6 +333,21 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Expand Modal -->
+<div class="modal fade" id="chartExpandModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark" id="expandedChartTitle">Detalhes do Gráfico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4" style="height: 70vh;">
+                <canvas id="expandedChartCanvas"></canvas>
             </div>
         </div>
     </div>
@@ -783,16 +798,76 @@
         clearInterval(refreshTimer);
     }
 
-    if(autoRefreshToggle.checked) {
+    if (autoRefreshToggle.checked) {
         startTimer();
     }
 
     autoRefreshToggle.addEventListener('change', function() {
-        if(this.checked) {
+        if (this.checked) {
             startTimer();
         } else {
             stopTimer();
         }
     });
+
+    // Generic Chart Expansion Logic
+    let expandedChartInstance = null;
+
+    function expandChart(originalChartId, title) {
+        const modalEl = document.getElementById('chartExpandModal');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        // Update Title
+        document.getElementById('expandedChartTitle').textContent = title;
+        
+        // Get original chart
+        let originalChart;
+        if (originalChartId === 'statusChart') originalChart = statusChart;
+        else if (originalChartId === 'systemChart') originalChart = systemChart;
+        else if (originalChartId === 'techChart') originalChart = techChart;
+        else if (originalChartId === 'systemHealthChart') originalChart = sysHealthChart;
+        
+        if (!originalChart) return;
+
+        // Clean up previous instance
+        if (expandedChartInstance) {
+            expandedChartInstance.destroy();
+        }
+
+        // Clone config carefully to preserve functions and objects (like Images)
+        const originalConfig = originalChart.config;
+        
+        // Clone Data
+        const newData = {
+            labels: originalConfig.data.labels,
+            datasets: originalConfig.data.datasets.map(d => ({...d})) // Shallow copy datasets to preserve Image objects
+        };
+        
+        // Clone Options (Deep-ish copy to avoid mutating original)
+        const newOptions = {
+             ...originalConfig.options,
+             maintainAspectRatio: false,
+             animation: false,
+             plugins: {
+                 ...originalConfig.options.plugins,
+                 legend: {
+                     ...originalConfig.options.plugins?.legend,
+                     position: 'top'
+                 }
+             }
+        };
+
+        const config = {
+            type: originalConfig.type,
+            data: newData,
+            options: newOptions
+        };
+        
+        // Render new chart
+        const ctx = document.getElementById('expandedChartCanvas').getContext('2d');
+        expandedChartInstance = new Chart(ctx, config);
+
+        modal.show();
+    }
 </script>
 {% endblock %}
