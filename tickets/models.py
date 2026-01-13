@@ -178,7 +178,8 @@ class Ticket(models.Model):
 
     # Legacy field, but keeping it as it was there. Maybe user wants to use call_type instead.
     order_type = models.ForeignKey(OrderType, on_delete=models.PROTECT, verbose_name="Tipo de Ordem", null=True, blank=True)
-    equipment = models.ForeignKey(Equipment, on_delete=models.PROTECT, verbose_name="Equipamento", null=True)
+    equipments = models.ManyToManyField(Equipment, verbose_name="Equipamentos", blank=True, related_name='tickets')
+    equipment = models.ForeignKey(Equipment, on_delete=models.PROTECT, verbose_name="Equipamento (Legacy)", null=True, blank=True)
     problem_type = models.ForeignKey(ProblemType, on_delete=models.PROTECT, verbose_name="Tipo de Problema", null=True)
     
     description = models.TextField(verbose_name="Descrição Detalhada", blank=True)

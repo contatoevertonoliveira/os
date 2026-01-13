@@ -38,9 +38,15 @@
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <small class="text-muted d-block">Sistema</small>
+                        <small class="text-muted d-block">Sistemas</small>
                         <div class="d-flex align-items-center">
-                            <span>{{ ticket.get_system_display|default:"-" }}</span>
+                            <span>
+                                {% for sys in ticket.systems.all %}
+                                    {{ sys.name }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                    -
+                                {% endfor %}
+                            </span>
                             <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Sistema"><i class="fas fa-pencil-alt fa-xs"></i></a>
                         </div>
                     </div>
@@ -83,10 +89,18 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <small class="text-muted d-block">Equipamento</small>
+                        <small class="text-muted d-block">Equipamentos</small>
                         <div class="d-flex align-items-center">
-                            <span>{{ ticket.equipment.name|default:"-" }}</span>
-                            <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Equipamento"><i class="fas fa-pencil-alt fa-xs"></i></a>
+                            <span>
+                                {% if ticket.equipments.exists %}
+                                    {% for eq in ticket.equipments.all %}
+                                        {{ eq.name }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    {{ ticket.equipment.name|default:"-" }}
+                                {% endif %}
+                            </span>
+                            <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Equipamentos"><i class="fas fa-pencil-alt fa-xs"></i></a>
                         </div>
                     </div>
                     <div class="col-md-3">

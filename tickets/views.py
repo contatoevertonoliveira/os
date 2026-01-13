@@ -263,6 +263,9 @@ class TicketListView(LoginRequiredMixin, ListView):
     context_object_name = 'tickets'
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        return Ticket.objects.all().select_related('client', 'hub', 'equipment').prefetch_related('technicians', 'equipments').order_by('-created_at')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Passa URLs de retorno para templates que possam ser reutilizados
@@ -272,6 +275,9 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     model = Ticket
     template_name = 'tickets/ticket_detail.html'
     context_object_name = 'ticket'
+
+    def get_queryset(self):
+        return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('technicians', 'equipments', 'systems', 'updates', 'updates__images')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

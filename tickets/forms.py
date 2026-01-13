@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -173,11 +173,19 @@ class TicketForm(forms.ModelForm):
         empty_label="Selecione um solicitante"
     )
 
+    equipment_selection = forms.ModelChoiceField(
+        queryset=Equipment.objects.all().order_by('name'),
+        required=False,
+        label="Adicionar Equipamento",
+        empty_label="Selecione um equipamento...",
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_equipment_selection'})
+    )
+
     class Meta:
         model = Ticket
         fields = [
             'client', 'hub', 'systems', 'area_group', 'area_subgroup', 'area',
-            'equipment', 'order_type', 'call_type', 'problem_type',
+            'equipments', 'order_type', 'call_type', 'problem_type',
             'requester', 'technicians', 'start_date', 'deadline', 'estimated_time', 
             'description', 'final_description', 'image', 'status'
         ]
@@ -187,6 +195,7 @@ class TicketForm(forms.ModelForm):
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
             'hub': forms.Select(attrs={'class': 'form-select'}),
             'final_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Descreva o que foi feito para resolver o problema...'}),
+            'equipments': forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_equipments'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -202,6 +211,10 @@ class TicketForm(forms.ModelForm):
         if not self.instance.pk:
             if 'final_description' in self.fields:
                 del self.fields['final_description']
+        
+        # Pre-select equipments from legacy field if needed
+        if self.instance.pk and self.instance.equipment and not self.instance.equipments.exists():
+            self.initial['equipments'] = [self.instance.equipment]
 
         # Dynamic filtering for hubs
         self.fields['hub'].queryset = ClientHub.objects.none()

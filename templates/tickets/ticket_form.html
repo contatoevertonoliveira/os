@@ -118,9 +118,19 @@
 
                                 <!-- Linha Equipamento e Tipos -->
                                 <div class="col-md-4">
-                                    <label for="{{ form.equipment.id_for_label }}" class="form-label small fw-bold mb-1">Equipamento</label>
-                                    {% render_field form.equipment class="form-select form-select-sm" %}
-                                    <div class="text-danger small">{{ form.equipment.errors }}</div>
+                                    <label for="{{ form.equipment_selection.id_for_label }}" class="form-label small fw-bold mb-1">Equipamentos</label>
+                                    {% render_field form.equipment_selection class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.equipment_selection.errors }}</div>
+                                    
+                                    <!-- Container for selected equipments badges -->
+                                    <div id="selected-equipments-container" class="mt-2 d-flex flex-wrap gap-2">
+                                        <!-- Badges will be injected here via JS -->
+                                    </div>
+                                    
+                                    <!-- Hidden field for actual storage -->
+                                    <div class="d-none">
+                                        {% render_field form.equipments %}
+                                    </div>
                                 </div>
                                 <div class="col-md-4">
                                     <label for="{{ form.call_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
@@ -351,6 +361,62 @@
                         .catch(error => console.error('Error loading hubs:', error));
                 }
             });
+        }
+
+        // Equipment Selection Logic
+        const equipmentSelect = document.getElementById('id_equipment_selection');
+        const equipmentsHiddenSelect = document.getElementById('id_equipments');
+        const badgesContainer = document.getElementById('selected-equipments-container');
+
+        if (equipmentSelect && equipmentsHiddenSelect && badgesContainer) {
+            
+            function updateBadges() {
+                badgesContainer.innerHTML = '';
+                const selectedOptions = Array.from(equipmentsHiddenSelect.options).filter(option => option.selected);
+                
+                selectedOptions.forEach(option => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary d-flex align-items-center gap-2 py-2 px-3';
+                    badge.style.fontSize = '0.85rem';
+                    
+                    const text = document.createElement('span');
+                    text.textContent = option.text;
+                    
+                    const removeBtn = document.createElement('i');
+                    removeBtn.className = 'fas fa-times';
+                    removeBtn.style.cursor = 'pointer';
+                    removeBtn.onclick = function() {
+                        option.selected = false;
+                        updateBadges();
+                    };
+                    
+                    badge.appendChild(text);
+                    badge.appendChild(removeBtn);
+                    badgesContainer.appendChild(badge);
+                });
+            }
+            
+            equipmentSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                
+                if (selectedValue) {
+                    // Find the option in the hidden select and select it
+                    for (let i = 0; i < equipmentsHiddenSelect.options.length; i++) {
+                        if (equipmentsHiddenSelect.options[i].value === selectedValue) {
+                            equipmentsHiddenSelect.options[i].selected = true;
+                            break;
+                        }
+                    }
+                    
+                    updateBadges();
+                    
+                    // Reset selection
+                    this.value = '';
+                }
+            });
+            
+            // Initial load
+            updateBadges();
         }
     });
 </script>

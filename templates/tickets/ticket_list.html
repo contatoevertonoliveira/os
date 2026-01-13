@@ -50,7 +50,15 @@
                             </div>
                         </td>
                         <td>{{ ticket.get_call_type_display|default:"-" }}</td>
-                        <td>{{ ticket.equipment }}</td>
+                        <td>
+                            {% if ticket.equipments.exists %}
+                                {% for eq in ticket.equipments.all %}
+                                    {{ eq.name }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {{ ticket.equipment|default:"-" }}
+                            {% endif %}
+                        </td>
                         <td>
                             {% for tech in ticket.technicians.all %}
                                 <div>{{ tech.get_full_name|default:tech.username }}</div>
