@@ -137,12 +137,32 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 if hasattr(tech, 'profile') and tech.profile.photo:
                     photo_url = tech.profile.photo.url
                 
+                # Determine Status Color (Shadow)
+                # Red: Overdue tickets (deadline < now)
+                # Yellow: Expiring soon (deadline within 24h)
+                # Green: Up to date
+                
+                now = timezone.now()
+                # Get all unfinished tickets for this tech
+                unfinished_tickets = Ticket.objects.filter(technicians=tech).exclude(status__in=['finished', 'canceled'])
+                
+                has_overdue = unfinished_tickets.filter(deadline__lt=now).exists()
+                has_warning = unfinished_tickets.filter(deadline__range=(now, now + timedelta(days=1))).exists()
+                
+                if has_overdue:
+                    status_color = '#dc3545' # Red
+                elif has_warning:
+                    status_color = '#ffc107' # Yellow
+                else:
+                    status_color = '#198754' # Green
+
                 tech_chart_datasets.append({
                     'label': f"{tech.first_name} {tech.last_name} ({tech.username}) - Abertos: {open_tickets_count}",
                     'data': data_points,
                     'photo': photo_url,
                     'borderColor': colors[idx % len(colors)],
-                    'open_tickets': open_tickets_count
+                    'open_tickets': open_tickets_count,
+                    'status_color': status_color
                 })
         
         context['chart_tech_datasets'] = tech_chart_datasets

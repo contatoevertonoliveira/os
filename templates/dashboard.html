@@ -434,9 +434,29 @@
         img_{{ forloop.counter }}.crossOrigin = 'anonymous';
         img_{{ forloop.counter }}.src = '{{ dataset.photo|default:"" }}';
         
-        var pointStyle_{{ forloop.counter }} = 'circle';
-        if ('{{ dataset.photo }}' !== 'None' && '{{ dataset.photo }}' !== '') {
-            pointStyle_{{ forloop.counter }} = img_{{ forloop.counter }};
+        // Construct arrays for point styling
+        // We only want the photo at the LAST point (current status)
+        // Previous points should be simple small circles
+        var dataLength_{{ forloop.counter }} = {{ dataset.data|length }};
+        var pointStyles_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('circle');
+        var pointRadii_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(3); // Small dots for history
+        var pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
+        var pointBorderWidths_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(1);
+        
+        // Configure the LAST point (Current Status)
+        if (dataLength_{{ forloop.counter }} > 0) {
+            var lastIdx = dataLength_{{ forloop.counter }} - 1;
+            
+            // Set image if available, otherwise keep circle but larger
+            if ('{{ dataset.photo }}' !== 'None' && '{{ dataset.photo }}' !== '') {
+                pointStyles_{{ forloop.counter }}[lastIdx] = img_{{ forloop.counter }};
+            } else {
+                pointStyles_{{ forloop.counter }}[lastIdx] = 'circle';
+            }
+            
+            pointRadii_{{ forloop.counter }}[lastIdx] = 20; // Larger for the photo/status
+            pointBorderColors_{{ forloop.counter }}[lastIdx] = '{{ dataset.status_color }}'; // Status Color (Red/Yellow/Green)
+            pointBorderWidths_{{ forloop.counter }}[lastIdx] = 4; // Thick border to act as "shadow"
         }
 
         techDatasets.push({
@@ -445,9 +465,15 @@
             borderColor: '{{ dataset.borderColor }}',
             backgroundColor: '{{ dataset.borderColor }}',
             borderWidth: 3,
-            pointStyle: pointStyle_{{ forloop.counter }},
-            pointRadius: 15,
-            pointHoverRadius: 20,
+            
+            // Point Styling Arrays
+            pointStyle: pointStyles_{{ forloop.counter }},
+            pointRadius: pointRadii_{{ forloop.counter }},
+            pointHoverRadius: pointRadii_{{ forloop.counter }}.map(r => r + 5),
+            pointBorderColor: pointBorderColors_{{ forloop.counter }},
+            pointBorderWidth: pointBorderWidths_{{ forloop.counter }},
+            pointBackgroundColor: '#fff', // White background behind photo/circle
+            
             fill: false,
             tension: 0.2
         });
@@ -483,16 +509,43 @@
                     labels: { usePointStyle: true, boxWidth: 10, padding: 20 }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    titleColor: '#000',
-                    bodyColor: '#000',
-                    borderColor: '#ddd',
-                    borderWidth: 1,
-                    padding: 10,
-                    usePointStyle: true
+                    usePointStyle: true,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.y;
+                        }
+                    }
                 }
             }
-        }
+        },
+        plugins: [{
+            id: 'statusShadowPlugin',
+            beforeDatasetDraw: (chart, args, options) => {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(args.index);
+                const dataset = chart.data.datasets[args.index];
+                
+                // Only draw shadow for the last point
+                if (meta.data.length > 0) {
+                    const lastPoint = meta.data[meta.data.length - 1];
+                    const statusColor = dataset.pointBorderColor[dataset.pointBorderColor.length - 1];
+                    
+                    ctx.save();
+                    ctx.shadowColor = statusColor;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowOffsetX = 0;
+                    ctx.shadowOffsetY = 0;
+                    
+                    // Draw a circle to cast the shadow (since image might not cast it how we want)
+                    ctx.beginPath();
+                    ctx.arc(lastPoint.x, lastPoint.y, 18, 0, 2 * Math.PI);
+                    ctx.fillStyle = statusColor;
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
+            }
+        }]
     });
 
     // System Health Chart (Stacked Bar)
