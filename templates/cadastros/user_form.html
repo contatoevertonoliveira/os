@@ -1,6 +1,24 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<script>
+function generateToken() {
+    var d = new Date().getTime();
+    var d2 = ((typeof performance !== 'undefined') && performance.now && (performance.now()*1000)) || 0;
+    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16;
+        if(d > 0){
+            r = (d + r)%16 | 0;
+            d = Math.floor(d/16);
+        } else {
+            r = (d2 + r)%16 | 0;
+            d2 = Math.floor(d2/16);
+        }
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+    document.getElementById('{{ form.token.id_for_label }}').value = uuid;
+}
+</script>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">{{ title }}</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
@@ -32,6 +50,21 @@
                     {% endif %}
                     {% if form.password.errors %}
                     <div class="text-danger small">{{ form.password.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.token.id_for_label }}" class="form-label">{{ form.token.label }}</label>
+                    <div class="input-group">
+                        {{ form.token }}
+                        <button class="btn btn-outline-secondary" type="button" onclick="generateToken()">
+                            <i class="fas fa-sync-alt"></i> Gerar Novo
+                        </button>
+                    </div>
+                    {% if form.token.help_text %}
+                    <div class="form-text text-light-50">{{ form.token.help_text }}</div>
                     {% endif %}
                 </div>
             </div>
