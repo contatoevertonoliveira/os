@@ -205,6 +205,7 @@ class TicketForm(forms.ModelForm):
 
         # Dynamic filtering for hubs
         self.fields['hub'].queryset = ClientHub.objects.none()
+        self.fields['hub'].empty_label = "Todas as Lojas / Sem Hub Específico"
 
         if 'client' in self.data:
             try:

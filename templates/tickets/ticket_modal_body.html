@@ -73,13 +73,17 @@
 
                     <!-- Row 1: Basic Info -->
                     <div class="row g-2 mb-3">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label small fw-bold text-muted mb-1">Status</label>
                             {% render_field form.status class="form-select form-select-sm" %}
                         </div>
-                        <div class="col-md-9">
+                        <div class="col-md-5">
                             <label class="form-label small fw-bold text-muted mb-1">Cliente</label>
                             {% render_field form.client class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted mb-1">Hub/Loja</label>
+                            {% render_field form.hub class="form-select form-select-sm" %}
                         </div>
                     </div>
                     
@@ -290,6 +294,34 @@
         if (startDateInput && deadlineInput && estimatedTimeInput) {
             startDateInput.addEventListener('change', calculateEstimatedTime);
             deadlineInput.addEventListener('change', calculateEstimatedTime);
+        }
+
+        // Dynamic Hub Loading for Modal
+        const modalClientSelect = document.getElementById('ticketEditForm').querySelector('#id_client');
+        const modalHubSelect = document.getElementById('ticketEditForm').querySelector('#id_hub');
+        const hubUrl = "{% url 'ajax_load_hubs' %}";
+
+        if (modalClientSelect && modalHubSelect) {
+            modalClientSelect.addEventListener('change', function() {
+                const clientId = this.value;
+                
+                // Clear current options
+                modalHubSelect.innerHTML = '<option value="">---------</option>';
+                
+                if (clientId) {
+                    fetch(`${hubUrl}?client_id=${clientId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            data.forEach(hub => {
+                                const option = document.createElement('option');
+                                option.value = hub.id;
+                                option.textContent = hub.name;
+                                modalHubSelect.appendChild(option);
+                            });
+                        })
+                        .catch(error => console.error('Error loading hubs:', error));
+                }
+            });
         }
     })();
 </script>
