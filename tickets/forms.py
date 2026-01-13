@@ -195,6 +195,11 @@ class TicketForm(forms.ModelForm):
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
         
+        # Hide final_description on creation
+        if not self.instance.pk:
+            if 'final_description' in self.fields:
+                del self.fields['final_description']
+
         # Dynamic filtering for hubs
         self.fields['hub'].queryset = ClientHub.objects.none()
 

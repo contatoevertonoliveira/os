@@ -725,12 +725,14 @@
                     data: {{ chart_sys_resolved|safe }},
                     backgroundColor: '#26923B', // Success Green
                     borderRadius: 4,
+                    maxBarThickness: 60,
                 },
                 {
                     label: 'Pendentes/Abertos',
                     data: {{ chart_sys_unresolved|safe }},
                     backgroundColor: '#dc3545', // Danger Red
                     borderRadius: 4,
+                    maxBarThickness: 60,
                 }
             ]
         },

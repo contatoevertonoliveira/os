@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+    .row-finished { background-color: rgba(25, 135, 84, 0.1); }
+    .row-pending { background-color: rgba(255, 193, 7, 0.1); }
+    .row-canceled { background-color: rgba(220, 53, 69, 0.1); }
+    .row-in-progress { background-color: rgba(13, 110, 253, 0.1); }
+    
+    .ticket-row { transition: background-color 0.2s; }
+</style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Ordens de Serviço</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
@@ -19,7 +27,6 @@
                         <th>#</th>
                         <th>Cliente</th>
                         <th>Tipo de Chamado</th>
-                        <th>Tipo de Ordem</th>
                         <th>Equipamento</th>
                         <th>Técnico</th>
                         <th>Status</th>
@@ -43,7 +50,6 @@
                             </div>
                         </td>
                         <td>{{ ticket.get_call_type_display|default:"-" }}</td>
-                        <td>{{ ticket.order_type.name|default:"-" }}</td>
                         <td>{{ ticket.equipment }}</td>
                         <td>
                             {% for tech in ticket.technicians.all %}
