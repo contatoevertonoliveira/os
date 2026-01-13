@@ -16,7 +16,7 @@ function generateToken() {
         }
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
-    document.getElementById('{{ form.token.id_for_label }}').value = uuid;
+    document.getElementById('{{ form.access_token.id_for_label }}').value = uuid;
 }
 </script>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -56,15 +56,15 @@ function generateToken() {
 
             <div class="row">
                 <div class="col-md-12 mb-3">
-                    <label for="{{ form.token.id_for_label }}" class="form-label">{{ form.token.label }}</label>
+                    <label for="{{ form.access_token.id_for_label }}" class="form-label">{{ form.access_token.label }}</label>
                     <div class="input-group">
-                        {{ form.token }}
+                        {{ form.access_token }}
                         <button class="btn btn-outline-secondary" type="button" onclick="generateToken()">
                             <i class="fas fa-sync-alt"></i> Gerar Novo
                         </button>
                     </div>
-                    {% if form.token.help_text %}
-                    <div class="form-text text-light-50">{{ form.token.help_text }}</div>
+                    {% if form.access_token.help_text %}
+                    <div class="form-text text-light-50">{{ form.access_token.help_text }}</div>
                     {% endif %}
                 </div>
             </div>

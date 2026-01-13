@@ -317,7 +317,7 @@ class UserManagementForm(forms.ModelForm):
     username = forms.CharField(label="Login (Usuário)", max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))
     email = forms.EmailField(label="Email", required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
     password = forms.CharField(label="Senha", widget=forms.PasswordInput(attrs={'class': 'form-control'}), required=False, help_text="Deixe em branco para manter a senha atual.")
-    token = forms.CharField(label="Token de Acesso", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}), help_text="Token único para acesso via API ou login simplificado.")
+    access_token = forms.CharField(label="Token de Acesso", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}), help_text="Token único para acesso via API ou login simplificado.")
     
     # Profile fields
     role = forms.ChoiceField(label="Nível de Acesso", choices=UserProfile.ROLE_CHOICES, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
@@ -341,12 +341,12 @@ class UserManagementForm(forms.ModelForm):
                 self.fields['personal_phone'].initial = self.instance.profile.personal_phone
                 self.fields['company_phone'].initial = self.instance.profile.company_phone
                 self.fields['photo'].initial = self.instance.profile.photo
-                self.fields['token'].initial = self.instance.profile.token
+                self.fields['access_token'].initial = self.instance.profile.token
         else:
              self.fields['password'].required = True
              self.fields['password'].help_text = "Senha inicial para o usuário."
              import uuid
-             self.fields['token'].initial = str(uuid.uuid4())
+             self.fields['access_token'].initial = str(uuid.uuid4())
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -368,8 +368,8 @@ class UserManagementForm(forms.ModelForm):
             if self.cleaned_data.get('photo'):
                  profile.photo = self.cleaned_data['photo']
             
-            if self.cleaned_data.get('token'):
-                profile.token = self.cleaned_data['token']
+            if self.cleaned_data.get('access_token'):
+                profile.token = self.cleaned_data['access_token']
             
             profile.save()
         return user
