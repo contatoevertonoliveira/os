@@ -183,7 +183,7 @@
                             </h6>
                             <div class="row g-3">
                                 <div class="col-12">
-                                    <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição Detalhada</label>
+                                    <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">{{ form.description.label }}</label>
                                     {% render_field form.description class="form-control" rows="4" placeholder="Descreva os detalhes da solicitação..." %}
                                     <div class="text-danger small">{{ form.description.errors }}</div>
                                 </div>

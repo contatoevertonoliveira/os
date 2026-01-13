@@ -195,6 +195,9 @@ class TicketForm(forms.ModelForm):
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
         
+        # Rename description label
+        self.fields['description'].label = "Descrição Inicial"
+
         # Hide final_description on creation
         if not self.instance.pk:
             if 'final_description' in self.fields:
