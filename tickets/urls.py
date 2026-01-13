@@ -11,7 +11,8 @@ from .views import (
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     ProfileView, SettingsView,
-    TaskListView, TaskFavoriteView
+    TaskListView, TaskFavoriteView,
+    NotificationListView, SendMessageView, mark_notification_read, mark_all_notifications_read
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -76,4 +77,10 @@ urlpatterns = [
     path('users/new/', UserCreateView.as_view(), name='user_create'),
     path('users/<int:pk>/edit/', UserUpdateView.as_view(), name='user_update'),
     path('users/<int:pk>/delete/', UserDeleteView.as_view(), name='user_delete'),
+
+    # Notifications
+    path('notifications/', NotificationListView.as_view(), name='notification_list'),
+    path('notifications/send/', SendMessageView.as_view(), name='send_message'),
+    path('notifications/<int:pk>/read/', mark_notification_read, name='mark_notification_read'),
+    path('notifications/read-all/', mark_all_notifications_read, name='mark_all_notifications_read'),
 ]

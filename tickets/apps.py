@@ -5,6 +5,7 @@ class TicketsConfig(AppConfig):
     name = 'tickets'
 
     def ready(self):
+        import tickets.signals
         post_migrate.connect(create_default_user, sender=self)
 
 def create_default_user(sender, **kwargs):

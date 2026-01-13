@@ -255,3 +255,31 @@ class TicketUpdateImage(models.Model):
     class Meta:
         verbose_name = "Imagem da Evolução"
         verbose_name_plural = "Imagens da Evolução"
+
+class Notification(models.Model):
+    TYPE_CHOICES = (
+        ('message', 'Mensagem Direta'),
+        ('alert', 'Alerta de Sistema'),
+        ('assignment', 'Atribuição de Tarefa'),
+    )
+
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', verbose_name="Destinatário")
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications', verbose_name="Remetente")
+    
+    title = models.CharField(max_length=200, verbose_name="Título")
+    message = models.TextField(verbose_name="Mensagem")
+    
+    notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='alert')
+    
+    related_ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+    
+    is_read = models.BooleanField(default=False, verbose_name="Lida")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Notificação"
+        verbose_name_plural = "Notificações"
+
+    def __str__(self):
+        return f"{self.title} - {self.recipient.username}"

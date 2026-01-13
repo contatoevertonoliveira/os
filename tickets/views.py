@@ -4,6 +4,7 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy
 from django.http import JsonResponse
 from django.db.models import Q, Exists, OuterRef, Subquery
@@ -801,4 +802,49 @@ class UserDeleteView(AdminRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('user_list')
+        return context
+
+# Notification Views
+class NotificationListView(LoginRequiredMixin, ListView):
+    model = Notification
+    template_name = 'notifications/notification_list.html'
+    context_object_name = 'notifications'
+    paginate_by = 20
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user)
+
+@login_required
+def mark_notification_read(request, pk):
+    if request.method == 'POST':
+        notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notification.is_read = True
+        notification.save()
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def mark_all_notifications_read(request):
+    if request.method == 'POST':
+        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        return JsonResponse({'status': 'ok'})
+    return JsonResponse({'status': 'error'}, status=400)
+
+class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = Notification
+    fields = ['recipient', 'title', 'message']
+    template_name = 'notifications/send_message_form.html'
+    success_url = reverse_lazy('dashboard')
+    success_message = "Mensagem enviada com sucesso!"
+
+    def form_valid(self, form):
+        form.instance.sender = self.request.user
+        form.instance.notification_type = 'message'
+        return super().form_valid(form)
+        
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        form = context['form']
+        form.fields['recipient'].queryset = User.objects.filter(is_active=True).exclude(pk=self.request.user.pk).order_by('first_name')
+        context['title'] = "Nova Mensagem"
         return context

@@ -499,9 +499,36 @@
             openTickets: {{ dataset.open_tickets }}
         };
 
-        var img_{{ forloop.counter }} = new Image(30, 30);
+        var img_{{ forloop.counter }} = new Image(40, 40);
         img_{{ forloop.counter }}.crossOrigin = 'anonymous';
-        img_{{ forloop.counter }}.src = '{{ dataset.photo|default:"" }}';
+        // Pre-load logic for circular image
+        const originalSrc_{{ forloop.counter }} = '{{ dataset.photo|default:"" }}';
+        
+        if (originalSrc_{{ forloop.counter }} && originalSrc_{{ forloop.counter }} !== 'None') {
+            const tempImg = new Image();
+            tempImg.crossOrigin = 'anonymous';
+            tempImg.src = originalSrc_{{ forloop.counter }};
+            tempImg.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const size = 60; // Higher resolution for retina
+                canvas.width = size;
+                canvas.height = size;
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2, true);
+                ctx.closePath();
+                ctx.clip();
+                
+                ctx.drawImage(tempImg, 0, 0, size, size);
+                ctx.restore();
+                
+                // Update the image object used by chart
+                img_{{ forloop.counter }}.src = canvas.toDataURL();
+                techChart.update(); // Trigger update
+            };
+        }
         
         // Construct arrays for point styling
         // We only want the photo at the LAST point (current status)
