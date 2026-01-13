@@ -49,7 +49,7 @@
                                 {{ ticket.client.name }}
                             </div>
                         </td>
-                        <td>{{ ticket.get_call_type_display|default:"-" }}</td>
+                        <td>{{ ticket.ticket_type.name|default:"-" }}</td>
                         <td>
                             {% if ticket.equipments.exists %}
                                 {% for eq in ticket.equipments.all %}

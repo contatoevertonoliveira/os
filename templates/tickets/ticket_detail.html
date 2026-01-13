@@ -84,7 +84,7 @@
                     <div class="col-md-3">
                         <small class="text-muted d-block">Tipo de Chamado</small>
                         <div class="d-flex align-items-center">
-                            <span>{{ ticket.get_call_type_display|default:"-" }}</span>
+                            <span>{{ ticket.ticket_type.name|default:"-" }}</span>
                             <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Tipo de Chamado"><i class="fas fa-pencil-alt fa-xs"></i></a>
                         </div>
                     </div>

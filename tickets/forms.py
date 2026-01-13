@@ -185,7 +185,7 @@ class TicketForm(forms.ModelForm):
         model = Ticket
         fields = [
             'client', 'hub', 'systems', 'area_group', 'area_subgroup', 'area',
-            'equipments', 'order_type', 'call_type', 'problem_type',
+            'equipments', 'order_type', 'ticket_type', 'problem_type',
             'requester', 'technicians', 'start_date', 'deadline', 'estimated_time', 
             'description', 'final_description', 'image', 'status'
         ]
@@ -194,6 +194,7 @@ class TicketForm(forms.ModelForm):
             'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
             'hub': forms.Select(attrs={'class': 'form-select'}),
+            'ticket_type': forms.Select(attrs={'class': 'form-select'}),
             'final_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Descreva o que foi feito para resolver o problema...'}),
             'equipments': forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_equipments'}),
         }

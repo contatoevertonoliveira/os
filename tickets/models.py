@@ -115,6 +115,16 @@ class ProblemType(models.Model):
         verbose_name = "Tipo de Problema"
         verbose_name_plural = "Tipos de Problema"
 
+class TicketType(models.Model):
+    name = models.CharField(max_length=100, verbose_name="Tipo de OS")
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = "Tipo de OS"
+        verbose_name_plural = "Tipos de OS"
+
 class System(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nome do Sistema")
     color = models.CharField(max_length=20, verbose_name="Cor (Hex)", default="#6c757d", help_text="Ex: #FF0000 para vermelho")
@@ -174,7 +184,8 @@ class Ticket(models.Model):
     area_subgroup = models.CharField(max_length=100, verbose_name="Subgrupo de Áreas", blank=True, null=True)
     area = models.CharField(max_length=100, verbose_name="Área", blank=True, null=True)
     
-    call_type = models.CharField(max_length=50, choices=CALL_TYPE_CHOICES, verbose_name="Tipo de Chamado", blank=True, null=True)
+    call_type = models.CharField(max_length=50, choices=CALL_TYPE_CHOICES, verbose_name="Tipo de Chamado (Legacy)", blank=True, null=True)
+    ticket_type = models.ForeignKey(TicketType, on_delete=models.SET_NULL, verbose_name="Tipo de Chamado", null=True, blank=True, related_name='tickets')
 
     # Legacy field, but keeping it as it was there. Maybe user wants to use call_type instead.
     order_type = models.ForeignKey(OrderType, on_delete=models.PROTECT, verbose_name="Tipo de Ordem", null=True, blank=True)

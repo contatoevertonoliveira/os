@@ -1,5 +1,10 @@
 from django.contrib import admin
-from .models import Client, Ticket
+from .models import Client, Ticket, TicketType
+
+@admin.register(TicketType)
+class TicketTypeAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):

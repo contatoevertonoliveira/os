@@ -133,9 +133,9 @@
                                     </div>
                                 </div>
                                 <div class="col-md-4">
-                                    <label for="{{ form.call_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
-                                    {% render_field form.call_type class="form-select form-select-sm" %}
-                                    <div class="text-danger small">{{ form.call_type.errors }}</div>
+                                    <label for="{{ form.ticket_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
+                                    {% render_field form.ticket_type class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.ticket_type.errors }}</div>
                                 </div>
                                 <div class="col-md-4">
                                     <label for="{{ form.problem_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Problema</label>
@@ -212,10 +212,22 @@
                                 {% endif %}
                                 <div class="col-12">
                                     <label for="{{ form.image.id_for_label }}" class="form-label small fw-bold mb-1">Imagem / Anexo</label>
-                                    {% render_field form.image class="form-control form-control-sm" %}
+                                    <div class="input-group input-group-sm">
+                                        {% render_field form.image class="form-control form-control-sm" %}
+                                        <span class="input-group-text bg-light text-muted" title="Cole uma imagem da área de transferência (Ctrl+V) em qualquer lugar da página">
+                                            <i class="fas fa-paste me-1"></i> Ctrl+V
+                                        </span>
+                                    </div>
                                     <div class="text-danger small">{{ form.image.errors }}</div>
+                                    
+                                    <!-- Preview Container for New Selection/Paste -->
+                                    <div id="new-image-preview-container" class="mt-2 d-none">
+                                        <small class="text-success fw-bold">Nova imagem selecionada:</small><br>
+                                        <img id="new-image-preview" src="" alt="Preview" class="img-thumbnail" style="max-height: 150px;">
+                                    </div>
+
                                     {% if form.instance.image %}
-                                        <div class="mt-2">
+                                        <div class="mt-2" id="current-image-container">
                                             <small class="text-muted">Imagem Atual:</small><br>
                                             <img src="{{ form.instance.image.url }}" alt="Imagem do Ticket" class="img-thumbnail" style="max-height: 100px;">
                                         </div>
@@ -297,6 +309,61 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Paste Image Logic
+        const imageInput = document.getElementById('id_image');
+        const previewContainer = document.getElementById('new-image-preview-container');
+        const previewImage = document.getElementById('new-image-preview');
+        const currentImageContainer = document.getElementById('current-image-container');
+
+        function handleImageSelect(file) {
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                    previewContainer.classList.remove('d-none');
+                    if (currentImageContainer) currentImageContainer.classList.add('d-none'); // Hide current if new is selected
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        if (imageInput) {
+            // Handle manual selection
+            imageInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    handleImageSelect(this.files[0]);
+                } else {
+                    previewContainer.classList.add('d-none');
+                    if (currentImageContainer) currentImageContainer.classList.remove('d-none');
+                }
+            });
+
+            // Handle Paste
+            document.addEventListener('paste', function(e) {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                let hasImage = false;
+                
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const blob = items[i].getAsFile();
+                        const timestamp = new Date().getTime();
+                        const file = new File([blob], `pasted_image_${timestamp}.png`, {type: blob.type});
+                        
+                        // Set to input
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        imageInput.files = dataTransfer.files;
+                        
+                        handleImageSelect(file);
+                        hasImage = true;
+                        
+                        // Show toast or visual feedback?
+                        // For now the preview is enough feedback
+                    }
+                }
+            });
+        }
+
         const startDateInput = document.getElementById('id_start_date');
         const deadlineInput = document.getElementById('id_deadline');
         const estimatedTimeInput = document.getElementById('id_estimated_time');
@@ -373,11 +440,12 @@
             function updateBadges() {
                 badgesContainer.innerHTML = '';
                 const selectedOptions = Array.from(equipmentsHiddenSelect.options).filter(option => option.selected);
+                const selectedValues = selectedOptions.map(opt => opt.value);
                 
                 selectedOptions.forEach(option => {
                     const badge = document.createElement('span');
-                    badge.className = 'badge bg-secondary d-flex align-items-center gap-2 py-2 px-3';
-                    badge.style.fontSize = '0.85rem';
+                    badge.className = 'badge bg-secondary d-flex align-items-center gap-1 py-1 px-2';
+                    badge.style.fontSize = '0.75rem';
                     
                     const text = document.createElement('span');
                     text.textContent = option.text;
@@ -385,6 +453,7 @@
                     const removeBtn = document.createElement('i');
                     removeBtn.className = 'fas fa-times';
                     removeBtn.style.cursor = 'pointer';
+                    removeBtn.style.fontSize = '0.7rem';
                     removeBtn.onclick = function() {
                         option.selected = false;
                         updateBadges();
@@ -394,6 +463,18 @@
                     badge.appendChild(removeBtn);
                     badgesContainer.appendChild(badge);
                 });
+
+                // Update Visibility in Dropdown
+                for (let i = 0; i < equipmentSelect.options.length; i++) {
+                    const opt = equipmentSelect.options[i];
+                    if (opt.value && selectedValues.includes(opt.value)) {
+                        opt.style.display = 'none';
+                        opt.hidden = true;
+                    } else {
+                        opt.style.display = '';
+                        opt.hidden = false;
+                    }
+                }
             }
             
             equipmentSelect.addEventListener('change', function() {

@@ -128,12 +128,22 @@
                     <!-- Row 3: Technical Details -->
                     <div class="row g-2 mb-3">
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Equipamento</label>
-                            {% render_field form.equipment class="form-select form-select-sm" %}
+                            <label class="form-label small fw-bold text-muted mb-1">Equipamentos</label>
+                            {% render_field form.equipment_selection class="form-select form-select-sm" %}
+                            
+                            <!-- Container for selected equipments badges -->
+                            <div id="modal-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-1">
+                                <!-- Badges will be injected here via JS -->
+                            </div>
+                            
+                            <!-- Hidden field for actual storage -->
+                            <div class="d-none">
+                                {% render_field form.equipments %}
+                            </div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
-                            {% render_field form.call_type class="form-select form-select-sm" %}
+                            {% render_field form.ticket_type class="form-select form-select-sm" %}
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
@@ -323,8 +333,153 @@
                 }
             });
         }
-    })();
-</script>
+
+        // Equipment Selection Logic for Modal
+        const modalEquipmentSelect = document.getElementById('ticketEditForm').querySelector('#id_equipment_selection');
+        const modalEquipmentsHiddenSelect = document.getElementById('ticketEditForm').querySelector('#id_equipments');
+        const modalBadgesContainer = document.getElementById('modal-selected-equipments-container');
+
+        if (modalEquipmentSelect && modalEquipmentsHiddenSelect && modalBadgesContainer) {
+            
+            function updateModalBadges() {
+                modalBadgesContainer.innerHTML = '';
+                const selectedOptions = Array.from(modalEquipmentsHiddenSelect.options).filter(option => option.selected);
+                const selectedValues = selectedOptions.map(opt => opt.value);
+                
+                selectedOptions.forEach(option => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary d-flex align-items-center gap-1 py-1 px-2';
+                    badge.style.fontSize = '0.75rem';
+                    
+                    const text = document.createElement('span');
+                    text.textContent = option.text;
+                    
+                    const removeBtn = document.createElement('i');
+                    removeBtn.className = 'fas fa-times';
+                    removeBtn.style.cursor = 'pointer';
+                    removeBtn.style.fontSize = '0.7rem';
+                    removeBtn.onclick = function() {
+                        option.selected = false;
+                        updateModalBadges();
+                    };
+                    
+                    badge.appendChild(text);
+                    badge.appendChild(removeBtn);
+                    modalBadgesContainer.appendChild(badge);
+                });
+
+                // Update Visibility in Dropdown
+                for (let i = 0; i < modalEquipmentSelect.options.length; i++) {
+                    const opt = modalEquipmentSelect.options[i];
+                    if (opt.value && selectedValues.includes(opt.value)) {
+                        opt.style.display = 'none';
+                        opt.hidden = true;
+                    } else {
+                        opt.style.display = '';
+                        opt.hidden = false;
+                    }
+                }
+            }
+            
+            modalEquipmentSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                
+                if (selectedValue) {
+                    // Find the option in the hidden select and select it
+                    for (let i = 0; i < modalEquipmentsHiddenSelect.options.length; i++) {
+                        if (modalEquipmentsHiddenSelect.options[i].value === selectedValue) {
+                            modalEquipmentsHiddenSelect.options[i].selected = true;
+                            break;
+                        }
+                    }
+                    
+                    updateModalBadges();
+                    
+                    // Reset selection
+                    this.value = '';
+                }
+            });
+            
+            // Initial load
+             updateModalBadges();
+         }
+
+         // Evolution Image Paste Logic (Modal)
+         const evolutionInput = document.getElementById('id_evolution_image');
+         const previewContainer = document.getElementById('evolution-images-preview');
+         const modalForm = document.getElementById('ticketEditForm');
+         
+         function renderEvolutionPreviews(files) {
+             if (!previewContainer) return;
+             
+             previewContainer.innerHTML = '';
+             if (files.length > 0) {
+                 previewContainer.classList.remove('d-none');
+                 Array.from(files).forEach(file => {
+                     if (file.type.startsWith('image/')) {
+                         const reader = new FileReader();
+                         reader.onload = function(e) {
+                             const imgContainer = document.createElement('div');
+                             imgContainer.className = 'position-relative';
+                             
+                             const img = document.createElement('img');
+                             img.src = e.target.result;
+                             img.className = 'img-thumbnail shadow-sm';
+                             img.style.width = '50px';
+                             img.style.height = '50px';
+                             img.style.objectFit = 'cover';
+                             
+                             imgContainer.appendChild(img);
+                             previewContainer.appendChild(imgContainer);
+                         };
+                         reader.readAsDataURL(file);
+                     }
+                 });
+             } else {
+                 previewContainer.classList.add('d-none');
+             }
+         }
+
+         if (evolutionInput && modalForm) {
+             // Handle manual change
+             evolutionInput.addEventListener('change', function() {
+                 renderEvolutionPreviews(this.files);
+             });
+
+             // Handle Paste on Form
+             modalForm.addEventListener('paste', function(e) {
+                 const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                 let hasImage = false;
+                 const dataTransfer = new DataTransfer();
+                 
+                 // Preserve existing files if any (append mode)
+                 if (evolutionInput.files.length > 0) {
+                      Array.from(evolutionInput.files).forEach(file => dataTransfer.items.add(file));
+                 }
+
+                 for (let i = 0; i < items.length; i++) {
+                     if (items[i].type.indexOf('image') !== -1) {
+                         const blob = items[i].getAsFile();
+                         const timestamp = new Date().getTime();
+                         const file = new File([blob], `pasted_evolution_${timestamp}_${i}.png`, {type: blob.type});
+                         
+                         dataTransfer.items.add(file);
+                         hasImage = true;
+                     }
+                 }
+                 
+                 if (hasImage) {
+                     evolutionInput.files = dataTransfer.files;
+                     renderEvolutionPreviews(evolutionInput.files);
+                     
+                     // Optional: Feedback
+                     // console.log('Images pasted into evolution field');
+                 }
+             });
+         }
+
+     })();
+ </script>
 
             <!-- Right Column: Evolution & History -->
             <div class="col-lg-4 bg-light">
@@ -337,11 +492,21 @@
                         <div class="mb-2">
                             <textarea name="evolution_description" class="form-control form-control-sm" rows="2" placeholder="Descreva o andamento..."></textarea>
                         </div>
-                        <div class="d-flex gap-2">
-                            <input type="file" name="evolution_image" class="form-control form-control-sm w-75" multiple>
-                            <button type="submit" name="save_action" value="stay" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex gap-2 align-items-center">
+                                <div class="input-group input-group-sm w-75">
+                                    <input type="file" name="evolution_image" id="id_evolution_image" class="form-control form-control-sm" multiple>
+                                    <span class="input-group-text bg-light text-muted" title="Cole (Ctrl+V)">
+                                        <i class="fas fa-paste"></i>
+                                    </span>
+                                </div>
+                                <button type="submit" name="save_action" value="stay" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <!-- Preview Container -->
+                            <div id="evolution-images-preview" class="d-flex flex-wrap gap-2 d-none">
+                            </div>
                         </div>
                     </div>
 
