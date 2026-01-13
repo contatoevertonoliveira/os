@@ -335,7 +335,7 @@
                 const clientId = this.value;
                 
                 // Clear existing options
-                hubSelect.innerHTML = '<option value="">---------</option>';
+                hubSelect.innerHTML = '<option value="">Todas as Lojas / Sem Hub Específico</option>';
                 
                 if (clientId) {
                     fetch(`${hubUrl}?client_id=${clientId}`)

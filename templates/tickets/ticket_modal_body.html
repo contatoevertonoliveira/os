@@ -306,7 +306,7 @@
                 const clientId = this.value;
                 
                 // Clear current options
-                modalHubSelect.innerHTML = '<option value="">---------</option>';
+                modalHubSelect.innerHTML = '<option value="">Todas as Lojas / Sem Hub Específico</option>';
                 
                 if (clientId) {
                     fetch(`${hubUrl}?client_id=${clientId}`)
