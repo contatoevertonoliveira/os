@@ -283,6 +283,61 @@
     </div>
 </div>
 
+<!-- Tech Details Modal -->
+<div class="modal fade" id="techDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
+            <div class="modal-header bg-gradient-primary text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="fas fa-user-circle me-2"></i>Perfil do Técnico</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="d-flex">
+                    <div class="bg-light d-flex align-items-center justify-content-center" style="width: 140px; min-height: 200px;">
+                        <img id="techModalPhoto" src="" alt="Foto" class="img-fluid" style="object-fit: cover; width: 100%; height: 100%; min-height: 200px;">
+                    </div>
+                    <div class="p-4 flex-grow-1">
+                        <h4 id="techModalName" class="fw-bold text-dark mb-1">Nome do Técnico</h4>
+                        <div id="techModalHierarchy" class="text-muted small mb-3 text-uppercase fw-bold" style="letter-spacing: 1px;">
+                            Diretoria / Serviços / Local
+                        </div>
+                        
+                        <div class="mb-3">
+                             <div class="d-flex align-items-center mb-2">
+                                <div class="icon-circle bg-primary-light text-primary me-2" style="width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(13, 110, 253, 0.1);">
+                                    <i class="fas fa-envelope"></i>
+                                </div>
+                                <span id="techModalEmail" class="text-dark">email@exemplo.com</span>
+                            </div>
+                            <div class="d-flex align-items-start">
+                                <div class="icon-circle bg-success-light text-success me-2" style="width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(25, 135, 84, 0.1);">
+                                    <i class="fas fa-phone-alt"></i>
+                                </div>
+                                <div id="techModalPhones" class="text-dark">
+                                    <!-- Phones inserted here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <small class="text-muted fw-bold" id="techModalSupervisor" style="display: none;">Supervisor: </small>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-start mt-4">
+                            <a href="#" class="btn btn-primary btn-sm px-3 rounded-pill" id="btnTechMessage">
+                                <i class="fas fa-comment-dots me-1"></i> Mensagem
+                            </a>
+                            <a href="#" class="btn btn-outline-dark btn-sm px-3 rounded-pill" id="btnTechProfile">
+                                <i class="fas fa-user-edit me-1"></i> Ver Perfil
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -428,8 +483,22 @@
     const ctxTech = document.getElementById('techChart').getContext('2d');
     
     const techDatasets = [];
+    const techDetailsMap = {}; // Map to store details for click event
     
     {% for dataset in chart_tech_datasets %}
+        // Store details for this tech (using label as key or index)
+        // We will store by dataset index since that's what we get on click
+        techDetailsMap[{{ forloop.counter0 }}] = {
+            photo: '{{ dataset.photo|default:"" }}',
+            fullName: '{{ dataset.full_name }}',
+            hierarchy: '{{ dataset.hierarchy }}',
+            email: '{{ dataset.email }}',
+            phones: {{ dataset.phones|safe }},
+            supervisor: '{{ dataset.supervisor }}',
+            profileUrl: "{% url 'technician_update' dataset.profile_id %}", // Assuming technician_update uses User PK or Profile PK? View uses User PK.
+            openTickets: {{ dataset.open_tickets }}
+        };
+
         var img_{{ forloop.counter }} = new Image(30, 30);
         img_{{ forloop.counter }}.crossOrigin = 'anonymous';
         img_{{ forloop.counter }}.src = '{{ dataset.photo|default:"" }}';
@@ -488,6 +557,24 @@
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            onClick: (e) => {
+                const points = techChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
+                if (points.length) {
+                    const firstPoint = points[0];
+                    const datasetIndex = firstPoint.datasetIndex;
+                    const index = firstPoint.index;
+                    
+                    // Check if it's the last point (the one with photo)
+                    const dataLength = techChart.data.datasets[datasetIndex].data.length;
+                    if (index === dataLength - 1) {
+                        const details = techDetailsMap[datasetIndex];
+                        showTechModal(details);
+                    }
+                }
+            },
+            onHover: (e, elements) => {
+                 e.native.target.style.cursor = elements[0] ? 'pointer' : 'default';
+            },
             scales: {
                 y: {
                     beginAtZero: true,
@@ -547,6 +634,41 @@
             }
         }]
     });
+    
+    // Function to show Tech Modal
+    function showTechModal(details) {
+        const modalEl = document.getElementById('techDetailsModal');
+        const modal = new bootstrap.Modal(modalEl);
+        
+        // Populate modal
+        document.getElementById('techModalPhoto').src = details.photo || 'https://via.placeholder.com/150';
+        document.getElementById('techModalName').textContent = details.fullName;
+        document.getElementById('techModalHierarchy').textContent = details.hierarchy;
+        document.getElementById('techModalEmail').textContent = details.email || 'Não informado';
+        
+        const phonesContainer = document.getElementById('techModalPhones');
+        phonesContainer.innerHTML = '';
+        if (details.phones && details.phones.length > 0) {
+            details.phones.forEach(phone => {
+                phonesContainer.innerHTML += `<div><i class="fas fa-phone-alt me-2 text-muted"></i>${phone}</div>`;
+            });
+        } else {
+             phonesContainer.innerHTML = '<span class="text-muted">Sem telefone</span>';
+        }
+        
+        if (details.supervisor && details.supervisor !== 'None') {
+             document.getElementById('techModalSupervisor').textContent = 'Supervisor: ' + details.supervisor;
+             document.getElementById('techModalSupervisor').parentElement.style.display = 'block';
+        } else {
+             document.getElementById('techModalSupervisor').parentElement.style.display = 'none';
+        }
+        
+        // Buttons
+        document.getElementById('btnTechProfile').href = details.profileUrl;
+        // document.getElementById('btnTechMessage').href = `mailto:${details.email}`; // Simple mailto for now
+        
+        modal.show();
+    }
 
     // System Health Chart (Stacked Bar)
     const ctxSysHealth = document.getElementById('systemHealthChart').getContext('2d');

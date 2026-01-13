@@ -77,8 +77,18 @@ class TechnicianForm(forms.ModelForm):
     # Profile fields
     job_title = forms.CharField(label="Cargo do Técnico", max_length=100, required=False)
     station = forms.CharField(label="Posto de Alocação", max_length=100, required=False)
-    photo = forms.ImageField(label="Foto de Perfil", required=False)
+    
+    # Hierarchy
+    department = forms.CharField(label="Departamento/Área", max_length=100, required=False)
+    supervisor = forms.ModelChoiceField(
+        queryset=UserProfile.objects.filter(role__in=['admin', 'super_admin', 'technician']),
+        label="Supervisor/Gerente",
+        required=False,
+        empty_label="Selecione um supervisor"
+    )
 
+    photo = forms.ImageField(label="Foto de Perfil", required=False)
+    
     class Meta:
         model = User
         fields = ['first_name', 'username', 'email']
@@ -89,7 +99,12 @@ class TechnicianForm(forms.ModelForm):
             if hasattr(self.instance, 'profile'):
                 self.fields['job_title'].initial = self.instance.profile.job_title
                 self.fields['station'].initial = self.instance.profile.station
+                self.fields['department'].initial = self.instance.profile.department
+                self.fields['supervisor'].initial = self.instance.profile.supervisor
                 self.fields['photo'].initial = self.instance.profile.photo
+                
+                # Exclude self from supervisor queryset to avoid loops
+                self.fields['supervisor'].queryset = self.fields['supervisor'].queryset.exclude(user=self.instance)
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -108,6 +123,9 @@ class TechnicianForm(forms.ModelForm):
             profile.role = 'technician'
             profile.job_title = self.cleaned_data['job_title']
             profile.station = self.cleaned_data['station']
+            profile.department = self.cleaned_data['department']
+            profile.supervisor = self.cleaned_data['supervisor']
+            
             if self.cleaned_data.get('photo'):
                 profile.photo = self.cleaned_data['photo']
             profile.save()

@@ -134,8 +134,34 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             if open_tickets_count > 0 or running_total > 0:
                 # Tech Photo URL
                 photo_url = None
-                if hasattr(tech, 'profile') and tech.profile.photo:
-                    photo_url = tech.profile.photo.url
+                job_title = "Técnico"
+                station = ""
+                email = tech.email
+                personal_phone = ""
+                company_phone = ""
+                department = ""
+                supervisor_name = ""
+                profile_id = None
+                
+                if hasattr(tech, 'profile'):
+                    if tech.profile.photo:
+                        photo_url = tech.profile.photo.url
+                    job_title = tech.profile.job_title or "Técnico"
+                    station = tech.profile.station or ""
+                    personal_phone = tech.profile.personal_phone or ""
+                    company_phone = tech.profile.company_phone or ""
+                    department = tech.profile.department or ""
+                    profile_id = tech.profile.id
+                    if tech.profile.supervisor and tech.profile.supervisor.user:
+                        supervisor_name = f"{tech.profile.supervisor.user.get_full_name()}"
+                
+                # Build hierarchy string: "Diretoria / Serviços / Santander-SP"
+                # For now using: Department / Job Title / Station
+                hierarchy_parts = []
+                if department: hierarchy_parts.append(department)
+                if job_title: hierarchy_parts.append(job_title)
+                if station: hierarchy_parts.append(station)
+                hierarchy_str = " / ".join(hierarchy_parts)
                 
                 # Determine Status Color (Shadow)
                 # Red: Overdue tickets (deadline < now)
@@ -162,7 +188,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     'photo': photo_url,
                     'borderColor': colors[idx % len(colors)],
                     'open_tickets': open_tickets_count,
-                    'status_color': status_color
+                    'status_color': status_color,
+                    # Extra info for Modal
+                    'full_name': tech.get_full_name() or tech.username,
+                    'email': email,
+                    'hierarchy': hierarchy_str,
+                    'phones': [p for p in [personal_phone, company_phone] if p],
+                    'profile_id': tech.id, # Using User ID for edit link
+                    'supervisor': supervisor_name
                 })
         
         context['chart_tech_datasets'] = tech_chart_datasets

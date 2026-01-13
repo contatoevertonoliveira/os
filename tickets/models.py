@@ -19,6 +19,10 @@ class UserProfile(models.Model):
     job_title = models.CharField(max_length=100, verbose_name="Cargo", blank=True, null=True)
     station = models.CharField(max_length=100, verbose_name="Posto de Alocação", blank=True, null=True)
     
+    # Hierarchy
+    supervisor = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Supervisor/Gerente", related_name='subordinates')
+    department = models.CharField(max_length=100, verbose_name="Departamento/Área", blank=True, null=True)
+    
     personal_phone = models.CharField(max_length=20, verbose_name="Telefone Próprio", blank=True, null=True)
     company_phone = models.CharField(max_length=20, verbose_name="Telefone Empresa", blank=True, null=True)
 
