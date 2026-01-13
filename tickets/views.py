@@ -94,33 +94,55 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             
         context['chart_tech_labels'] = date_labels
         
-        for tech in techs:
+        # Define a list of colors to cycle through
+        colors = [
+            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', 
+            '#858796', '#5a5c69', '#6610f2', '#fd7e14', '#20c997'
+        ]
+        
+        for idx, tech in enumerate(techs):
             # Get completed tickets for this tech in the period
             tech_tickets = tickets_qs.filter(technicians=tech, status='finished')
+            
+            # Global open tickets for this tech (for the legend/tooltip)
+            open_tickets_count = Ticket.objects.filter(technicians=tech, status='open').count()
+            
+            # Calculate CUMULATIVE counts for each day in the period
+            data_points = []
+            
+            # We want cumulative count starting from the beginning of the period
+            # So for each day, we count how many tickets were finished *up to* that day (within the period)
+            # OR just count for that day and accumulate in the loop?
+            
+            # Efficient way: Get all finished dates, group by day, then accumulate
+            daily_counts = {}
             if tech_tickets.exists():
-                # Group by day using Python to avoid DB timezone errors
-                counts_dict = {}
-                for created_at in tech_tickets.values_list('created_at', flat=True):
-                    if created_at:
-                        local_created_at = timezone.localtime(created_at)
-                        day_str = local_created_at.strftime('%d/%m')
-                        counts_dict[day_str] = counts_dict.get(day_str, 0) + 1
-                
-                # Map counts to the date_labels
-                data_points = []
-                for label in date_labels:
-                    data_points.append(counts_dict.get(label, 0))
-                
+                for finished_at in tech_tickets.values_list('finished_at', flat=True):
+                    if finished_at:
+                        local_finished_at = timezone.localtime(finished_at)
+                        day_str = local_finished_at.strftime('%d/%m')
+                        daily_counts[day_str] = daily_counts.get(day_str, 0) + 1
+            
+            running_total = 0
+            for label in date_labels:
+                count_today = daily_counts.get(label, 0)
+                running_total += count_today
+                data_points.append(running_total)
+            
+            # Only include tech if they have some activity (open tickets OR finished tickets in period)
+            # User wants to see "foto mini de cada técnico com ocorrencia em aberta e sua produtividade"
+            if open_tickets_count > 0 or running_total > 0:
                 # Tech Photo URL
                 photo_url = None
                 if hasattr(tech, 'profile') and tech.profile.photo:
                     photo_url = tech.profile.photo.url
                 
                 tech_chart_datasets.append({
-                    'label': tech.username,
+                    'label': f"{tech.first_name} {tech.last_name} ({tech.username}) - Abertos: {open_tickets_count}",
                     'data': data_points,
                     'photo': photo_url,
-                    'borderColor': '#26923B'  # Default color since UserProfile doesn't have color field yet
+                    'borderColor': colors[idx % len(colors)],
+                    'open_tickets': open_tickets_count
                 })
         
         context['chart_tech_datasets'] = tech_chart_datasets

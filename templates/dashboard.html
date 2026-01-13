@@ -430,13 +430,10 @@
     const techDatasets = [];
     
     {% for dataset in chart_tech_datasets %}
-        var img_{{ forloop.counter }} = new Image();
-        // Use a transparent placeholder initially or the actual URL
+        var img_{{ forloop.counter }} = new Image(30, 30);
+        img_{{ forloop.counter }}.crossOrigin = 'anonymous';
         img_{{ forloop.counter }}.src = '{{ dataset.photo|default:"" }}';
         
-        // If no photo, use a default style (circle) by setting pointStyle to 'circle' 
-        // Logic: if src is empty, pointStyle will be 'circle' in the object below? 
-        // No, we need to handle it.
         var pointStyle_{{ forloop.counter }} = 'circle';
         if ('{{ dataset.photo }}' !== 'None' && '{{ dataset.photo }}' !== '') {
             pointStyle_{{ forloop.counter }} = img_{{ forloop.counter }};
@@ -452,7 +449,7 @@
             pointRadius: 15,
             pointHoverRadius: 20,
             fill: false,
-            tension: 0.4
+            tension: 0.2
         });
     {% endfor %}
 
@@ -469,7 +466,11 @@
                 y: {
                     beginAtZero: true,
                     grid: { color: 'rgba(0, 0, 0, 0.05)', borderDash: [5, 5] },
-                    ticks: { stepSize: 1, padding: 5, font: { size: 10 } }
+                    ticks: { stepSize: 1, padding: 5, font: { size: 10 } },
+                    title: {
+                        display: true,
+                        text: 'Tickets Concluídos (Acumulado)'
+                    }
                 },
                 x: {
                     grid: { display: false },
@@ -479,7 +480,7 @@
             plugins: {
                 legend: { 
                     position: 'bottom',
-                    labels: { usePointStyle: true, boxWidth: 10 }
+                    labels: { usePointStyle: true, boxWidth: 10, padding: 20 }
                 },
                 tooltip: {
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
