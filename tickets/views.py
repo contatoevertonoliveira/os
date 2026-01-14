@@ -273,11 +273,9 @@ class TicketListView(LoginRequiredMixin, ListView):
         start_date = self.request.GET.get('start_date') or None
         end_date = self.request.GET.get('end_date') or None
 
-        today = timezone.now().date()
-
+        # Default to today if no filters provided
         if not any([q, status, ticket_type, period, start_date, end_date]):
-            queryset = queryset.filter(created_at__date=today)
-            return queryset.order_by('-created_at')
+            period = 'today'
 
         if q:
             queryset = queryset.filter(
@@ -293,20 +291,30 @@ class TicketListView(LoginRequiredMixin, ListView):
         if ticket_type:
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
-        if not period:
-            return queryset.order_by('-created_at')
+        # Date Filtering
+        today = timezone.localtime(timezone.now()).date()
 
-        if period == 'today':
-            queryset = queryset.filter(created_at__date=today)
+        if period == 'all':
+             pass # No date filter
+        elif period == 'today':
+            # Filter range for the whole day to avoid timezone issues
+            start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+            queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
         elif period == 'week':
-            start_week = today - timedelta(days=today.weekday())
-            queryset = queryset.filter(created_at__date__gte=start_week)
+            # Start of week (Sunday)
+            days_to_subtract = (today.weekday() + 1) % 7
+            start_week = today - timedelta(days=days_to_subtract)
+            start_week_dt = timezone.make_aware(datetime.combine(start_week, datetime.min.time()))
+            queryset = queryset.filter(created_at__gte=start_week_dt)
         elif period == 'fortnight':
             start_fortnight = today - timedelta(days=15)
-            queryset = queryset.filter(created_at__date__gte=start_fortnight)
+            start_fortnight_dt = timezone.make_aware(datetime.combine(start_fortnight, datetime.min.time()))
+            queryset = queryset.filter(created_at__gte=start_fortnight_dt)
         elif period == 'month':
             start_month = today.replace(day=1)
-            queryset = queryset.filter(created_at__date__gte=start_month)
+            start_month_dt = timezone.make_aware(datetime.combine(start_month, datetime.min.time()))
+            queryset = queryset.filter(created_at__gte=start_month_dt)
         elif period == 'custom':
             if start_date:
                 queryset = queryset.filter(created_at__date__gte=start_date)
