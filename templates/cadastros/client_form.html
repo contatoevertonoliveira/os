@@ -86,10 +86,12 @@
                                     </div>
                                     <div class="col-md-1">
                                         {% if hubs.can_delete %}
-                                            <div class="form-check mb-1">
+                                            <div class="d-none">
                                                 {{ hub_form.DELETE }}
-                                                <label for="{{ hub_form.DELETE.id_for_label }}" class="form-check-label small text-danger">Excluir</label>
                                             </div>
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-hub-btn mb-1" title="Excluir Hub">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -119,10 +121,12 @@
                                     </div>
                                     <div class="col-md-1">
                                         {% if hubs.can_delete %}
-                                            <div class="form-check mb-1">
+                                            <div class="d-none">
                                                 {{ hubs.empty_form.DELETE }}
-                                                <label for="{{ hubs.empty_form.DELETE.id_for_label }}" class="form-check-label small text-danger">Excluir</label>
                                             </div>
+                                            <button type="button" class="btn btn-outline-danger btn-sm remove-hub-btn mb-1" title="Excluir Hub">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -203,4 +207,63 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addHubBtn = document.getElementById('add-hub');
+        const hubsContainer = document.getElementById('hubs-container');
+        const emptyForm = document.getElementById('empty-form').firstElementChild;
+        
+        // Find the TOTAL_FORMS input to determine prefix
+        const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        let prefix = 'hubs'; 
+        
+        if (totalFormsInput) {
+            prefix = totalFormsInput.name.replace('-TOTAL_FORMS', '');
+        }
+        
+        if (addHubBtn && hubsContainer && emptyForm && totalFormsInput) {
+            addHubBtn.addEventListener('click', function() {
+                const formCount = parseInt(totalFormsInput.value);
+                
+                // Clone the empty form
+                const newForm = emptyForm.cloneNode(true);
+                
+                // Replace __prefix__ with current index in the HTML
+                newForm.innerHTML = newForm.innerHTML.replace(/__prefix__/g, formCount);
+                
+                // Append to container
+                hubsContainer.appendChild(newForm);
+                
+                // Update TOTAL_FORMS
+                totalFormsInput.value = formCount + 1;
+                
+                // Initialize phone mask if jQuery mask plugin is available
+                if (typeof $ !== 'undefined' && $.fn.mask) {
+                    $(newForm).find('.phone-mask').mask('(00) 0000-0000');
+                }
+            });
+        }
+        
+        // Event delegation for delete buttons
+        if (hubsContainer) {
+            hubsContainer.addEventListener('click', function(e) {
+                const btn = e.target.closest('.remove-hub-btn');
+                if (!btn) return;
+                
+                const hubItem = btn.closest('.hub-item');
+                const deleteCheckbox = hubItem.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                
+                if (deleteCheckbox) {
+                    // Check the box and hide the row (works for both existing and new items)
+                    deleteCheckbox.checked = true;
+                    hubItem.classList.add('d-none');
+                } else {
+                    // Fallback if no checkbox found (should not happen based on template)
+                    hubItem.remove();
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
