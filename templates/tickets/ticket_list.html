@@ -145,7 +145,7 @@
                         <th>Equipamento</th>
                         <th>Técnico</th>
                         <th>Status</th>
-                        <th>Data Criação</th>
+                        <th>Data Ocorrência</th>
                         <th>Última Atualização</th>
                         <th>Ações</th>
                     </tr>
@@ -186,7 +186,7 @@
                                 {{ ticket.get_status_display }}
                             </span>
                         </td>
-                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</td>
                         <td>{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
