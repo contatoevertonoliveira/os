@@ -906,9 +906,30 @@ class TaskListView(LoginRequiredMixin, ListView):
                 ).values('created_at')[:1]
             )
         )
-        
-        # Ordenar por cliente (para o regroup), favoritos primeiro, depois ordem de seleção
+        active_statuses = ['open', 'in_progress', 'pending']
+        status_filter = self.request.GET.get('status') or 'all'
+
+        if status_filter == 'all':
+            queryset = queryset.filter(status__in=active_statuses)
+        elif status_filter in active_statuses:
+            queryset = queryset.filter(status=status_filter)
+        elif status_filter == 'finished':
+            queryset = queryset.filter(status='finished')
+        else:
+            queryset = queryset.filter(status__in=active_statuses)
+
         return queryset.order_by('client__name', '-is_favorite', 'my_favorite_created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        status_label_map = dict(Ticket.STATUS_CHOICES)
+        status_choices = [('all', 'Todos')]
+        for code in ['open', 'in_progress', 'pending', 'finished']:
+            label = status_label_map.get(code, code)
+            status_choices.append((code, label))
+        context['status_choices'] = status_choices
+        context['current_status'] = self.request.GET.get('status') or 'all'
+        return context
 
 class TaskFavoriteView(LoginRequiredMixin, View):
     def post(self, request, pk):
