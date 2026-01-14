@@ -60,6 +60,7 @@ class ClientHub(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='hubs', verbose_name="Cliente")
     name = models.CharField(max_length=200, verbose_name="Nome do Hub/Loja")
     address = models.TextField(verbose_name="Endereço", blank=True, null=True)
+    contact_name = models.CharField(max_length=100, verbose_name="Contato (Responsável)", blank=True, null=True)
     phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)

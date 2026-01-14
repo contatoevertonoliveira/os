@@ -69,15 +69,20 @@
                                 {% for hub_form in hubs %}
                                 <div class="hub-item row g-3 mb-2 pb-2 border-bottom align-items-end">
                                     {{ hub_form.id }}
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label small fw-bold mb-1">Nome do Hub/Loja</label>
                                         {% render_field hub_form.name class="form-control form-control-sm" %}
                                         <div class="text-danger small">{{ hub_form.name.errors }}</div>
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-4">
                                         <label class="form-label small fw-bold mb-1">Endereço</label>
                                         {% render_field hub_form.address class="form-control form-control-sm" %}
                                         <div class="text-danger small">{{ hub_form.address.errors }}</div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-bold mb-1">Contato</label>
+                                        {% render_field hub_form.contact_name class="form-control form-control-sm" %}
+                                        <div class="text-danger small">{{ hub_form.contact_name.errors }}</div>
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
@@ -107,13 +112,17 @@
                             <div id="empty-form" style="display:none;">
                                 <div class="hub-item row g-3 mb-2 pb-2 border-bottom align-items-end">
                                     {{ hubs.empty_form.id }}
-                                    <div class="col-md-4">
+                                    <div class="col-md-3">
                                         <label class="form-label small fw-bold mb-1">Nome do Hub/Loja</label>
                                         {% render_field hubs.empty_form.name class="form-control form-control-sm" %}
                                     </div>
-                                    <div class="col-md-5">
+                                    <div class="col-md-4">
                                         <label class="form-label small fw-bold mb-1">Endereço</label>
                                         {% render_field hubs.empty_form.address class="form-control form-control-sm" %}
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label small fw-bold mb-1">Contato</label>
+                                        {% render_field hubs.empty_form.contact_name class="form-control form-control-sm" %}
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
