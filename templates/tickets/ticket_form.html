@@ -78,11 +78,19 @@
                                             {% for checkbox in form.systems %}
                                             <div class="form-check form-switch">
                                                 {{ checkbox.tag }}
-                                                <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
-                                                    <span class="badge rounded-pill" id="badge-{{ checkbox.id_for_label }}" style="background-color: #6c757d; font-weight: normal; font-size: 0.8rem; min-width: 60px;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ checkbox.choice_label.description|default:'Sem descrição' }}">
-                                                        {{ checkbox.choice_label }}
-                                                    </span>
-                                                </label>
+                                                {% with None as system_description %}
+                                                    {% for sys in form.fields.systems.queryset %}
+                                                        {% if sys.id|stringformat:"s" == checkbox.data %}
+                                                            {% with sys.description as system_description %}
+                                                            {% endwith %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
+                                                        <span class="badge rounded-pill" id="badge-{{ checkbox.id_for_label }}" style="background-color: #6c757d; font-weight: normal; font-size: 0.8rem; min-width: 60px;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system_description|default:'Sem descrição' }}">
+                                                            {{ checkbox.choice_label }}
+                                                        </span>
+                                                    </label>
+                                                {% endwith %}
                                             </div>
                                             {% endfor %}
                                         </div>

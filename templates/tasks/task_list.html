@@ -39,7 +39,7 @@
                              data-start-date="{% if ticket.start_date %}{{ ticket.start_date|date:'d/m/Y' }}{% else %}{{ ticket.created_at|date:'d/m/Y' }}{% endif %}"
                              data-estimated-time="{{ ticket.estimated_time|default:'' }}"
                              data-technicians='[{% for tech in ticket.technicians.all %}{"name": "{{ tech.first_name|default:tech.username }}", "photo": "{% if tech.profile.photo %}{{ tech.profile.photo.url }}?v={% now "U" %}{% endif %}", "initials": "{{ tech.first_name|first|default:tech.username|first|upper }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
-                             data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
+                             data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}", "description": "{{ system.description|default:''|escapejs }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
                              style="cursor: pointer;">
                             
                             <div class="position-absolute top-0 end-0 p-2 d-flex gap-1" style="z-index: 10;">
