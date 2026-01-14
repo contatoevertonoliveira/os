@@ -72,11 +72,10 @@
                                     {{ ticket.client.name }}
                                 </p>
 
-                                <!-- Badges (System on top, Status below) -->
                                 <div class="mb-3">
                                     <div class="mb-1">
                                         {% for system in ticket.systems.all %}
-                                            <span class="badge border border-dark text-dark mb-1" style="background-color: {{ system.color|default:'#fff' }}; font-weight: normal;">{{ system.name }}</span>
+                                            <span class="badge border border-dark text-dark mb-1" style="background-color: {{ system.color|default:'#fff' }}; font-weight: normal;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system.description|default:'Sem descrição' }}">{{ system.name }}</span>
                                         {% endfor %}
                                     </div>
                                     <div>
@@ -393,7 +392,14 @@
                     badge.style.backgroundColor = sys.color;
                     badge.style.fontWeight = 'normal';
                     badge.textContent = sys.name;
+                    badge.setAttribute('data-bs-toggle', 'tooltip');
+                    badge.setAttribute('data-bs-placement', 'bottom');
+                    badge.setAttribute('title', sys.description || 'Sem descrição');
                     systemsContainer.appendChild(badge);
+                });
+                var tooltipTriggerList = [].slice.call(systemsContainer.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
                 });
             } else {
                 systemsContainer.innerHTML = '<span class="text-muted small fst-italic">Nenhum sistema vinculado</span>';

@@ -28,7 +28,7 @@
                     <tr>
                         <td class="fw-bold">{{ system.name }}</td>
                         <td>{{ system.color }}</td>
-                        <td><span class="badge" style="background-color: {{ system.color }}">{{ system.name }}</span></td>
+                        <td><span class="badge" style="background-color: {{ system.color }}" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system.description|default:'Sem descrição' }}">{{ system.name }}</span></td>
                         <td>{{ system.description|default:"-" }}</td>
                         <td>
                             <a href="{% url 'system_update' system.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
