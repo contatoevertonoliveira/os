@@ -276,7 +276,9 @@ class TicketListView(LoginRequiredMixin, ListView):
         end_date = self.request.GET.get('end_date') or None
 
         if not any([q, status, ticket_type, period, start_date, end_date]):
-            queryset = queryset.filter(created_at__date=today)
+            start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+            end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+            queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
             return queryset.order_by('-created_at')
 
         if q:
@@ -294,12 +296,14 @@ class TicketListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
         if period == 'all':
-             pass
+             pass # No date filter
         elif period == 'today':
+            # Filter range for the whole day to avoid timezone issues
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
             end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
             queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
         elif period == 'week':
+            # Start of week (Sunday)
             days_to_subtract = (today.weekday() + 1) % 7
             start_week = today - timedelta(days=days_to_subtract)
             start_week_dt = timezone.make_aware(datetime.combine(start_week, datetime.min.time()))
@@ -318,6 +322,7 @@ class TicketListView(LoginRequiredMixin, ListView):
             if end_date:
                 queryset = queryset.filter(created_at__date__lte=end_date)
 
+        # Always order by created_at desc
         return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
@@ -326,7 +331,18 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['ticket_types'] = TicketType.objects.all().order_by('name')
         context['status_choices'] = Ticket.STATUS_CHOICES
         
-        context['current_period'] = self.request.GET.get('period', 'today' if not self.request.GET else '')
+        # Determine if any filter is active
+        is_filtered = any([
+            self.request.GET.get('q'), 
+            self.request.GET.get('status'), 
+            self.request.GET.get('ticket_type'), 
+            self.request.GET.get('period'), 
+            self.request.GET.get('start_date'), 
+            self.request.GET.get('end_date')
+        ])
+
+        # If no filter is active, default visual state to 'today'
+        context['current_period'] = self.request.GET.get('period', 'today' if not is_filtered else '')
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
         context['current_q'] = self.request.GET.get('q', '')
