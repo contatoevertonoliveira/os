@@ -265,6 +265,8 @@ class TicketListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = Ticket.objects.all().select_related('client', 'hub', 'equipment', 'ticket_type').prefetch_related('technicians', 'equipments')
+        
+        today = timezone.localtime(timezone.now()).date()
 
         q = self.request.GET.get('q') or None
         status = self.request.GET.get('status') or None
@@ -293,7 +295,7 @@ class TicketListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
         # Date Filtering
-        today = timezone.localtime(timezone.now()).date()
+        # today is already defined above
 
         if period == 'all':
              pass # No date filter
