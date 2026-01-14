@@ -275,10 +275,9 @@ class TicketListView(LoginRequiredMixin, ListView):
         start_date = self.request.GET.get('start_date') or None
         end_date = self.request.GET.get('end_date') or None
 
-        # Default to today if no filters provided
         if not any([q, status, ticket_type, period, start_date, end_date]):
-            queryset = queryset.filter(start_date__date=today)
-            return queryset.order_by('-start_date', '-created_at')
+            queryset = queryset.filter(created_at__date=today)
+            return queryset.order_by('-created_at')
 
         if q:
             queryset = queryset.filter(
@@ -294,39 +293,32 @@ class TicketListView(LoginRequiredMixin, ListView):
         if ticket_type:
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
-        # Date Filtering
-        # today is already defined above
-
         if period == 'all':
-             pass # No date filter
+             pass
         elif period == 'today':
-            # Filter range for the whole day to avoid timezone issues
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
             end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
-            queryset = queryset.filter(start_date__range=(start_of_day, end_of_day))
+            queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
         elif period == 'week':
-            # Start of week (Sunday)
             days_to_subtract = (today.weekday() + 1) % 7
             start_week = today - timedelta(days=days_to_subtract)
             start_week_dt = timezone.make_aware(datetime.combine(start_week, datetime.min.time()))
-            queryset = queryset.filter(start_date__gte=start_week_dt)
+            queryset = queryset.filter(created_at__gte=start_week_dt)
         elif period == 'fortnight':
             start_fortnight = today - timedelta(days=15)
             start_fortnight_dt = timezone.make_aware(datetime.combine(start_fortnight, datetime.min.time()))
-            queryset = queryset.filter(start_date__gte=start_fortnight_dt)
+            queryset = queryset.filter(created_at__gte=start_fortnight_dt)
         elif period == 'month':
             start_month = today.replace(day=1)
             start_month_dt = timezone.make_aware(datetime.combine(start_month, datetime.min.time()))
-            queryset = queryset.filter(start_date__gte=start_month_dt)
+            queryset = queryset.filter(created_at__gte=start_month_dt)
         elif period == 'custom':
             if start_date:
-                queryset = queryset.filter(start_date__date__gte=start_date)
+                queryset = queryset.filter(created_at__date__gte=start_date)
             if end_date:
-                queryset = queryset.filter(start_date__date__lte=end_date)
+                queryset = queryset.filter(created_at__date__lte=end_date)
 
-        # Always order by start_date desc (most recent occurrence first)
-        # Fallback to created_at if start_date is null (though it shouldn't be for new tickets)
-        return queryset.order_by('-start_date', '-created_at')
+        return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
