@@ -184,7 +184,14 @@
                                 {% if ticket.client.logo %}
                                     <img src="{{ ticket.client.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 18px; height: 18px; object-fit: cover;">
                                 {% endif %}
-                                <span class="client-name">{{ ticket.client.name }}</span>
+                                <div class="d-flex flex-column">
+                                    {% if ticket.hub %}
+                                        <span class="badge bg-light text-secondary border mb-1 align-self-start" style="font-size: 0.65rem; font-weight: normal;">
+                                            <i class="fas fa-store me-1" style="font-size: 0.6rem;"></i>{{ ticket.hub.name }}
+                                        </span>
+                                    {% endif %}
+                                    <span class="client-name">{{ ticket.client.name }}</span>
+                                </div>
                             </div>
                         </td>
                         <td>{{ ticket.ticket_type.name|default:"-" }}</td>
