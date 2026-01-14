@@ -116,14 +116,14 @@ class ProblemType(models.Model):
         verbose_name_plural = "Tipos de Problema"
 
 class TicketType(models.Model):
-    name = models.CharField(max_length=100, verbose_name="Tipo de OS")
+    name = models.CharField(max_length=100, verbose_name="Tipo de Chamado")
     
     def __str__(self):
         return self.name
     
     class Meta:
-        verbose_name = "Tipo de OS"
-        verbose_name_plural = "Tipos de OS"
+        verbose_name = "Tipo de Chamado"
+        verbose_name_plural = "Tipos de Chamados"
 
 class System(models.Model):
     name = models.CharField(max_length=100, verbose_name="Nome do Sistema")

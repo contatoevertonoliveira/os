@@ -511,40 +511,40 @@ class EquipmentDeleteView(LoginRequiredMixin, DeleteView):
         context['back_url'] = reverse_lazy('equipment_list')
         return context
 
-# OrderType Views
+# OrderType Views (Now Managing TicketType as "Tipos de Chamados")
 class OrderTypeListView(LoginRequiredMixin, ListView):
-    model = OrderType
+    model = TicketType
     template_name = 'cadastros/ordertype_list.html'
     context_object_name = 'ordertypes'
 
 class OrderTypeCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
-    model = OrderType
+    model = TicketType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('ordertype_list')
-    success_message = "Tipo de Ordem cadastrado com sucesso!"
+    success_message = "Tipo de Chamado cadastrado com sucesso!"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = "Novo Tipo de Ordem"
+        context['title'] = "Novo Tipo de Chamado"
         context['back_url'] = reverse_lazy('ordertype_list')
         return context
 
 class OrderTypeUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
-    model = OrderType
+    model = TicketType
     fields = '__all__'
     template_name = 'cadastros/simple_form.html'
     success_url = reverse_lazy('ordertype_list')
-    success_message = "Tipo de Ordem atualizado com sucesso!"
+    success_message = "Tipo de Chamado atualizado com sucesso!"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = f"Editar Tipo de Ordem: {self.object.name}"
+        context['title'] = f"Editar Tipo de Chamado: {self.object.name}"
         context['back_url'] = reverse_lazy('ordertype_list')
         return context
 
 class OrderTypeDeleteView(LoginRequiredMixin, DeleteView):
-    model = OrderType
+    model = TicketType
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('ordertype_list')
 
