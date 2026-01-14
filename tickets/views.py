@@ -297,7 +297,9 @@ class TicketListView(LoginRequiredMixin, ListView):
         if period == 'today':
             queryset = queryset.filter(created_at__date=today)
         elif period == 'week':
-            start_week = today - timedelta(days=today.weekday())
+            # Start of week (Sunday)
+            days_to_subtract = (today.weekday() + 1) % 7
+            start_week = today - timedelta(days=days_to_subtract)
             queryset = queryset.filter(created_at__date__gte=start_week)
         elif period == 'fortnight': # Quinzenal (last 15 days)
             start_fortnight = today - timedelta(days=15)

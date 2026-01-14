@@ -26,19 +26,19 @@
             <div class="col-md-auto">
                 <label class="form-label small fw-bold mb-1">Período</label>
                 <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="period" id="period_today" value="today" {% if current_period == 'today' %}checked{% endif %} onchange="toggleCustomDates(true)">
+                    <input type="radio" class="btn-check" name="period" id="period_today" value="today" {% if current_period == 'today' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_today">Hoje</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="toggleCustomDates(true)">
+                    <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_week">Semana</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="toggleCustomDates(true)">
+                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_fortnight">Quinzenal</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="toggleCustomDates(true)">
+                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_month">Mês</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_custom" value="custom" {% if current_period == 'custom' %}checked{% endif %} onchange="toggleCustomDates(false)">
+                    <input type="radio" class="btn-check" name="period" id="period_custom" value="custom" {% if current_period == 'custom' %}checked{% endif %} onchange="toggleCustomDates()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_custom">Personalizado</label>
                 </div>
             </div>
