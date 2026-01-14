@@ -265,58 +265,54 @@ class TicketListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = Ticket.objects.all().select_related('client', 'hub', 'equipment', 'ticket_type').prefetch_related('technicians', 'equipments')
-        
-        # Search (Approximation)
-        q = self.request.GET.get('q')
+
+        q = self.request.GET.get('q') or None
+        status = self.request.GET.get('status') or None
+        ticket_type = self.request.GET.get('ticket_type') or None
+        period = self.request.GET.get('period') or None
+        start_date = self.request.GET.get('start_date') or None
+        end_date = self.request.GET.get('end_date') or None
+
+        today = timezone.now().date()
+
+        if not any([q, status, ticket_type, period, start_date, end_date]):
+            queryset = queryset.filter(created_at__date=today)
+            return queryset.order_by('-created_at')
+
         if q:
             queryset = queryset.filter(
                 Q(client__name__icontains=q) |
                 Q(description__icontains=q) |
-                Q(id__icontains=q) | # Assuming searching by ID might be numeric
+                Q(id__icontains=q) |
                 Q(ticket_type__name__icontains=q)
             )
 
-        # Status Filter
-        status = self.request.GET.get('status')
         if status:
             queryset = queryset.filter(status=status)
 
-        # Ticket Type Filter
-        ticket_type = self.request.GET.get('ticket_type')
         if ticket_type:
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
-        # Date Filtering
-        period = self.request.GET.get('period') 
-        # Only default to today if NO filters are present at all (initial load)
-        if not self.request.GET:
-            period = 'today'
-        
-        today = timezone.now().date()
-        
+        if not period:
+            return queryset.order_by('-created_at')
+
         if period == 'today':
             queryset = queryset.filter(created_at__date=today)
         elif period == 'week':
-            # Start of week (Sunday)
-            days_to_subtract = (today.weekday() + 1) % 7
-            start_week = today - timedelta(days=days_to_subtract)
+            start_week = today - timedelta(days=today.weekday())
             queryset = queryset.filter(created_at__date__gte=start_week)
-        elif period == 'fortnight': # Quinzenal (last 15 days)
+        elif period == 'fortnight':
             start_fortnight = today - timedelta(days=15)
             queryset = queryset.filter(created_at__date__gte=start_fortnight)
         elif period == 'month':
             start_month = today.replace(day=1)
             queryset = queryset.filter(created_at__date__gte=start_month)
         elif period == 'custom':
-            start_date = self.request.GET.get('start_date')
-            end_date = self.request.GET.get('end_date')
-            
             if start_date:
                 queryset = queryset.filter(created_at__date__gte=start_date)
             if end_date:
                 queryset = queryset.filter(created_at__date__lte=end_date)
-        
-        # Always order by created_at desc
+
         return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
@@ -325,8 +321,6 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['ticket_types'] = TicketType.objects.all().order_by('name')
         context['status_choices'] = Ticket.STATUS_CHOICES
         
-        # Preserve filter parameters for template
-        # If no GET params, default to 'today' for display purposes (matching the query logic)
         context['current_period'] = self.request.GET.get('period', 'today' if not self.request.GET else '')
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
@@ -341,36 +335,45 @@ class TicketListView(LoginRequiredMixin, ListView):
         
         now = timezone.now()
         
-        # Delayed Tickets
         delayed_tickets = Ticket.objects.filter(
             deadline__lt=now
         ).exclude(
             status__in=['finished', 'canceled']
         ).select_related('client')
-        
-        # Open Tickets (General count or specific ones if needed)
-        open_tickets = Ticket.objects.exclude(
+
+        open_tickets_qs = Ticket.objects.exclude(
             status__in=['finished', 'canceled']
-        ).count()
-        
+        ).select_related('client')
+
         alerts = []
-        
-        if delayed_tickets.exists():
-            count = delayed_tickets.count()
-            # Create a summary alert
+
+        for ticket in delayed_tickets:
             alerts.append({
                 'type': 'danger',
-                'title': 'Atenção: Atrasos',
-                'message': f'Existem {count} ordens de serviço atrasadas!',
-                'icon': 'exclamation-triangle'
+                'title': 'Atenção: Atraso',
+                'message': f'A ocorrência {ticket.formatted_id} está atrasada.',
+                'icon': 'exclamation-triangle',
+                'ticket_id': ticket.id
             })
-            
-        if open_tickets > 0:
-             alerts.append({
+
+        for ticket in open_tickets_qs:
+            if ticket in delayed_tickets:
+                continue
+            if ticket.status == 'open':
+                msg = f'A ocorrência {ticket.formatted_id} está em aberto.'
+            elif ticket.status == 'in_progress':
+                msg = f'A ocorrência {ticket.formatted_id} está em andamento.'
+            elif ticket.status == 'pending':
+                msg = f'A ocorrência {ticket.formatted_id} está aguardando aprovação.'
+            else:
+                msg = f'A ocorrência {ticket.formatted_id} requer atenção.'
+
+            alerts.append({
                 'type': 'info',
-                'title': 'Pendências',
-                'message': f'Total de {open_tickets} ordens de serviço em aberto.',
-                'icon': 'info-circle'
+                'title': 'Pendência',
+                'message': msg,
+                'icon': 'info-circle',
+                'ticket_id': ticket.id
             })
 
         context['alerts'] = alerts
