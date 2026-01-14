@@ -193,6 +193,7 @@ class Ticket(models.Model):
     equipments = models.ManyToManyField(Equipment, verbose_name="Equipamentos", blank=True, related_name='tickets')
     equipment = models.ForeignKey(Equipment, on_delete=models.PROTECT, verbose_name="Equipamento (Legacy)", null=True, blank=True)
     problem_type = models.ForeignKey(ProblemType, on_delete=models.PROTECT, verbose_name="Tipo de Problema", null=True)
+    leankeep_id = models.CharField(max_length=50, verbose_name="Nº Ocorrência Leankeep", blank=True, null=True)
     
     description = models.TextField(verbose_name="Descrição Detalhada", blank=True)
     final_description = models.TextField(verbose_name="Descrição Final (Resolução)", blank=True, null=True)

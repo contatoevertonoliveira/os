@@ -78,15 +78,21 @@
                 </select>
             </div>
 
+            <!-- Leankeep ID Filter -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Nº Ocorrência Leankeep</label>
+                <input type="text" name="leankeep_id" class="form-control form-control-sm" value="{{ current_leankeep_id }}">
+            </div>
+
             <!-- Search -->
             <div class="col">
                 <label class="form-label small fw-bold mb-1">Buscar</label>
                 <div class="input-group input-group-sm">
-                    <input type="text" name="q" class="form-control" placeholder="Cliente, descrição..." value="{{ current_q }}">
+                    <input type="text" name="q" class="form-control" placeholder="Cliente, descrição, Leankeep..." value="{{ current_q }}">
                     <button class="btn btn-outline-secondary" type="submit" title="Aplicar Filtros">
                         <i class="fas fa-search"></i> Filtrar
                     </button>
-                    {% if current_q or current_status or current_ticket_type or current_period != 'today' %}
+                    {% if current_q or current_status or current_ticket_type or current_leankeep_id or current_period != 'today' %}
                     <a href="{% url 'ticket_list' %}" class="btn btn-outline-danger" title="Limpar Filtros">
                         <i class="fas fa-times"></i>
                     </a>
@@ -138,6 +144,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
+                        <th>Leankeep</th>
                         <th>Cliente</th>
                         <th>Tipo de Chamado</th>
                         <th>Equipamento</th>
@@ -154,6 +161,7 @@
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
                         <td>{{ ticket.formatted_id }}</td>
+                        <td>{{ ticket.leankeep_id|default:"-" }}</td>
                         <td>
                             <div class="d-flex align-items-center">
                                 {% if ticket.client.logo %}

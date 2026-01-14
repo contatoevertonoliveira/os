@@ -194,8 +194,8 @@ class TicketForm(forms.ModelForm):
         fields = [
             'client', 'hub', 'systems', 'area_group', 'area_subgroup', 'area',
             'equipments', 'order_type', 'ticket_type', 'problem_type',
-            'requester', 'technicians', 'start_date', 'deadline', 'estimated_time', 
-            'description', 'final_description', 'image', 'status'
+            'requester', 'technicians', 'start_date', 'deadline', 'estimated_time',
+            'leankeep_id', 'description', 'final_description', 'image', 'status'
         ]
         widgets = {
             'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),

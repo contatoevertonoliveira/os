@@ -274,8 +274,9 @@ class TicketListView(LoginRequiredMixin, ListView):
         period = self.request.GET.get('period') or None
         start_date = self.request.GET.get('start_date') or None
         end_date = self.request.GET.get('end_date') or None
+        leankeep_id = self.request.GET.get('leankeep_id') or None
 
-        if not any([q, status, ticket_type, period, start_date, end_date]):
+        if not any([q, status, ticket_type, period, start_date, end_date, leankeep_id]):
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
             end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
             queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
@@ -286,8 +287,12 @@ class TicketListView(LoginRequiredMixin, ListView):
                 Q(client__name__icontains=q) |
                 Q(description__icontains=q) |
                 Q(id__icontains=q) |
-                Q(ticket_type__name__icontains=q)
+                Q(ticket_type__name__icontains=q) |
+                Q(leankeep_id__icontains=q)
             )
+
+        if leankeep_id:
+            queryset = queryset.filter(leankeep_id__icontains=leankeep_id)
 
         if status:
             queryset = queryset.filter(status=status)
@@ -333,12 +338,13 @@ class TicketListView(LoginRequiredMixin, ListView):
         
         # Determine if any filter is active
         is_filtered = any([
-            self.request.GET.get('q'), 
-            self.request.GET.get('status'), 
-            self.request.GET.get('ticket_type'), 
-            self.request.GET.get('period'), 
-            self.request.GET.get('start_date'), 
-            self.request.GET.get('end_date')
+            self.request.GET.get('q'),
+            self.request.GET.get('status'),
+            self.request.GET.get('ticket_type'),
+            self.request.GET.get('period'),
+            self.request.GET.get('start_date'),
+            self.request.GET.get('end_date'),
+            self.request.GET.get('leankeep_id'),
         ])
 
         # If no filter is active, default visual state to 'today'
@@ -348,6 +354,7 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['current_q'] = self.request.GET.get('q', '')
         context['current_start_date'] = self.request.GET.get('start_date', '')
         context['current_end_date'] = self.request.GET.get('end_date', '')
+        context['current_leankeep_id'] = self.request.GET.get('leankeep_id', '')
         
         # Alerts (Toasts) for open/delayed tickets
         # Logic: Check for ANY ticket (not just filtered ones) that requires attention
