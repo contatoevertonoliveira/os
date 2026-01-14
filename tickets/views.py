@@ -287,7 +287,11 @@ class TicketListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
         # Date Filtering
-        period = self.request.GET.get('period', 'today') # Default to today
+        period = self.request.GET.get('period') 
+        # Only default to today if NO filters are present at all (initial load)
+        if not self.request.GET:
+            period = 'today'
+        
         today = timezone.now().date()
         
         if period == 'today':
@@ -320,7 +324,8 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['status_choices'] = Ticket.STATUS_CHOICES
         
         # Preserve filter parameters for template
-        context['current_period'] = self.request.GET.get('period', 'today')
+        # If no GET params, default to 'today' for display purposes (matching the query logic)
+        context['current_period'] = self.request.GET.get('period', 'today' if not self.request.GET else '')
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
         context['current_q'] = self.request.GET.get('q', '')
