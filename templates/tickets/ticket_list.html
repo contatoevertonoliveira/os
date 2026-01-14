@@ -2,15 +2,32 @@
 
 {% block content %}
 <style>
-    .row-finished { background-color: rgba(25, 135, 84, 0.1); }
-    .row-pending { background-color: rgba(255, 193, 7, 0.1); }
-    .row-canceled { background-color: rgba(220, 53, 69, 0.1); }
-    .row-in-progress { background-color: rgba(13, 110, 253, 0.1); }
-    
-    .ticket-row { transition: background-color 0.2s; }
+    .row-finished { background-color: rgba(25, 135, 84, 0.06); }
+    .row-pending { background-color: rgba(255, 193, 7, 0.06); }
+    .row-canceled { background-color: rgba(220, 53, 69, 0.06); }
+    .row-in-progress { background-color: rgba(13, 110, 253, 0.06); }
+    .ticket-row { transition: background-color 0.2s; font-size: 0.82rem; }
+    .ticket-row td { padding-top: 0.4rem; padding-bottom: 0.4rem; vertical-align: middle; }
+    .ticket-row td:nth-child(1),
+    .ticket-row td:nth-child(2),
+    .ticket-row td:nth-child(7),
+    .ticket-row td:nth-child(8),
+    .ticket-row td:nth-child(9) { white-space: nowrap; }
+    .ticket-row td:nth-child(3),
+    .ticket-row td:nth-child(4),
+    .ticket-row td:nth-child(5) { max-width: 260px; }
+    .ticket-row .badge { font-size: 0.7rem; padding: 0.25em 0.55em; font-weight: 500; }
+    .ticket-row .btn-sm { padding: 0.1rem 0.35rem; font-size: 0.7rem; }
+    .ticket-row .fa-eye,
+    .ticket-row .fa-trash { font-size: 0.8rem; }
+    .ticket-row .client-name { font-weight: 500; }
+    .ticket-row .technician-name { font-size: 0.78rem; }
+    .ticket-row .leankeep-id { font-family: monospace; font-size: 0.78rem; }
+    .ticket-row .ticket-id { font-family: monospace; font-weight: 500; }
+    thead th { font-size: 0.8rem; font-weight: 500; white-space: nowrap; }
 </style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Ordens de Serviço</h1>
+    <h1 class="h5 mb-0">Ordens de Serviço</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="{% url 'ticket_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Nova OS
@@ -140,7 +157,7 @@
 <div class="card card-custom">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover">
+            <table class="table table-hover mb-0">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -160,14 +177,14 @@
                     <tr class="ticket-row {% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
-                        <td>{{ ticket.formatted_id }}</td>
-                        <td>{{ ticket.leankeep_id|default:"-" }}</td>
+                        <td class="ticket-id">{{ ticket.formatted_id }}</td>
+                        <td class="leankeep-id">{{ ticket.leankeep_id|default:"-" }}</td>
                         <td>
                             <div class="d-flex align-items-center">
                                 {% if ticket.client.logo %}
-                                    <img src="{{ ticket.client.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 24px; height: 24px; object-fit: cover;">
+                                    <img src="{{ ticket.client.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 18px; height: 18px; object-fit: cover;">
                                 {% endif %}
-                                {{ ticket.client.name }}
+                                <span class="client-name">{{ ticket.client.name }}</span>
                             </div>
                         </td>
                         <td>{{ ticket.ticket_type.name|default:"-" }}</td>
@@ -182,7 +199,7 @@
                         </td>
                         <td>
                             {% for tech in ticket.technicians.all %}
-                                <div>{{ tech.get_full_name|default:tech.username }}</div>
+                                <div class="technician-name">{{ tech.get_full_name|default:tech.username }}</div>
                             {% empty %}
                                 <span class="text-muted">-</span>
                             {% endfor %}
