@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -204,6 +204,8 @@ class TicketForm(forms.ModelForm):
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
+        self.fields['ticket_type'].queryset = TicketType.objects.all().order_by('name')
+        self.fields['ticket_type'].empty_label = "Selecione o tipo de chamado"
         
         # Rename description label
         self.fields['description'].label = "Descrição Inicial"
