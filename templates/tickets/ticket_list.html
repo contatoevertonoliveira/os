@@ -702,45 +702,43 @@
                     executeScripts(modalContent);
 
                     if (!isAutoSave) {
-                        // Check for errors in the returned HTML (simple check for common error classes)
+                        const isCloseAction = submitter && submitter.name === 'save_action' && submitter.value === 'close';
                         const tempDiv = document.createElement('div');
                         tempDiv.innerHTML = html;
                         const hasErrors = tempDiv.querySelector('.is-invalid') || tempDiv.querySelector('.errorlist') || tempDiv.querySelector('.alert-danger');
 
                         if (!hasErrors) {
-                            // Success: Close the ticket completely (this will trigger list refresh if needed)
-                            // We need to capture the current ID because closeTicket sets activeTicketId to null
-                            const idToClose = activeTicketId;
-                            closeTicket(idToClose);
+                            if (isCloseAction) {
+                                const idToClose = activeTicketId;
+                                closeTicket(idToClose);
 
-                            // Show success toast on the main screen
-                            const toastContainer = document.querySelector('.toast-container');
-                            if (toastContainer) {
-                                const toast = document.createElement('div');
-                                toast.className = 'toast align-items-center text-white bg-success border-0';
-                                toast.role = 'alert';
-                                toast.ariaLive = 'assertive';
-                                toast.ariaAtomic = 'true';
-                                toast.innerHTML = `
-                                    <div class="d-flex">
-                                        <div class="toast-body">
-                                            <i class="fas fa-check-circle me-2"></i>
-                                            Ordem de Serviço salva com sucesso!
+                                const toastContainer = document.querySelector('.toast-container');
+                                if (toastContainer) {
+                                    const toast = document.createElement('div');
+                                    toast.className = 'toast align-items-center text-white bg-success border-0';
+                                    toast.role = 'alert';
+                                    toast.ariaLive = 'assertive';
+                                    toast.ariaAtomic = 'true';
+                                    toast.innerHTML = `
+                                        <div class="d-flex">
+                                            <div class="toast-body">
+                                                <i class="fas fa-check-circle me-2"></i>
+                                                Ordem de Serviço salva com sucesso!
+                                            </div>
+                                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                                         </div>
-                                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                                    </div>
-                                `;
-                                toastContainer.appendChild(toast);
-                                const bsToast = new bootstrap.Toast(toast);
-                                bsToast.show();
-                                
-                                toast.addEventListener('hidden.bs.toast', () => {
-                                    toast.remove();
-                                });
+                                    `;
+                                    toastContainer.appendChild(toast);
+                                    const bsToast = new bootstrap.Toast(toast);
+                                    bsToast.show();
+                                    
+                                    toast.addEventListener('hidden.bs.toast', () => {
+                                        toast.remove();
+                                    });
+                                }
+                                return;
                             }
-                            return; // Stop processing further for this modal instance
                         } else {
-                            // Errors found: Keep modal open and show error feedback
                             const toastContainer = document.querySelector('.toast-container');
                             if (toastContainer) {
                                 const toast = document.createElement('div');
