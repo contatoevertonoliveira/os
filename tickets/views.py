@@ -264,11 +264,69 @@ class TicketListView(LoginRequiredMixin, ListView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Ticket.objects.all().select_related('client', 'hub', 'equipment').prefetch_related('technicians', 'equipments').order_by('-created_at')
+        queryset = Ticket.objects.all().select_related('client', 'hub', 'equipment', 'ticket_type').prefetch_related('technicians', 'equipments')
+        
+        # Search (Approximation)
+        q = self.request.GET.get('q')
+        if q:
+            queryset = queryset.filter(
+                Q(client__name__icontains=q) |
+                Q(description__icontains=q) |
+                Q(id__icontains=q) | # Assuming searching by ID might be numeric
+                Q(ticket_type__name__icontains=q)
+            )
+
+        # Status Filter
+        status = self.request.GET.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+
+        # Ticket Type Filter
+        ticket_type = self.request.GET.get('ticket_type')
+        if ticket_type:
+            queryset = queryset.filter(ticket_type_id=ticket_type)
+
+        # Date Filtering
+        period = self.request.GET.get('period', 'today') # Default to today
+        today = timezone.now().date()
+        
+        if period == 'today':
+            queryset = queryset.filter(created_at__date=today)
+        elif period == 'week':
+            start_week = today - timedelta(days=today.weekday())
+            queryset = queryset.filter(created_at__date__gte=start_week)
+        elif period == 'fortnight': # Quinzenal (last 15 days)
+            start_fortnight = today - timedelta(days=15)
+            queryset = queryset.filter(created_at__date__gte=start_fortnight)
+        elif period == 'month':
+            start_month = today.replace(day=1)
+            queryset = queryset.filter(created_at__date__gte=start_month)
+        elif period == 'custom':
+            start_date = self.request.GET.get('start_date')
+            end_date = self.request.GET.get('end_date')
+            
+            if start_date:
+                queryset = queryset.filter(created_at__date__gte=start_date)
+            if end_date:
+                queryset = queryset.filter(created_at__date__lte=end_date)
+        
+        # Always order by created_at desc
+        return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Passa URLs de retorno para templates que possam ser reutilizados
+        # Context for filters
+        context['ticket_types'] = TicketType.objects.all().order_by('name')
+        context['status_choices'] = Ticket.STATUS_CHOICES
+        
+        # Preserve filter parameters for template
+        context['current_period'] = self.request.GET.get('period', 'today')
+        context['current_status'] = self.request.GET.get('status', '')
+        context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
+        context['current_q'] = self.request.GET.get('q', '')
+        context['current_start_date'] = self.request.GET.get('start_date', '')
+        context['current_end_date'] = self.request.GET.get('end_date', '')
+        
         return context
 
 class TicketDetailView(LoginRequiredMixin, DetailView):

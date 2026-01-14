@@ -18,6 +18,106 @@
     </div>
 </div>
 
+<!-- Filters Bar -->
+<div class="card card-custom mb-3">
+    <div class="card-body p-3">
+        <form method="get" class="row g-2 align-items-end" id="filterForm">
+            <!-- Period Filters -->
+            <div class="col-md-auto">
+                <label class="form-label small fw-bold mb-1">Período</label>
+                <div class="btn-group w-100" role="group">
+                    <input type="radio" class="btn-check" name="period" id="period_today" value="today" {% if current_period == 'today' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary btn-sm" for="period_today">Hoje</label>
+
+                    <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary btn-sm" for="period_week">Semana</label>
+
+                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary btn-sm" for="period_fortnight">Quinzenal</label>
+
+                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-outline-secondary btn-sm" for="period_month">Mês</label>
+
+                    <input type="radio" class="btn-check" name="period" id="period_custom" value="custom" {% if current_period == 'custom' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <label class="btn btn-outline-secondary btn-sm" for="period_custom">Personalizado</label>
+                </div>
+            </div>
+
+            <!-- Custom Date Range (Hidden by default) -->
+            <div class="col-md-auto custom-date-range" style="display: none;">
+                <label class="form-label small fw-bold mb-1">De</label>
+                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ current_start_date }}">
+            </div>
+            <div class="col-md-auto custom-date-range" style="display: none;">
+                <label class="form-label small fw-bold mb-1">Até</label>
+                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ current_end_date }}">
+            </div>
+            <div class="col-md-auto custom-date-range" style="display: none;">
+                <button type="submit" class="btn btn-primary btn-sm mt-4">Filtrar</button>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for key, label in status_choices %}
+                    <option value="{{ key }}" {% if current_status == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Ticket Type Filter -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Tipo de Chamado</label>
+                <select name="ticket_type" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">Todos</option>
+                    {% for type in ticket_types %}
+                    <option value="{{ type.id }}" {% if current_ticket_type == type.id|stringformat:"s" %}selected{% endif %}>{{ type.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Search -->
+            <div class="col">
+                <label class="form-label small fw-bold mb-1">Buscar</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" placeholder="Cliente, descrição..." value="{{ current_q }}">
+                    <button class="btn btn-outline-secondary" type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    {% if current_q or current_status or current_ticket_type or current_period != 'today' %}
+                    <a href="{% url 'ticket_list' %}" class="btn btn-outline-danger" title="Limpar Filtros">
+                        <i class="fas fa-times"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleCustomDates() {
+        const isCustom = document.getElementById('period_custom').checked;
+        const customInputs = document.querySelectorAll('.custom-date-range');
+        customInputs.forEach(el => {
+            el.style.display = isCustom ? 'block' : 'none';
+        });
+        
+        // If switching TO custom, don't submit immediately (wait for button)
+        // If switching FROM custom, submit immediately
+        if (!isCustom) {
+            document.getElementById('filterForm').submit();
+        }
+    }
+
+    // Run on load
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleCustomDates();
+    });
+</script>
+
 <div class="card card-custom">
     <div class="card-body">
         <div class="table-responsive">
