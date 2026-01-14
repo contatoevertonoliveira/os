@@ -181,6 +181,13 @@ class TicketForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_equipment_selection'})
     )
 
+    ticket_type = forms.ModelChoiceField(
+        queryset=TicketType.objects.all().order_by('name'),
+        required=False,
+        label="Tipo de Chamado",
+        empty_label="Selecione o tipo de chamado"
+    )
+
     class Meta:
         model = Ticket
         fields = [
@@ -204,8 +211,6 @@ class TicketForm(forms.ModelForm):
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
-        self.fields['ticket_type'].queryset = TicketType.objects.all().order_by('name')
-        self.fields['ticket_type'].empty_label = "Selecione o tipo de chamado"
         
         # Rename description label
         self.fields['description'].label = "Descrição Inicial"
