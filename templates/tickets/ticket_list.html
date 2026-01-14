@@ -26,19 +26,19 @@
             <div class="col-md-auto">
                 <label class="form-label small fw-bold mb-1">Período</label>
                 <div class="btn-group w-100" role="group">
-                    <input type="radio" class="btn-check" name="period" id="period_today" value="today" {% if current_period == 'today' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <input type="radio" class="btn-check" name="period" id="period_today" value="today" {% if current_period == 'today' %}checked{% endif %} onchange="toggleCustomDates(true)">
                     <label class="btn btn-outline-secondary btn-sm" for="period_today">Hoje</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="toggleCustomDates(true)">
                     <label class="btn btn-outline-secondary btn-sm" for="period_week">Semana</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="toggleCustomDates(true)">
                     <label class="btn btn-outline-secondary btn-sm" for="period_fortnight">Quinzenal</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="toggleCustomDates(true)">
                     <label class="btn btn-outline-secondary btn-sm" for="period_month">Mês</label>
 
-                    <input type="radio" class="btn-check" name="period" id="period_custom" value="custom" {% if current_period == 'custom' %}checked{% endif %} onchange="toggleCustomDates()">
+                    <input type="radio" class="btn-check" name="period" id="period_custom" value="custom" {% if current_period == 'custom' %}checked{% endif %} onchange="toggleCustomDates(false)">
                     <label class="btn btn-outline-secondary btn-sm" for="period_custom">Personalizado</label>
                 </div>
             </div>
@@ -94,18 +94,37 @@
     </div>
 </div>
 
+<!-- Persistent Alerts Container (Bottom Right) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    {% for alert in alerts %}
+    <div class="toast show align-items-center text-white bg-{{ alert.type }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="fas fa-{{ alert.icon }} me-2"></i> {{ alert.message }}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 <script>
-    function toggleCustomDates() {
+    function toggleCustomDates(submitNow) {
         const isCustom = document.getElementById('period_custom').checked;
         const customInputs = document.querySelectorAll('.custom-date-range');
         customInputs.forEach(el => {
             el.style.display = isCustom ? 'block' : 'none';
         });
+        
+        // Submit if requested (for non-custom periods)
+        if (submitNow) {
+            document.getElementById('filterForm').submit();
+        }
     }
 
     // Run on load
     document.addEventListener('DOMContentLoaded', function() {
-        toggleCustomDates();
+        toggleCustomDates(false);
     });
 </script>
 

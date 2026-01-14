@@ -332,6 +332,47 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['current_start_date'] = self.request.GET.get('start_date', '')
         context['current_end_date'] = self.request.GET.get('end_date', '')
         
+        # Alerts (Toasts) for open/delayed tickets
+        # Logic: Check for ANY ticket (not just filtered ones) that requires attention
+        # Delayed: deadline < now AND status != finished/canceled
+        # Open: status in [open, in_progress, pending]
+        
+        now = timezone.now()
+        
+        # Delayed Tickets
+        delayed_tickets = Ticket.objects.filter(
+            deadline__lt=now
+        ).exclude(
+            status__in=['finished', 'canceled']
+        ).select_related('client')
+        
+        # Open Tickets (General count or specific ones if needed)
+        open_tickets = Ticket.objects.exclude(
+            status__in=['finished', 'canceled']
+        ).count()
+        
+        alerts = []
+        
+        if delayed_tickets.exists():
+            count = delayed_tickets.count()
+            # Create a summary alert
+            alerts.append({
+                'type': 'danger',
+                'title': 'Atenção: Atrasos',
+                'message': f'Existem {count} ordens de serviço atrasadas!',
+                'icon': 'exclamation-triangle'
+            })
+            
+        if open_tickets > 0:
+             alerts.append({
+                'type': 'info',
+                'title': 'Pendências',
+                'message': f'Total de {open_tickets} ordens de serviço em aberto.',
+                'icon': 'info-circle'
+            })
+
+        context['alerts'] = alerts
+        
         return context
 
 class TicketDetailView(LoginRequiredMixin, DetailView):
