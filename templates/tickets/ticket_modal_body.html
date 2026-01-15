@@ -135,7 +135,7 @@
 
                     <!-- Row 3: Technical Details -->
                     <div class="row g-2 mb-3">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Equipamentos</label>
                             {% render_field form.equipment_selection class="form-select form-select-sm" %}
                             
@@ -149,13 +149,17 @@
                                 {% render_field form.equipments %}
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
                             {% render_field form.ticket_type class="form-select form-select-sm" %}
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
                             {% render_field form.problem_type class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">ID Leankeep</label>
+                            {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
                         </div>
                     </div>
 
