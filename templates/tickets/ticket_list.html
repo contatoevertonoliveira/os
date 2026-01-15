@@ -690,7 +690,18 @@
                     return;
                 }
                 return response.text().then(html => {
+                    // Preserve scroll position
+                    const modalBody = modalContent.querySelector('.modal-body');
+                    const scrollTop = modalBody ? modalBody.scrollTop : 0;
+
                     modalContent.innerHTML = html;
+                    
+                    // Restore scroll position
+                    const newModalBody = modalContent.querySelector('.modal-body');
+                    if (newModalBody) {
+                        newModalBody.scrollTop = scrollTop;
+                    }
+
                     ticketsUpdated = true;
                     if (isAutoSave && evoDescValue) {
                         const newEvoInput = modalContent.querySelector('textarea[name="evolution_description"]');

@@ -88,9 +88,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         # Generate date labels for the X-axis (all days in range)
         date_labels = []
+        date_labels_objs = []
         current_d = start_date
         while current_d <= end_date:
             date_labels.append(current_d.strftime('%d/%m'))
+            date_labels_objs.append(current_d)
             current_d += timedelta(days=1)
             
         context['chart_tech_labels'] = date_labels
@@ -102,36 +104,46 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         ]
         
         for idx, tech in enumerate(techs):
-            # Get completed tickets for this tech in the period
-            tech_tickets = tickets_qs.filter(technicians=tech, status='finished')
+            # Get ALL tickets for this tech to calculate historical backlog
+            # We don't restrict by created_at here because we need to know about tickets created before start_date
+            all_tech_tickets = Ticket.objects.filter(technicians=tech).exclude(status='canceled')
             
             # Global open tickets for this tech (for the legend/tooltip)
-            open_tickets_count = Ticket.objects.filter(technicians=tech, status='open').count()
+            open_tickets_count = all_tech_tickets.filter(status='open').count()
             
-            # Calculate CUMULATIVE counts for each day in the period
+            # Calculate ACTIVE WORKLOAD (Backlog) for each day
+            # This shows "Demanda" (Demand) - rising means more work assigned, falling means work completed
             data_points = []
+            point_colors = [] # To show status (e.g. Red if overdue tickets existed on that day)
             
-            # We want DAILY counts to show peaks and valleys
-            # So for each day, we count how many tickets were finished on that specific day
+            has_activity_in_period = False
             
-            # Efficient way: Get all finished dates, group by day
-            daily_counts = {}
-            if tech_tickets.exists():
-                for finished_at in tech_tickets.values_list('finished_at', flat=True):
-                    if finished_at:
-                        local_finished_at = timezone.localtime(finished_at)
-                        day_str = local_finished_at.strftime('%d/%m')
-                        daily_counts[day_str] = daily_counts.get(day_str, 0) + 1
-            
-            total_productivity = 0
-            for label in date_labels:
-                count_today = daily_counts.get(label, 0)
-                total_productivity += count_today
+            for label_date in date_labels_objs: # We need the actual date objects corresponding to labels
+                d_end = label_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                
+                # Active tickets on this day:
+                # Created before/on this day AND (Not finished yet OR Finished after this day)
+                active_on_day = all_tech_tickets.filter(
+                    Q(created_at__lte=d_end) & 
+                    (Q(finished_at__gt=d_end) | Q(finished_at__isnull=True))
+                )
+                
+                count_today = active_on_day.count()
                 data_points.append(count_today)
+                
+                if count_today > 0:
+                    has_activity_in_period = True
+                    
+                # Check for delays on this specific day
+                # Any active ticket on this day that had a deadline BEFORE this day
+                has_overdue = active_on_day.filter(deadline__lt=d_end).exists()
+                if has_overdue:
+                    point_colors.append('#dc3545') # Red for overdue
+                else:
+                    point_colors.append(colors[idx % len(colors)]) # Default color
             
-            # Only include tech if they have some activity (open tickets OR finished tickets in period)
-            # User wants to see "foto mini de cada técnico com ocorrencia em aberta e sua produtividade"
-            if open_tickets_count > 0 or total_productivity > 0:
+            # Only include tech if they have some activity (open tickets OR active in period)
+            if open_tickets_count > 0 or has_activity_in_period:
                 # Tech Photo URL
                 photo_url = None
                 job_title = "Técnico"
@@ -156,22 +168,15 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         supervisor_name = f"{tech.profile.supervisor.user.get_full_name()}"
                 
                 # Build hierarchy string: "Diretoria / Serviços / Santander-SP"
-                # For now using: Department / Job Title / Station
                 hierarchy_parts = []
                 if department: hierarchy_parts.append(department)
                 if job_title: hierarchy_parts.append(job_title)
                 if station: hierarchy_parts.append(station)
                 hierarchy_str = " / ".join(hierarchy_parts)
                 
-                # Determine Status Color (Shadow)
-                # Red: Overdue tickets (deadline < now)
-                # Yellow: Expiring soon (deadline within 24h)
-                # Green: Up to date
-                
+                # Determine Current Status Color (for the final point/legend)
                 now = timezone.now()
-                # Get all unfinished tickets for this tech
-                unfinished_tickets = Ticket.objects.filter(technicians=tech).exclude(status__in=['finished', 'canceled'])
-                
+                unfinished_tickets = all_tech_tickets.exclude(status='finished')
                 has_overdue = unfinished_tickets.filter(deadline__lt=now).exists()
                 has_warning = unfinished_tickets.filter(deadline__range=(now, now + timedelta(days=1))).exists()
                 
@@ -183,12 +188,13 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     status_color = '#198754' # Green
 
                 tech_chart_datasets.append({
-                    'label': f"{tech.first_name} {tech.last_name} ({tech.username}) - Abertos: {open_tickets_count}",
+                    'label': f"{tech.first_name} {tech.last_name} ({tech.username}) - Backlog Atual: {count_today}", # count_today is the last one
                     'data': data_points,
                     'photo': photo_url,
                     'borderColor': colors[idx % len(colors)],
                     'open_tickets': open_tickets_count,
                     'status_color': status_color,
+                    'pointBorderColors': point_colors, # Custom colors per point
                     # Extra info for Modal
                     'full_name': tech.get_full_name() or tech.username,
                     'email': email,

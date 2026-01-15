@@ -551,7 +551,17 @@
         var dataLength_{{ forloop.counter }} = {{ dataset.data|length }};
         var pointStyles_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('circle');
         var pointRadii_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(3); // Small dots for history
-        var pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
+        
+        // Use custom point colors from backend if available (for historical overdue/delays)
+        var customColors = {{ dataset.pointBorderColors|default:"[]"|safe }};
+        var pointBorderColors_{{ forloop.counter }};
+        
+        if (customColors.length === dataLength_{{ forloop.counter }}) {
+            pointBorderColors_{{ forloop.counter }} = customColors;
+        } else {
+            pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
+        }
+
         var pointBorderWidths_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(1);
         
         // Configure the LAST point (Current Status)
@@ -624,7 +634,7 @@
                     ticks: { stepSize: 1, padding: 5, font: { size: 10 } },
                     title: {
                         display: true,
-                        text: 'Tickets Concluídos (Acumulado)'
+                        text: 'Volume de Trabalho Ativo (Backlog)'
                     }
                 },
                 x: {
