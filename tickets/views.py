@@ -201,39 +201,32 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         context['chart_tech_datasets'] = tech_chart_datasets
         
-        # Charts Data - Systems (Failures: Resolved vs Unresolved)
+        # Charts Data - Systems
         systems = System.objects.all()
         system_labels = []
         system_resolved = []
         system_unresolved = []
+        system_volume = []
+        system_colors = []
         
         for system in systems:
             sys_tickets = tickets_qs.filter(systems=system)
-            if sys_tickets.exists():
+            count = sys_tickets.count()
+            
+            if count > 0:
                 resolved = sys_tickets.filter(status='finished').count()
                 unresolved = sys_tickets.filter(Q(status='open') | Q(status='pending')).count()
                 
                 system_labels.append(system.name)
                 system_resolved.append(resolved)
                 system_unresolved.append(unresolved)
+                system_volume.append(count)
+                system_colors.append(system.color if system.color else '#6c757d')
                 
-        context['chart_system_labels'] = system_labels # Keeping this for the Polar chart if needed, or reusing
-        context['chart_system_data'] = [] # Placeholder if we remove the Polar chart or keep it
-        # Actually, let's keep the Polar chart as "Tickets by System" (volume) 
-        # and add the new one as "System Health" (Resolved vs Unresolved)
+        context['chart_system_labels'] = system_labels
+        context['chart_system_data'] = system_volume
+        context['chart_system_colors'] = system_colors
         
-        # Re-populating the Polar chart data (Volume)
-        polar_data = []
-        polar_colors = []
-        for system in systems:
-             count = tickets_qs.filter(systems=system).count()
-             if count > 0:
-                 polar_data.append(count)
-                 polar_colors.append(system.color if system.color else '#6c757d')
-        context['chart_system_polar_data'] = polar_data
-        context['chart_system_colors'] = polar_colors
-        
-        # New System Health Data
         context['chart_sys_health_labels'] = system_labels
         context['chart_sys_resolved'] = system_resolved
         context['chart_sys_unresolved'] = system_unresolved
