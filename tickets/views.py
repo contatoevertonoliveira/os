@@ -111,11 +111,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             # Calculate CUMULATIVE counts for each day in the period
             data_points = []
             
-            # We want cumulative count starting from the beginning of the period
-            # So for each day, we count how many tickets were finished *up to* that day (within the period)
-            # OR just count for that day and accumulate in the loop?
+            # We want DAILY counts to show peaks and valleys
+            # So for each day, we count how many tickets were finished on that specific day
             
-            # Efficient way: Get all finished dates, group by day, then accumulate
+            # Efficient way: Get all finished dates, group by day
             daily_counts = {}
             if tech_tickets.exists():
                 for finished_at in tech_tickets.values_list('finished_at', flat=True):
@@ -124,15 +123,15 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         day_str = local_finished_at.strftime('%d/%m')
                         daily_counts[day_str] = daily_counts.get(day_str, 0) + 1
             
-            running_total = 0
+            total_productivity = 0
             for label in date_labels:
                 count_today = daily_counts.get(label, 0)
-                running_total += count_today
-                data_points.append(running_total)
+                total_productivity += count_today
+                data_points.append(count_today)
             
             # Only include tech if they have some activity (open tickets OR finished tickets in period)
             # User wants to see "foto mini de cada técnico com ocorrencia em aberta e sua produtividade"
-            if open_tickets_count > 0 or running_total > 0:
+            if open_tickets_count > 0 or total_productivity > 0:
                 # Tech Photo URL
                 photo_url = None
                 job_title = "Técnico"
