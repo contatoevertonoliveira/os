@@ -103,6 +103,9 @@ class TechnicianForm(forms.ModelForm):
         required=False,
         empty_label="Selecione um supervisor"
     )
+    
+    # Token
+    access_token = forms.CharField(label="Token de Acesso", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}), help_text="Token único para acesso via API ou login simplificado.")
 
     photo = forms.ImageField(label="Foto de Perfil", required=False)
     
@@ -119,6 +122,7 @@ class TechnicianForm(forms.ModelForm):
                 self.fields['department'].initial = self.instance.profile.department
                 self.fields['supervisor'].initial = self.instance.profile.supervisor
                 self.fields['photo'].initial = self.instance.profile.photo
+                self.fields['access_token'].initial = self.instance.profile.token
                 
                 # Exclude self from supervisor queryset to avoid loops
                 self.fields['supervisor'].queryset = self.fields['supervisor'].queryset.exclude(user=self.instance)
@@ -142,6 +146,9 @@ class TechnicianForm(forms.ModelForm):
             profile.station = self.cleaned_data['station']
             profile.department = self.cleaned_data['department']
             profile.supervisor = self.cleaned_data['supervisor']
+            
+            if self.cleaned_data.get('access_token'):
+                profile.token = self.cleaned_data['access_token']
             
             if self.cleaned_data.get('photo'):
                 profile.photo = self.cleaned_data['photo']
