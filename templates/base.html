@@ -451,13 +451,18 @@
                         <i class="fas fa-chart-line"></i> Dashboard
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'hub_dashboard' %}" class="{% if request.resolver_match.url_name == 'hub_dashboard' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Hubs Dashboard">
+                        <i class="fas fa-network-wired"></i> Hubs Dashboard
+                    </a>
+                </li>
                 
                 <!-- Cadastros Dropdown -->
                 <li>
-                    <a href="#cadastrosSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Cadastros">
+                    <a href="#cadastrosSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Cadastros">
                         <i class="fas fa-folder-open"></i> Cadastros
                     </a>
-                    <ul class="collapse sidebar-submenu {% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}show{% endif %}" id="cadastrosSubmenu">
+                    <ul class="collapse sidebar-submenu {% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}show{% endif %}" id="cadastrosSubmenu">
                         <li>
                             <a href="{% url 'client_list' %}" class="{% if 'client' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-users"></i> Clientes
@@ -481,6 +486,11 @@
                         <li>
                             <a href="{% url 'technician_list' %}" class="{% if 'technician' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-user-cog"></i> Técnicos
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'travel_list' %}" class="{% if 'travel' in request.resolver_match.url_name %}active{% endif %}">
+                                <i class="fas fa-plane"></i> Viagens
                             </a>
                         </li>
                         <li>

@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse
 from django.db.models import Q, Exists, OuterRef, Subquery
 from .models import *
@@ -550,7 +550,7 @@ class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['title'] = "Novo Cliente"
         context['back_url'] = reverse_lazy('client_list')
         if self.request.POST:
-            context['hubs'] = ClientHubFormSet(self.request.POST)
+            context['hubs'] = ClientHubFormSet(self.request.POST, self.request.FILES)
         else:
             context['hubs'] = ClientHubFormSet()
         return context
@@ -578,7 +578,7 @@ class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['title'] = f"Editar Cliente: {self.object.name}"
         context['back_url'] = reverse_lazy('client_list')
         if self.request.POST:
-            context['hubs'] = ClientHubFormSet(self.request.POST, instance=self.object)
+            context['hubs'] = ClientHubFormSet(self.request.POST, self.request.FILES, instance=self.object)
         else:
             context['hubs'] = ClientHubFormSet(instance=self.object)
         return context
@@ -739,6 +739,212 @@ class TechnicianListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return User.objects.filter(profile__role__in=['technician', 'standard'])
 
+class HubDashboardView(LoginRequiredMixin, ListView):
+    model = ClientHub
+    template_name = 'tickets/hub_dashboard.html'
+    context_object_name = 'hubs'
+
+    def get_queryset(self):
+        # We will handle data fetching in get_context_data to mix Clients and Hubs
+        return ClientHub.objects.none()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Filter Context
+        context['clients'] = Client.objects.all().order_by('name')
+        selected_client_id = self.request.GET.get('client')
+        
+        # If no client selected, check for preferred client
+        if not selected_client_id:
+            preferred_client = Client.objects.filter(is_preferred=True).first()
+            if preferred_client:
+                selected_client_id = preferred_client.id
+        
+        context['selected_client_id'] = int(selected_client_id) if selected_client_id else None
+
+        # Build Items List (Clients + Hubs)
+        dashboard_items = []
+        hubs_data = {}
+
+        # Helper to process tickets for a specific location
+        def process_location_data(key_prefix, obj, tickets_queryset):
+            # Fetch all active tickets for the "Summary" tab
+            active_tickets_summary = tickets_queryset.filter(status__in=['open', 'in_progress', 'pending']).select_related('ticket_type').prefetch_related('technicians', 'technicians__profile', 'travels', 'travels__segments', 'systems')
+
+            # 1. Agendadas (Summary of everything active)
+            rich_agendadas = []
+            technicians_set = set()
+
+            for t in active_tickets_summary:
+                # Add technicians to set for the Technicians tab
+                for tech in t.technicians.all():
+                    technicians_set.add(tech)
+
+                # Check for linked travel
+                travel = t.travels.first()
+                
+                travel_data = None
+                if travel:
+                    # Try to get the most relevant segment (e.g., air travel)
+                    segment = travel.segments.filter(transport_type='air').first()
+                    if not segment:
+                        segment = travel.segments.first()
+
+                    travel_data = {
+                        'exists': True,
+                        'id': travel.id,
+                        'technician': travel.technician.get_full_name() or travel.technician.username,
+                        'flight_number': travel.flight_number,
+                        'departure': travel.departure_time.strftime('%d/%m %H:%M') if travel.departure_time else None,
+                        'arrival': travel.arrival_time.strftime('%d/%m %H:%M') if travel.arrival_time else None,
+                        'status': travel.get_status_display(),
+                        'icon': 'plane'
+                    }
+
+                    if segment:
+                        travel_data.update({
+                            'segment_exists': True,
+                            'carrier': segment.carrier,
+                            'transport_number': segment.transport_number,
+                            'origin': segment.origin,
+                            'destination': segment.destination,
+                            'booking_code': segment.booking_code,
+                            'locator': segment.locator,
+                            'seat': segment.seat,
+                            'fare_type': segment.fare_type,
+                            'duration': segment.duration,
+                            'transport_type': segment.transport_type,
+                            'transport_type_display': segment.get_transport_type_display()
+                        })
+                
+                rich_agendadas.append({
+                    'id': t.id,
+                    'leankeep_id': t.leankeep_id or '-',
+                    'description': t.description,
+                    'systems': ', '.join([s.name for s in t.systems.all()]) or 'N/A',
+                    'status': t.get_status_display(),
+                    'status_code': t.status,
+                    'type': t.ticket_type.name if t.ticket_type else 'N/A',
+                    'created_at': t.created_at.strftime('%d/%m/%Y'),
+                    'technicians': [tech.get_full_name() or tech.username for tech in t.technicians.all()],
+                    'os_url': reverse('ticket_detail', args=[t.id]),
+                    'travel': travel_data
+                })
+            
+            # 2. OS Abertas (Open/In Progress)
+            os_abertas = tickets_queryset.filter(status__in=['open', 'in_progress'])
+            
+            # 3. Viagens (TechnicianTravel)
+            if key_prefix == 'client':
+                viagens = TechnicianTravel.objects.filter(client=obj, hub__isnull=True)
+            else:
+                viagens = TechnicianTravel.objects.filter(hub=obj)
+            
+            viagens = viagens.select_related('technician', 'service_order')
+            
+            hubs_data[f"{key_prefix}_{obj.id}"] = {
+                'agendadas': rich_agendadas,
+                'os_abertas': [
+                    {
+                        'id': t.id,
+                        'description': t.description[:50] + '...' if len(t.description) > 50 else t.description,
+                        'status': t.get_status_display(),
+                        'status_code': t.status,
+                        'system': ', '.join([s.name for s in t.systems.all()]) or 'N/A',
+                        'leankeep': t.leankeep_id or '-'
+                    } for t in os_abertas
+                ],
+                'viagens': [
+                    {
+                        'id': t.id,
+                        'description': f"Viagem para {t.technician.get_full_name() or t.technician.username}",
+                        'date': t.scheduled_date.strftime('%d/%m/%Y %H:%M') if t.scheduled_date else '-',
+                        'status': t.get_status_display(),
+                        'ticket_status': t.ticket_status, # For coloring: concluded, issued, pending, na
+                        'ticket_status_display': t.get_ticket_status_display(),
+                        'technician': t.technician.get_full_name() or t.technician.username
+                    } for t in viagens
+                ],
+                'technicians': [
+                    {
+                        'name': tech.get_full_name() or tech.username,
+                        'role': tech.profile.get_role_display() if hasattr(tech, 'profile') else 'Técnico',
+                        'photo': tech.profile.photo.url if hasattr(tech, 'profile') and tech.profile.photo else None
+                    } for tech in list(technicians_set)
+                ]
+            }
+
+        # Logic to fetch items
+        if selected_client_id:
+            # Specific Client
+            try:
+                client = Client.objects.get(id=selected_client_id)
+                # Add Client (Sede)
+                client.type = 'client'
+                client.display_name = f"{client.name} (Matriz/Sede)"
+                client.client_name = client.name
+                dashboard_items.append(client)
+                
+                # Process Client Data (Sede = Tickets with this client AND no hub)
+                tickets = Ticket.objects.filter(client=client, hub__isnull=True).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
+                process_location_data('client', client, tickets)
+
+                # Add Hubs
+                hubs = ClientHub.objects.filter(client=client).order_by('name')
+                for hub in hubs:
+                    hub.type = 'hub'
+                    hub.display_name = hub.name
+                    hub.client_name = client.name
+                    dashboard_items.append(hub)
+                    
+                    # Process Hub Data
+                    tickets = Ticket.objects.filter(hub=hub).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
+                    process_location_data('hub', hub, tickets)
+
+            except Client.DoesNotExist:
+                pass
+        else:
+            # All Clients and Hubs (Default View)
+            # Fetch all Clients
+            clients = Client.objects.all().order_by('name')
+            for client in clients:
+                # Add Client (Sede)
+                client.type = 'client'
+                client.display_name = f"{client.name} (Matriz/Sede)"
+                client.client_name = client.name
+                dashboard_items.append(client)
+                
+                # Process Client Data
+                tickets = Ticket.objects.filter(client=client, hub__isnull=True).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
+                process_location_data('client', client, tickets)
+
+            # Fetch all Hubs
+            hubs = ClientHub.objects.select_related('client').all().order_by('client__name', 'name')
+            for hub in hubs:
+                hub.type = 'hub'
+                hub.display_name = hub.name
+                hub.client_name = hub.client.name
+                dashboard_items.append(hub)
+                
+                # Process Hub Data
+                tickets = Ticket.objects.filter(hub=hub).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
+                process_location_data('hub', hub, tickets)
+        
+        # Sort dashboard items: Clients first, then Hubs? Or grouped?
+        # Current list append order:
+        # If filtered: Client then Hubs. (Perfect)
+        # If not filtered: All Clients then All Hubs. (Maybe messy?)
+        # Let's try to group by Client if not filtered?
+        # Actually, sorting by client_name then type might be better.
+        if not selected_client_id:
+             dashboard_items.sort(key=lambda x: (x.client_name, 0 if x.type == 'client' else 1, x.display_name))
+
+        context['dashboard_items'] = dashboard_items
+        context['hubs_data'] = hubs_data
+        return context
+
+
 class TechnicianCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = User
     form_class = TechnicianForm
@@ -777,6 +983,46 @@ class TechnicianDeleteView(LoginRequiredMixin, DeleteView):
 
     def form_valid(self, form):
         messages.success(self.request, "Técnico excluído com sucesso!")
+        return super().form_valid(form)
+
+class TravelSegmentCreateView(LoginRequiredMixin, CreateView):
+    model = TravelSegment
+    form_class = TravelSegmentForm
+    template_name = 'cadastros/travel_segment_form.html'
+    
+    def get_success_url(self):
+        return reverse('travel_list') # Redirect to main list, or maybe detail
+        
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['travel_id'] = self.kwargs.get('travel_id')
+        return context
+
+    def form_valid(self, form):
+        travel = get_object_or_404(TechnicianTravel, pk=self.kwargs['travel_id'])
+        form.instance.travel = travel
+        return super().form_valid(form)
+
+class TravelSegmentUpdateView(LoginRequiredMixin, UpdateView):
+    model = TravelSegment
+    form_class = TravelSegmentForm
+    template_name = 'cadastros/travel_segment_form.html'
+    success_url = reverse_lazy('travel_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['travel_id'] = self.object.travel.id
+        return context
+
+class TravelSegmentDeleteView(LoginRequiredMixin, DeleteView):
+    model = TravelSegment
+    template_name = 'cadastros/generic_confirm_delete.html'
+    
+    def get_success_url(self):
+        return reverse('travel_detail', kwargs={'pk': self.object.travel.pk})
+
+    def form_valid(self, form):
+        messages.success(self.request, "Segmento excluído com sucesso!")
         return super().form_valid(form)
 
 class TicketUpdateDeleteView(LoginRequiredMixin, View):
@@ -1115,3 +1361,102 @@ class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = "Nova Mensagem"
         return context
+
+# Technician Travel Views
+class TechnicianTravelListView(LoginRequiredMixin, ListView):
+    model = TechnicianTravel
+    template_name = 'cadastros/travel_list.html'
+    context_object_name = 'travels'
+    ordering = ['-scheduled_date']
+
+    def get_queryset(self):
+        queryset = super().get_queryset().select_related('client', 'hub', 'technician', 'system', 'service_order')
+        
+        # Default filter: exclude completed unless requested
+        show_history = self.request.GET.get('history') == 'true'
+        if not show_history:
+            queryset = queryset.exclude(status='completed')
+        
+        q = self.request.GET.get('q')
+        if q:
+            queryset = queryset.filter(
+                Q(client__name__icontains=q) |
+                Q(technician__first_name__icontains=q) |
+                Q(technician__username__icontains=q) |
+                Q(system__name__icontains=q)
+            )
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['show_history'] = self.request.GET.get('history') == 'true'
+        return context
+
+class TechnicianTravelDetailView(LoginRequiredMixin, DetailView):
+    model = TechnicianTravel
+    template_name = 'cadastros/travel_detail.html'
+    context_object_name = 'travel'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Detalhes da Viagem: {self.object.technician.get_full_name()} - {self.object.scheduled_date.strftime('%d/%m/%Y')}"
+        context['back_url'] = reverse_lazy('travel_list')
+        context['now'] = timezone.now()
+        return context
+
+class TechnicianTravelCompleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        travel = get_object_or_404(TechnicianTravel, pk=pk)
+        travel.status = 'completed'
+        travel.save()
+        messages.success(request, "Viagem marcada como concluída!")
+        return redirect('travel_list')
+
+
+class TechnicianTravelCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = TechnicianTravel
+    form_class = TechnicianTravelForm
+    template_name = 'cadastros/travel_form.html'
+    success_url = reverse_lazy('travel_list')
+    success_message = "Viagem cadastrada com sucesso!"
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Nova Viagem"
+        context['back_url'] = reverse_lazy('travel_list')
+        context['all_hubs'] = ClientHub.objects.all().select_related('client')
+        context['all_clients'] = Client.objects.all().order_by('name')
+        return context
+
+class TechnicianTravelUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = TechnicianTravel
+    form_class = TechnicianTravelForm
+    template_name = 'cadastros/travel_form.html'
+    success_url = reverse_lazy('travel_list')
+    success_message = "Viagem atualizada com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Editar Viagem"
+        context['back_url'] = reverse_lazy('travel_list')
+        context['all_hubs'] = ClientHub.objects.all().select_related('client')
+        context['all_clients'] = Client.objects.all().order_by('name')
+        return context
+
+
+class TechnicianTravelDeleteView(LoginRequiredMixin, SuccessMessageMixin, DeleteView):
+    model = TechnicianTravel
+    template_name = 'cadastros/generic_confirm_delete.html'
+    success_url = reverse_lazy('travel_list')
+    success_message = "Viagem removida com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Excluir Viagem"
+        context['back_url'] = reverse_lazy('travel_list')
+        return context
+

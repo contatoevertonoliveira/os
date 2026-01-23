@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">Voltar</a>
+            <a href="{% url 'travel_update' travel.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+        </div>
+        
+        {% if travel.status != 'completed' %}
+            <form action="{% url 'travel_complete' travel.pk %}" method="post" class="d-inline me-2" onsubmit="return confirm('Confirmar conclusão da viagem? Ela será movida para o histórico.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-success">
+                    <i class="fas fa-check-circle"></i> Concluir Viagem
+                </button>
+            </form>
+        {% endif %}
+
+        <a href="{% url 'travel_segment_create' travel.pk %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> Adicionar Segmento
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Main Info -->
+    <div class="col-md-4 mb-4">
+        <div class="card card-custom h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Informações Principais</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Técnico</span>
+                        <span class="fw-bold">{{ travel.technician.get_full_name }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Cliente</span>
+                        <span class="fw-bold">{{ travel.client.name }}</span>
+                    </li>
+                    {% if travel.hub %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Hub/Loja</span>
+                        <span>{{ travel.hub.name }}</span>
+                    </li>
+                    {% endif %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Data Agendada</span>
+                        <span>{{ travel.scheduled_date|date:"d/m/Y H:i" }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Status</span>
+                        {% if travel.status == 'confirmed' %}
+                            <span class="badge bg-success">Confirmado</span>
+                        {% elif travel.status == 'planned' %}
+                            <span class="badge bg-primary">Planejado</span>
+                        {% elif travel.status == 'pending_contract' %}
+                            <span class="badge bg-warning text-dark">Pend. Contrato</span>
+                        {% else %}
+                            {{ travel.get_status_display }}
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Related Info -->
+    <div class="col-md-4 mb-4">
+        <div class="card card-custom h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Detalhes Adicionais</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Ordem de Serviço</span>
+                        {% if travel.service_order %}
+                            <a href="{% url 'ticket_detail' travel.service_order.pk %}" class="text-decoration-none">
+                                #{{ travel.service_order.formatted_id|default:travel.service_order.pk }}
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Sistema</span>
+                        <span>{{ travel.system.name|default:"-" }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Status Passagem</span>
+                        {% if travel.ticket_status == 'concluded' %}
+                            <span class="badge bg-success">Concluída</span>
+                        {% elif travel.ticket_status == 'issued' %}
+                            <span class="badge bg-info text-dark">Emitida</span>
+                        {% elif travel.ticket_status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        {% elif travel.ticket_status == 'na' %}
+                            <span class="badge" style="background-color: #ffe0b2; color: #664d03;">N/A</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ travel.get_ticket_status_display }}</span>
+                        {% endif %}
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Status Hotel</span>
+                        {% if travel.hotel_status == 'concluded' %}
+                            <span class="badge bg-success">Concluída</span>
+                        {% elif travel.hotel_status == 'issued' %}
+                            <span class="badge bg-info text-dark">Emitida</span>
+                        {% elif travel.hotel_status == 'pending' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        {% elif travel.hotel_status == 'na' %}
+                            <span class="badge" style="background-color: #ffe0b2; color: #664d03;">N/A</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ travel.get_hotel_status_display }}</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Multi Client Info -->
+    {% if travel.multi_client %}
+    <div class="col-md-4 mb-4">
+        <div class="card card-custom h-100">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Clientes Adicionais</h5>
+            </div>
+            <div class="card-body">
+                {% if travel.additional_clients.all %}
+                    <ul class="list-group list-group-flush">
+                        {% for client in travel.additional_clients.all %}
+                        <li class="list-group-item">
+                            {{ client.name }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted">Nenhum cliente adicional selecionado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Segments Section -->
+<div class="card card-custom mt-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Segmentos de Viagem (Transporte)</h5>
+        <a href="{% url 'travel_segment_create' travel.pk %}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> Novo Segmento
+        </a>
+    </div>
+    <div class="card-body bg-light">
+        {% if travel.segments.all %}
+            <div class="d-flex flex-column gap-3">
+            {% for segment in travel.segments.all %}
+                <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                            {% if segment.transport_type == 'car' %}
+                                <span class="fs-4 text-primary"><i class="fas fa-car"></i></span>
+                                <div>
+                                    <h6 class="mb-0 fw-bold">{{ segment.carrier }} - {{ segment.vehicle_details|default:"Carro" }}</h6>
+                                    <small class="text-muted">Localizador: <span class="fw-bold text-dark">{{ segment.locator|default:"-" }}</span></small>
+                                </div>
+                            {% else %}
+                                <span class="fs-4 text-primary">
+                                    {% if segment.transport_type == 'bus' %}<i class="fas fa-bus"></i>{% else %}<i class="fas fa-plane"></i>{% endif %}
+                                </span>
+                                <div>
+                                    <h6 class="mb-0 fw-bold">{{ segment.carrier }} {{ segment.transport_number|default:"" }}</h6>
+                                    <small class="text-muted">Localizador: <span class="fw-bold text-dark">{{ segment.locator|default:"-" }}</span></small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-success mb-1">{{ segment.status }}</span>
+                            <div class="btn-group btn-group-sm ms-2">
+                                <a href="{% url 'travel_segment_update' segment.pk %}" class="btn btn-outline-secondary" title="Editar"><i class="fas fa-edit"></i></a>
+                                <a href="{% url 'travel_segment_delete' segment.pk %}" class="btn btn-outline-danger" title="Excluir"><i class="fas fa-trash"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if segment.transport_type == 'car' %}
+                            <!-- CAR RENTAL LAYOUT -->
+                            <div class="row g-4">
+                                <div class="col-md-5">
+                                    <div class="p-3 bg-light rounded-3 h-100">
+                                        <small class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.75rem;">Retirada</small>
+                                        <div class="d-flex align-items-center mb-1">
+                                            <i class="fas fa-map-marker-alt text-success me-2"></i>
+                                            <span class="fw-bold fs-5">{{ segment.origin }}</span>
+                                        </div>
+                                        <div class="d-flex align-items-center text-muted">
+                                            <i class="far fa-calendar-alt me-2"></i>
+                                            {{ segment.departure_time|date:"d/m/Y H:i" }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-2 d-flex align-items-center justify-content-center">
+                                    <i class="fas fa-chevron-right text-muted fa-2x opacity-25"></i>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="p-3 bg-light rounded-3 h-100">
+                                        <small class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.75rem;">Devolução</small>
+                                        <div class="d-flex align-items-center mb-1">
+                                            <i class="fas fa-map-marker-alt text-danger me-2"></i>
+                                            <span class="fw-bold fs-5">{{ segment.destination }}</span>
+                                        </div>
+                                        <div class="d-flex align-items-center text-muted">
+                                            <i class="far fa-calendar-alt me-2"></i>
+                                            {{ segment.arrival_time|date:"d/m/Y H:i" }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 pt-3 border-top d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="text-muted small">Contrato:</span>
+                                    <span class="fw-bold">{{ segment.booking_code|default:"-" }}</span>
+                                </div>
+                                 {% if segment.attachment %}
+                                    <a href="{{ segment.attachment.url }}" target="_blank" class="btn btn-sm btn-link text-decoration-none">
+                                        <i class="fas fa-paperclip me-1"></i> Ver Contrato
+                                    </a>
+                                {% endif %}
+                            </div>
+
+                        {% else %}
+                            <!-- AIR/BUS LAYOUT -->
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between align-items-end mb-2">
+                                    <div class="text-start">
+                                        <span class="fs-4 fw-bold">{{ segment.origin }}</span>
+                                        <small class="d-block text-muted">{{ segment.departure_time|date:"H:i" }}</small>
+                                    </div>
+                                    <div class="flex-grow-1 px-4 text-center pb-2">
+                                         <div class="position-relative">
+                                            <hr class="border-secondary opacity-50 my-0" style="border-top: 2px dashed;">
+                                            <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 text-muted small">
+                                                {{ segment.duration }}
+                                                <br>
+                                                <span class="badge bg-light text-dark border">Direto</span>
+                                            </span>
+                                         </div>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="fs-4 fw-bold">{{ segment.destination }}</span>
+                                        <small class="d-block text-muted">{{ segment.arrival_time|date:"H:i" }}</small>
+                                    </div>
+                                </div>
+                                <div class="text-center text-muted small">
+                                    {{ segment.departure_time|date:"d de F de Y" }}
+                                </div>
+                            </div>
+                            
+                            <div class="bg-light p-3 rounded-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                                <div>
+                                    <span class="text-muted small d-block">Nº Bilhete</span>
+                                    <span class="fw-bold text-dark">{{ segment.booking_code|default:"-" }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Assento</span>
+                                    <span class="fw-bold text-dark">{{ segment.seat|default:"-" }}</span>
+                                </div>
+                                <div>
+                                    <span class="text-muted small d-block">Classe/Tarifa</span>
+                                    <span class="fw-bold text-dark">{{ segment.fare_type|default:"-" }}</span>
+                                </div>
+                                {% if segment.attachment %}
+                                    <a href="{{ segment.attachment.url }}" target="_blank" class="btn btn-sm btn-outline-primary bg-white">
+                                        <i class="fas fa-file-pdf me-1"></i> Ticket
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <div class="bg-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 80px; height: 80px;">
+                    <i class="fas fa-ticket-alt fa-2x text-muted opacity-50"></i>
+                </div>
+                <p class="text-muted m-0 fw-medium">Nenhum detalhe de transporte cadastrado.</p>
+                <a href="{% url 'travel_segment_create' travel.pk %}" class="btn btn-link mt-2">Adicionar o primeiro segmento</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

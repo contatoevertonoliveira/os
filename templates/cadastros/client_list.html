@@ -39,7 +39,12 @@
                         data-contact2-phone="{{ client.contact2_phone|default:'-' }}"
                         data-contact2-email="{{ client.contact2_email|default:'-' }}"
                         ondblclick="openClientModal(this)">
-                        <td>{{ client.name }}</td>
+                        <td>
+                            {{ client.name }}
+                            {% if client.is_preferred %}
+                                <i class="fas fa-star text-warning ms-2" title="Empresa Preferencial"></i>
+                            {% endif %}
+                        </td>
                         <td>{{ client.email|default:"-" }}</td>
                         <td>{{ client.phone|default:"-" }}</td>
                         <td>{{ client.address|truncatechars:50|default:"-" }}</td>

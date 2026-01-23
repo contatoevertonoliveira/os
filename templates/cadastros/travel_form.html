@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">{{ title }}</h1>
+            </div>
+
+            <div class="card card-custom">
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <!-- Agendamento e Técnico -->
+                            <div class="col-md-6">
+                                <label for="{{ form.scheduled_date.id_for_label }}" class="form-label small fw-bold mb-1">Agendado para</label>
+                                {% render_field form.scheduled_date class="form-control" %}
+                                <div class="text-danger small">{{ form.scheduled_date.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.technician.id_for_label }}" class="form-label small fw-bold mb-1">Técnico Responsável</label>
+                                {% render_field form.technician class="form-select" %}
+                                <div class="text-danger small">{{ form.technician.errors }}</div>
+                            </div>
+
+                            <!-- Cliente e Hub -->
+                            <div class="col-md-6">
+                                <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
+                                {% render_field form.client class="form-select" %}
+                                <div class="text-danger small">{{ form.client.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.hub.id_for_label }}" class="form-label small fw-bold mb-1">Hub/Loja</label>
+                                {% render_field form.hub class="form-select" %}
+                                <div class="text-danger small">{{ form.hub.errors }}</div>
+                            </div>
+
+                            <!-- Sistema e OS -->
+                            <div class="col-md-6">
+                                <label for="{{ form.system.id_for_label }}" class="form-label small fw-bold mb-1">Sistema</label>
+                                {% render_field form.system class="form-select" %}
+                                <div class="text-danger small">{{ form.system.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.service_order.id_for_label }}" class="form-label small fw-bold mb-1">Ordem de Serviço (OS)</label>
+                                {% render_field form.service_order class="form-select" %}
+                                <div class="text-danger small">{{ form.service_order.errors }}</div>
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-4">
+                                <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status da Viagem</label>
+                                {% render_field form.status class="form-select" %}
+                                <div class="text-danger small">{{ form.status.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.ticket_status.id_for_label }}" class="form-label small fw-bold mb-1">Status Passagem (Ticket)</label>
+                                {% render_field form.ticket_status class="form-select" %}
+                                <div class="text-danger small">{{ form.ticket_status.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.hotel_status.id_for_label }}" class="form-label small fw-bold mb-1">Status Hotel</label>
+                                {% render_field form.hotel_status class="form-select" %}
+                                <div class="text-danger small">{{ form.hotel_status.errors }}</div>
+                            </div>
+
+                            <!-- Flight Details -->
+                            <div class="col-12 mt-4">
+                                <h6 class="text-secondary text-uppercase fw-bold small border-bottom pb-2 mb-3">
+                                    <i class="fas fa-plane me-2"></i>Detalhes do Voo (Legado)
+                                </h6>
+                                <p class="small text-muted mb-3">
+                                    <i class="fas fa-info-circle me-1"></i> Para cadastrar múltiplos voos, conexões, aluguel de carro ou ônibus, 
+                                    {% if form.instance.pk %}
+                                        <a href="{% url 'travel_detail' form.instance.pk %}" class="fw-bold text-primary">gerencie os Segmentos de Viagem</a>.
+                                    {% else %}
+                                        salve a viagem primeiro e depois adicione os segmentos.
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.flight_number.id_for_label }}" class="form-label small fw-bold mb-1">Número do Voo</label>
+                                {% render_field form.flight_number class="form-control" %}
+                                <div class="text-danger small">{{ form.flight_number.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.departure_time.id_for_label }}" class="form-label small fw-bold mb-1">Data/Hora Saída</label>
+                                {% render_field form.departure_time class="form-control" %}
+                                <div class="text-danger small">{{ form.departure_time.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.arrival_time.id_for_label }}" class="form-label small fw-bold mb-1">Data/Hora Chegada</label>
+                                {% render_field form.arrival_time class="form-control" %}
+                                <div class="text-danger small">{{ form.arrival_time.errors }}</div>
+                            </div>
+
+                            <!-- Multi Client Checkbox -->
+                            <div class="col-12 mt-4">
+                                <div class="form-check form-switch">
+                                    {% render_field form.multi_client class="form-check-input" %}
+                                    <label class="form-check-label" for="{{ form.multi_client.id_for_label }}">
+                                        Atenderá mais clientes na viagem?
+                                    </label>
+                                </div>
+                                <div class="text-danger small">{{ form.multi_client.errors }}</div>
+                            </div>
+
+                            <!-- Additional Clients Section -->
+                            <div id="additional-clients-section" class="col-12 mt-2" style="display: none;">
+                                <div class="card bg-light border-0">
+                                    <div class="card-body p-3">
+                                        <label class="form-label small fw-bold mb-2">Clientes Adicionais</label>
+                                        
+                                        <!-- Client Selector -->
+                                        <div class="input-group mb-2">
+                                            <select id="additional-client-select" class="form-select form-select-sm">
+                                                <option value="">Selecione um cliente para adicionar...</option>
+                                                {% for client in all_clients %}
+                                                <option value="{{ client.id }}">{{ client.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <button type="button" id="add-client-btn" class="btn btn-primary-custom btn-sm">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                        </div>
+
+                                        <!-- Hidden Select for Form Submission -->
+                                        <select name="additional_clients" id="{{ form.additional_clients.id_for_label }}" multiple class="d-none">
+                                            {% for val in form.additional_clients.value %}
+                                            <option value="{{ val }}" selected></option>
+                                            {% endfor %}
+                                        </select>
+
+                                        <!-- Badges Container -->
+                                        <div id="client-badges-container" class="d-flex flex-wrap gap-2 mt-2">
+                                            <!-- Badges will be inserted here via JS -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            {% if form.instance.pk %}
+                                <a href="{% url 'travel_detail' form.instance.pk %}" class="btn btn-info text-white px-4 btn-sm fw-bold me-auto">
+                                    <i class="fas fa-list-ul me-2"></i>Gerenciar Segmentos
+                                </a>
+                            {% endif %}
+                            <a href="{{ back_url }}" class="btn btn-light border px-4 btn-sm">Cancelar</a>
+                            <button type="submit" class="btn btn-primary-custom px-5 btn-sm fw-bold">
+                                <i class="fas fa-save me-2"></i>Salvar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clientSelect = document.getElementById('{{ form.client.id_for_label }}');
+        const hubSelect = document.getElementById('{{ form.hub.id_for_label }}');
+        
+        // Multi Client Logic
+        const multiClientCheckbox = document.getElementById('{{ form.multi_client.id_for_label }}');
+        const additionalClientsSection = document.getElementById('additional-clients-section');
+        const additionalClientSelect = document.getElementById('additional-client-select');
+        const addClientBtn = document.getElementById('add-client-btn');
+        const hiddenSelect = document.getElementById('{{ form.additional_clients.id_for_label }}');
+        const badgesContainer = document.getElementById('client-badges-container');
+        
+        // Load initial state
+        if (multiClientCheckbox.checked) {
+            additionalClientsSection.style.display = 'block';
+        }
+
+        // Toggle visibility
+        multiClientCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                additionalClientsSection.style.display = 'block';
+            } else {
+                additionalClientsSection.style.display = 'none';
+                // Optional: Clear selection when unchecked? For now, keep it.
+            }
+        });
+
+        // Add Client Logic
+        addClientBtn.addEventListener('click', function() {
+            const clientId = additionalClientSelect.value;
+            const clientName = additionalClientSelect.options[additionalClientSelect.selectedIndex].text;
+
+            if (!clientId) return;
+
+            // Check if already added
+            let exists = false;
+            for (let option of hiddenSelect.options) {
+                if (option.value === clientId) {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (exists) {
+                alert('Cliente já adicionado!');
+                return;
+            }
+
+            // Add to hidden select
+            const option = document.createElement('option');
+            option.value = clientId;
+            option.selected = true;
+            hiddenSelect.appendChild(option);
+
+            // Create badge
+            createBadge(clientId, clientName);
+
+            // Reset selector
+            additionalClientSelect.value = "";
+        });
+
+        function createBadge(id, name) {
+            const badge = document.createElement('div');
+            badge.className = 'badge bg-secondary d-flex align-items-center p-2';
+            badge.dataset.clientId = id;
+            badge.innerHTML = `
+                <span class="me-2">${name}</span>
+                <i class="fas fa-times cursor-pointer text-white remove-client" style="cursor: pointer;"></i>
+            `;
+            badgesContainer.appendChild(badge);
+
+            // Add remove listener
+            badge.querySelector('.remove-client').addEventListener('click', function() {
+                removeClient(id);
+                badge.remove();
+            });
+        }
+
+        function removeClient(id) {
+            for (let i = 0; i < hiddenSelect.options.length; i++) {
+                if (hiddenSelect.options[i].value === id) {
+                    hiddenSelect.remove(i);
+                    break;
+                }
+            }
+        }
+
+        // Reconstruct badges from existing data (if editing)
+        const allClientsMap = {
+            {% for client in all_clients %}
+            "{{ client.id }}": "{{ client.name|escapejs }}",
+            {% endfor %}
+        };
+
+        for (let option of hiddenSelect.options) {
+            if (option.selected) {
+                createBadge(option.value, allClientsMap[option.value] || 'Cliente Desconhecido');
+            }
+        }
+
+        // Hub Filtering Logic
+        const allHubs = [
+            {% for hub in all_hubs %}
+            {id: "{{ hub.id }}", name: "{{ hub.name|escapejs }}", client_id: "{{ hub.client.id }}"},
+            {% endfor %}
+        ];
+
+        function filterHubs() {
+            const selectedClientId = clientSelect.value;
+            const currentHubId = hubSelect.value;
+            
+            // Clear current options (keep placeholder)
+            hubSelect.innerHTML = '<option value="">Selecione o Hub/Loja</option>';
+            
+            if (!selectedClientId) {
+                return;
+            }
+
+            const filteredHubs = allHubs.filter(h => h.client_id === selectedClientId);
+            
+            filteredHubs.forEach(hub => {
+                const option = document.createElement('option');
+                option.value = hub.id;
+                option.textContent = hub.name;
+                if (hub.id === currentHubId) {
+                    option.selected = true;
+                }
+                hubSelect.appendChild(option);
+            });
+        }
+
+        clientSelect.addEventListener('change', filterHubs);
+        
+        // Trigger on load only if hub is not already populated or to refresh logic
+        // But since __init__ handles initial population, we might not need to run it on load 
+        // unless we want to ensure client-side consistency.
+        // However, __init__ sets the queryset, so the HTML already has the correct options.
+        // Running filterHubs() on load would rebuild it from JS, which is fine.
+        // Let's check if we have a value.
+        // Actually, if we rely on JS, we should run it to ensure the options match the client selection.
+        // But if __init__ did its job, the options are already filtered.
+        // The only edge case is if the user changes the client, then we need JS.
+        // So just the event listener is enough, UNLESS we are creating a new form and select a client.
+    });
+</script>
+{% endblock %}

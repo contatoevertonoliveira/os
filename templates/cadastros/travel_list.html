@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Viagens Técnicas</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            {% if show_history %}
+                <a href="{% url 'travel_list' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-list"></i> Ver Ativas
+                </a>
+            {% else %}
+                <a href="{% url 'travel_list' %}?history=true" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-history"></i> Ver Histórico
+                </a>
+            {% endif %}
+        </div>
+        <a href="{% url 'travel_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Nova Viagem
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Agendado para</th>
+                        <th>Técnico</th>
+                        <th>Cliente / Hub</th>
+                        <th>OS</th>
+                        <th>Status Viagem</th>
+                        <th>Ticket</th>
+                        <th>Hotel</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for travel in travels %}
+                    <tr>
+                        <td>{{ travel.scheduled_date|date:"d/m/Y H:i" }}</td>
+                        <td>{{ travel.technician.get_full_name }}</td>
+                        <td>
+                            {{ travel.client.name }}
+                            {% if travel.multi_client %}
+                                <br>
+                                <small class="text-muted">
+                                    + {{ travel.additional_clients.count }} cliente(s)
+                                </small>
+                            {% endif %}
+                            {% if travel.hub %}
+                                <br><small class="text-muted">{{ travel.hub.name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if travel.service_order %}
+                                <a href="{% url 'ticket_detail' travel.service_order.pk %}" class="text-decoration-none">
+                                    #{{ travel.service_order.formatted_id|default:travel.service_order.pk }}
+                                </a>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if travel.status == 'confirmed' %}
+                                <span class="badge bg-success">Confirmado</span>
+                            {% elif travel.status == 'planned' %}
+                                <span class="badge bg-primary">Planejado</span>
+                            {% elif travel.status == 'pending_contract' %}
+                                <span class="badge bg-warning text-dark">Pend. Contrato</span>
+                            {% elif travel.status == 'completed' %}
+                                <span class="badge bg-secondary">Concluído</span>
+                            {% else %}
+                                {{ travel.get_status_display }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if travel.ticket_status == 'concluded' %}
+                                <span class="badge bg-success">Concluída</span>
+                            {% elif travel.ticket_status == 'issued' %}
+                                <span class="badge bg-info text-dark">Emitida</span>
+                            {% elif travel.ticket_status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif travel.ticket_status == 'na' %}
+                                <span class="badge" style="background-color: #ffe0b2; color: #664d03;">N/A</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ travel.get_ticket_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if travel.hotel_status == 'concluded' %}
+                                <span class="badge bg-success">Concluída</span>
+                            {% elif travel.hotel_status == 'issued' %}
+                                <span class="badge bg-info text-dark">Emitida</span>
+                            {% elif travel.hotel_status == 'pending' %}
+                                <span class="badge bg-warning text-dark">Pendente</span>
+                            {% elif travel.hotel_status == 'na' %}
+                                <span class="badge" style="background-color: #ffe0b2; color: #664d03;">N/A</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ travel.get_hotel_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'travel_update' travel.pk %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'travel_detail' travel.pk %}" class="btn btn-sm btn-outline-info" title="Detalhes de Transporte e Segmentos">
+                                <i class="fas fa-plane"></i>
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmDelete('{% url 'travel_delete' travel.pk %}', 'Viagem de {{ travel.technician.username|escapejs }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">Nenhuma viagem cadastrada.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function confirmDelete(url, name) {
+        // Simple confirm since we are reusing the generic delete page logic or just a link
+        // But here I put a button that links to delete page.
+        // If we want a modal, we need to implement it.
+        // For now, let's just redirect to the delete page which has a confirmation.
+        window.location.href = url;
+    }
+</script>
+{% endblock %}

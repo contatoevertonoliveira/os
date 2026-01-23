@@ -25,6 +25,16 @@ class UserProfile(models.Model):
     
     personal_phone = models.CharField(max_length=20, verbose_name="Telefone Próprio", blank=True, null=True)
     company_phone = models.CharField(max_length=20, verbose_name="Telefone Empresa", blank=True, null=True)
+    
+    TECHNICIAN_TYPE_CHOICES = (
+        ('fixo', 'Fixo'),
+        ('volante', 'Volante'),
+    )
+    technician_type = models.CharField(max_length=10, choices=TECHNICIAN_TYPE_CHOICES, default='fixo', verbose_name="Tipo de Técnico")
+    
+    # Fixed Technician Location
+    fixed_client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Empresa (Fixo)", related_name='fixed_technicians')
+    fixed_hub = models.ForeignKey('ClientHub', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja (Fixo)", related_name='fixed_technicians')
 
     def __str__(self):
         return f"{self.user.username} - {self.role}"
@@ -47,7 +57,15 @@ class Client(models.Model):
     contact2_phone = models.CharField(max_length=20, verbose_name="Contato 2 (Telefone)", blank=True, null=True)
     contact2_email = models.EmailField(verbose_name="Contato 2 (Email)", blank=True, null=True)
     
+    is_preferred = models.BooleanField(default=False, verbose_name="Empresa Preferencial/Padrão")
+    
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.is_preferred:
+            # Unset is_preferred for all other clients
+            Client.objects.filter(is_preferred=True).exclude(pk=self.pk).update(is_preferred=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -59,6 +77,7 @@ class Client(models.Model):
 class ClientHub(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='hubs', verbose_name="Cliente")
     name = models.CharField(max_length=200, verbose_name="Nome do Hub/Loja")
+    logo = models.ImageField(upload_to='hub_logos/', verbose_name="Logomarca do Hub", blank=True, null=True)
     address = models.TextField(verbose_name="Endereço", blank=True, null=True)
     contact_name = models.CharField(max_length=100, verbose_name="Contato (Responsável)", blank=True, null=True)
     phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
@@ -265,6 +284,112 @@ class TicketFavorite(models.Model):
         unique_together = ('user', 'ticket')
         verbose_name = "Favorito"
         verbose_name_plural = "Favoritos"
+
+class TechnicianTravel(models.Model):
+    TRAVEL_STATUS_CHOICES = (
+        ('confirmed', 'Confirmado'),
+        ('planned', 'Planejado'),
+        ('pending_contract', 'Pendente de Contrato'),
+        ('completed', 'Concluído'),
+    )
+    
+    BOOKING_STATUS_CHOICES = (
+        ('concluded', 'Concluída'),
+        ('issued', 'Emitida'),
+        ('pending', 'Pendente'),
+        ('na', 'Não se Aplica'),
+    )
+
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, verbose_name="Cliente")
+    hub = models.ForeignKey(ClientHub, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja")
+    scheduled_date = models.DateTimeField(verbose_name="Agendado para")
+    technician = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Técnico Responsável", related_name='travels')
+    system = models.ForeignKey(System, on_delete=models.SET_NULL, null=True, verbose_name="Sistema")
+    service_order = models.ForeignKey(Ticket, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ordem de Serviço (OS)", related_name='travels')
+    
+    multi_client = models.BooleanField(default=False, verbose_name="Atenderá mais clientes na viagem?")
+    additional_clients = models.ManyToManyField(Client, blank=True, related_name='shared_travels', verbose_name="Clientes Adicionais")
+    status = models.CharField(max_length=20, choices=TRAVEL_STATUS_CHOICES, default='planned', verbose_name="Status da Viagem")
+    
+    ticket_status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending', verbose_name="Status Passagem (Ticket)")
+    hotel_status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending', verbose_name="Status Hotel")
+    
+    # Flight Details
+    flight_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número do Voo")
+    departure_time = models.DateTimeField(blank=True, null=True, verbose_name="Data/Hora Saída (Voo)")
+    arrival_time = models.DateTimeField(blank=True, null=True, verbose_name="Data/Hora Chegada (Voo)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_travels')
+
+    class Meta:
+        verbose_name = "Viagem Técnica"
+        verbose_name_plural = "Viagens Técnicas"
+        ordering = ['-scheduled_date']
+
+    def __str__(self):
+        return f"Viagem - {self.technician.get_full_name()} - {self.scheduled_date.strftime('%d/%m/%Y')}"
+
+class TravelSegment(models.Model):
+    TRANSPORT_TYPE_CHOICES = (
+        ('air', 'Passagem Aérea'),
+        ('bus', 'Passagem de Ônibus'),
+        ('car', 'Carro Alugado'),
+    )
+    
+    travel = models.ForeignKey(TechnicianTravel, on_delete=models.CASCADE, related_name='segments', verbose_name="Viagem")
+    transport_type = models.CharField(max_length=20, choices=TRANSPORT_TYPE_CHOICES, verbose_name="Tipo de Transporte")
+    
+    # Common Fields
+    carrier = models.CharField(max_length=100, verbose_name="Companhia/Locadora", help_text="Ex: GOL, Azul, Localiza")
+    transport_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número (Voo/Linha/Placa)")
+    vehicle_details = models.CharField(max_length=100, blank=True, null=True, verbose_name="Aeronave/Veículo", help_text="Ex: Boeing 737-800, Fiat Mobi")
+    
+    # Route
+    origin = models.CharField(max_length=100, verbose_name="Origem", help_text="Ex: São Paulo (GRU)")
+    destination = models.CharField(max_length=100, verbose_name="Destino", help_text="Ex: Recife (REC)")
+    
+    # Timing
+    departure_time = models.DateTimeField(verbose_name="Saída")
+    arrival_time = models.DateTimeField(verbose_name="Chegada")
+    
+    # Booking Info
+    booking_code = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número do Bilhete / Contrato", help_text="Ex: 9572261127853 (Aéreo) ou Contrato de Locação")
+    locator = models.CharField(max_length=50, blank=True, null=True, verbose_name="Localizador (PNR)", help_text="Ex: UJMQZS")
+    status = models.CharField(max_length=50, default='Confirmado', verbose_name="Status")
+    
+    # Passenger Info (Defaults to Technician if empty)
+    passenger_name = models.CharField(max_length=150, blank=True, null=True, verbose_name="Passageiro")
+    passenger_document = models.CharField(max_length=50, blank=True, null=True, verbose_name="Documento")
+    loyalty_program = models.CharField(max_length=100, blank=True, null=True, verbose_name="Programa de Fidelidade")
+    
+    # Ticket Details
+    fare_type = models.CharField(max_length=100, blank=True, null=True, verbose_name="Tarifa", help_text="Ex: Plus (Inclui bagagem)")
+    seat = models.CharField(max_length=20, blank=True, null=True, verbose_name="Assento")
+    
+    # File
+    attachment = models.FileField(upload_to='travel_tickets/', null=True, blank=True, verbose_name="Anexo (PDF/Imagem)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Segmento de Viagem"
+        verbose_name_plural = "Segmentos de Viagem"
+        ordering = ['departure_time']
+
+    def __str__(self):
+        return f"{self.get_transport_type_display()} - {self.origin} -> {self.destination}"
+    
+    @property
+    def duration(self):
+        if self.departure_time and self.arrival_time:
+            diff = self.arrival_time - self.departure_time
+            hours = diff.seconds // 3600
+            minutes = (diff.seconds % 3600) // 60
+            return f"{hours:02d}h {minutes:02d}min"
+        return "-"
 
 class TicketUpdate(models.Model):
     ticket = models.ForeignKey(Ticket, related_name='updates', on_delete=models.CASCADE)

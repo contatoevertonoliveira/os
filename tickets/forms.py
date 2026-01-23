@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -53,7 +53,8 @@ class ClientForm(forms.ModelForm):
         fields = [
             'name', 'logo', 'email', 'phone', 'phone2', 'address',
             'contact1_name', 'contact1_phone', 'contact1_email',
-            'contact2_name', 'contact2_phone', 'contact2_email'
+            'contact2_name', 'contact2_phone', 'contact2_email',
+            'is_preferred'
         ]
         widgets = {
             'phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
@@ -61,6 +62,7 @@ class ClientForm(forms.ModelForm):
             'contact1_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'contact2_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'address': forms.Textarea(attrs={'rows': 2}),
+            'is_preferred': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -72,12 +74,13 @@ class ClientForm(forms.ModelForm):
 class ClientHubForm(forms.ModelForm):
     class Meta:
         model = ClientHub
-        fields = ['name', 'address', 'contact_name', 'phone']
+        fields = ['name', 'address', 'contact_name', 'phone', 'logo']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do Hub/Loja'}),
             'address': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Endereço'}),
             'contact_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Responsável'}),
             'phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
+            'logo': forms.ClearableFileInput(attrs={'class': 'form-control form-control-sm'}),
         }
 
 ClientHubFormSet = forms.inlineformset_factory(
@@ -346,7 +349,7 @@ class UserProfileForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         
         # Populate user fields
-        if self.instance and self.instance.user:
+        if self.instance and self.instance.pk and hasattr(self.instance, 'user'):
             self.fields['first_name'].initial = self.instance.user.first_name
             self.fields['email'].initial = self.instance.user.email
 
@@ -371,6 +374,36 @@ class UserProfileForm(forms.ModelForm):
             profile.save()
             
         return profile
+
+class TravelSegmentForm(forms.ModelForm):
+    class Meta:
+        model = TravelSegment
+        fields = ['transport_type', 'carrier', 'transport_number', 'vehicle_details', 'origin', 'destination', 'departure_time', 'arrival_time', 'booking_code', 'locator', 'status', 'passenger_name', 'passenger_document', 'loyalty_program', 'fare_type', 'seat', 'attachment']
+        widgets = {
+            'transport_type': forms.Select(attrs={'class': 'form-select'}),
+            'carrier': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: LATAM, GOL, Azul'}),
+            'transport_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: LA3270'}),
+            'vehicle_details': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Boeing 737-800'}),
+            'origin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: São Paulo (GRU)'}),
+            'destination': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Recife (REC)'}),
+            'departure_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'arrival_time': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'booking_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: 9572261127853'}),
+            'locator': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: UJMQZS'}),
+            'status': forms.TextInput(attrs={'class': 'form-control'}),
+            'passenger_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'passenger_document': forms.TextInput(attrs={'class': 'form-control'}),
+            'loyalty_program': forms.TextInput(attrs={'class': 'form-control'}),
+            'fare_type': forms.TextInput(attrs={'class': 'form-control'}),
+            'seat': forms.TextInput(attrs={'class': 'form-control'}),
+            'attachment': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure the input format matches the HTML5 datetime-local requirement
+        self.fields['departure_time'].input_formats = ('%Y-%m-%dT%H:%M',)
+        self.fields['arrival_time'].input_formats = ('%Y-%m-%dT%H:%M',)
 
 class SystemSettingsForm(forms.ModelForm):
     class Meta:
@@ -465,3 +498,56 @@ class SendMessageForm(forms.ModelForm):
             raise forms.ValidationError("Selecione um destinatário, um grupo ou marque 'Enviar para todos'.")
         
         return cleaned_data
+
+class TechnicianTravelForm(forms.ModelForm):
+    technician = forms.ModelChoiceField(
+        queryset=User.objects.filter(profile__role__in=['technician', 'standard'], is_active=True).order_by('first_name'),
+        label="Técnico Responsável",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    scheduled_date = forms.DateTimeField(
+        label="Agendado para",
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+
+    departure_time = forms.DateTimeField(
+        label="Data/Hora Saída (Voo)",
+        required=False,
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+    arrival_time = forms.DateTimeField(
+        label="Data/Hora Chegada (Voo)",
+        required=False,
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
+    )
+
+    class Meta:
+        model = TechnicianTravel
+        fields = ['client', 'hub', 'scheduled_date', 'technician', 'system', 'service_order', 'multi_client', 'additional_clients', 'status', 'ticket_status', 'hotel_status', 'flight_number', 'departure_time', 'arrival_time']
+        widgets = {
+            'client': forms.Select(attrs={'class': 'form-select'}),
+            'hub': forms.Select(attrs={'class': 'form-select'}),
+            'system': forms.Select(attrs={'class': 'form-select'}),
+            'service_order': forms.Select(attrs={'class': 'form-select'}),
+            'multi_client': forms.CheckboxInput(attrs={'class': 'form-check-input', 'id': 'id_multi_client'}),
+            'additional_clients': forms.SelectMultiple(attrs={'class': 'form-select d-none'}), # Hidden by default, managed by JS
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'ticket_status': forms.Select(attrs={'class': 'form-select'}),
+            'hotel_status': forms.Select(attrs={'class': 'form-select'}),
+            'flight_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: LATAM 3456'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Setup querysets
+        if 'client' in self.data:
+            try:
+                client_id = int(self.data.get('client'))
+                self.fields['hub'].queryset = ClientHub.objects.filter(client_id=client_id).order_by('name')
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.client:
+            self.fields['hub'].queryset = self.instance.client.hubs.all().order_by('name')
+        else:
+            self.fields['hub'].queryset = ClientHub.objects.none()
+

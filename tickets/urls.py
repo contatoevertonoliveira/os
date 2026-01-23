@@ -1,13 +1,15 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
-    DashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
+    DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
     TicketUpdateEditView, TicketUpdateDeleteView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
     OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
     ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView,
     TechnicianListView, TechnicianCreateView, TechnicianUpdateView, TechnicianDeleteView,
+    TechnicianTravelListView, TechnicianTravelDetailView, TechnicianTravelCreateView, TechnicianTravelUpdateView, TechnicianTravelDeleteView, TechnicianTravelCompleteView,
+    TravelSegmentCreateView, TravelSegmentUpdateView, TravelSegmentDeleteView,
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     ProfileView, SettingsView,
@@ -28,6 +30,9 @@ urlpatterns = [
     path('tasks/', TaskListView.as_view(), name='task_list'),
     path('tasks/<int:pk>/favorite/', TaskFavoriteView.as_view(), name='task_favorite'),
     
+    # Dashboard Hubs
+    path('dashboard/hubs/', HubDashboardView.as_view(), name='hub_dashboard'),
+
     path('profile/', ProfileView.as_view(), name='profile'),
     path('settings/', SettingsView.as_view(), name='settings'),
     path('login/', TokenLoginView.as_view(), name='login'),
@@ -69,6 +74,18 @@ urlpatterns = [
     path('technicians/new/', TechnicianCreateView.as_view(), name='technician_create'),
     path('technicians/<int:pk>/edit/', TechnicianUpdateView.as_view(), name='technician_update'),
     path('technicians/<int:pk>/delete/', TechnicianDeleteView.as_view(), name='technician_delete'),
+
+    path('travels/', TechnicianTravelListView.as_view(), name='travel_list'),
+    path('travels/<int:pk>/', TechnicianTravelDetailView.as_view(), name='travel_detail'),
+    path('travels/new/', TechnicianTravelCreateView.as_view(), name='travel_create'),
+    path('travels/<int:pk>/edit/', TechnicianTravelUpdateView.as_view(), name='travel_update'),
+    path('travels/<int:pk>/delete/', TechnicianTravelDeleteView.as_view(), name='travel_delete'),
+    path('travels/<int:pk>/complete/', TechnicianTravelCompleteView.as_view(), name='travel_complete'),
+    
+    # Travel Segments
+    path('travels/<int:travel_id>/segments/new/', TravelSegmentCreateView.as_view(), name='travel_segment_create'),
+    path('segments/<int:pk>/edit/', TravelSegmentUpdateView.as_view(), name='travel_segment_update'),
+    path('segments/<int:pk>/delete/', TravelSegmentDeleteView.as_view(), name='travel_segment_delete'),
 
     path('systems/', SystemListView.as_view(), name='system_list'),
     path('systems/new/', SystemCreateView.as_view(), name='system_create'),

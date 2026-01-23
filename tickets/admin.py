@@ -1,5 +1,34 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel
+
+@admin.register(TechnicianTravel)
+class TechnicianTravelAdmin(admin.ModelAdmin):
+    list_display = ('technician', 'client', 'scheduled_date', 'status', 'ticket_status', 'hotel_status')
+    list_filter = ('status', 'ticket_status', 'hotel_status', 'technician')
+    search_fields = ('technician__username', 'client__name', 'service_order__id')
+    actions = ['mark_as_completed']
+
+    @admin.action(description='Marcar viagens selecionadas como Concluídas')
+    def mark_as_completed(self, request, queryset):
+        queryset.update(status='completed')
+        self.message_user(request, f"{queryset.count()} viagens marcadas como concluídas.")
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'role', 'technician_type', 'fixed_client', 'fixed_hub', 'job_title')
+    list_filter = ('role', 'technician_type', 'fixed_client')
+    search_fields = ('user__username', 'user__first_name', 'job_title', 'fixed_client__name', 'fixed_hub__name')
+
+@admin.register(ClientHub)
+class ClientHubAdmin(admin.ModelAdmin):
+    list_display = ('name', 'client', 'contact_name', 'phone', 'has_logo')
+    list_filter = ('client',)
+    search_fields = ('name', 'client__name', 'contact_name')
+
+    def has_logo(self, obj):
+        return bool(obj.logo)
+    has_logo.boolean = True
+    has_logo.short_description = 'Logo?'
 
 @admin.register(TicketType)
 class TicketTypeAdmin(admin.ModelAdmin):

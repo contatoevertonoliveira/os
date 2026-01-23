@@ -1,0 +1,547 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 text-gray-800"><i class="fas fa-network-wired me-2"></i>Dashboard de Hubs</h2>
+        
+        <!-- Filter Form -->
+        <form method="get" class="d-flex align-items-center">
+            <div class="input-group">
+                <label class="input-group-text bg-white border-end-0" for="clientFilter"><i class="fas fa-filter text-muted"></i></label>
+                <select name="client" id="clientFilter" class="form-select border-start-0 ps-0" onchange="this.form.submit()" style="min-width: 250px;">
+                    <option value="">Todas as Empresas</option>
+                    {% for client in clients %}
+                        <option value="{{ client.id }}" {% if selected_client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- Cards Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4">
+        {% for item in dashboard_items %}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 hover-card">
+                <div class="card-img-top position-relative overflow-hidden p-0" style="height: 180px; background-color: #f8f9fa;">
+                    {% if item.logo %}
+                        <img src="{{ item.logo.url }}" alt="{{ item.display_name }}" class="w-100 h-100" style="object-fit: cover;">
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                            <div class="text-center">
+                                <i class="fas {% if item.type == 'client' %}fa-building{% else %}fa-store{% endif %} fa-4x mb-2 opacity-25"></i>
+                                <p class="small m-0">Sem logo</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if item.type == 'client' %}
+                        <div class="position-absolute top-0 end-0 m-2">
+                            <span class="badge bg-primary shadow-sm"><i class="fas fa-star me-1"></i>Matriz</span>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title text-truncate" title="{{ item.display_name }}">{{ item.display_name }}</h5>
+                    <p class="card-text text-muted small mb-2"><i class="fas fa-building me-1"></i> {{ item.client_name }}</p>
+                    <p class="card-text small"><i class="fas fa-map-marker-alt me-1"></i> {{ item.address|default:"Endereço não informado"|truncatechars:40 }}</p>
+                </div>
+                <div class="card-footer bg-white border-0 pt-0 pb-3">
+                    <button class="btn btn-primary w-100 btn-view-details" 
+                            data-type="{{ item.type }}" 
+                            data-id="{{ item.id }}" 
+                            data-name="{{ item.display_name }}" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#hubDetailModal">
+                        <i class="fas fa-eye me-1"></i> Ver Detalhes
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5">
+            <p class="text-muted lead">Nenhuma unidade encontrada.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="hubDetailModal" tabindex="-1" aria-labelledby="hubDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 1rem;">
+            <div class="modal-header border-bottom border-light-subtle bg-white">
+                <h5 class="modal-title fw-bold text-dark" id="hubDetailModalLabel">
+                    <i class="fas fa-store me-2 text-primary"></i> <span id="modalHubName">Hub Detalhes</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light p-4">
+                <!-- Tabs -->
+                <ul class="nav nav-pills nav-fill mb-4" id="hubTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active rounded-pill" id="agendadas-tab" data-bs-toggle="tab" data-bs-target="#agendadas" type="button" role="tab" aria-controls="agendadas" aria-selected="true">
+                            <i class="fas fa-calendar-alt me-2"></i>Tarefas Agendadas
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill" id="os-tab" data-bs-toggle="tab" data-bs-target="#os" type="button" role="tab" aria-controls="os" aria-selected="false">
+                            <i class="fas fa-clipboard-list me-2"></i>OS Abertas
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill" id="viagens-tab" data-bs-toggle="tab" data-bs-target="#viagens" type="button" role="tab" aria-controls="viagens" aria-selected="false">
+                            <i class="fas fa-plane me-2"></i>Viagens Programadas
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link rounded-pill" id="techs-tab" data-bs-toggle="tab" data-bs-target="#techs" type="button" role="tab" aria-controls="techs" aria-selected="false">
+                            <i class="fas fa-user-friends me-2"></i>Técnicos
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="hubTabsContent">
+                    <!-- Agendadas -->
+                    <div class="tab-pane fade show active" id="agendadas" role="tabpanel" aria-labelledby="agendadas-tab">
+                        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 0.75rem;">
+                            <div class="card-body p-0">
+                                <div id="listAgendadas" class="list-group list-group-flush">
+                                    <!-- Populated by JS -->
+                                </div>
+                                <div id="emptyAgendadas" class="text-center py-5 d-none">
+                                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                                        <i class="fas fa-tasks fa-2x text-muted opacity-50"></i>
+                                    </div>
+                                    <p class="text-muted m-0 fw-medium">Nenhum resumo de atividades disponível.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OS Abertas -->
+                    <div class="tab-pane fade" id="os" role="tabpanel" aria-labelledby="os-tab">
+                        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 0.75rem;">
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="border-0">ID Leankeep</th>
+                                                <th class="border-0">Sistema</th>
+                                                <th class="border-0">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="listOS">
+                                            <!-- Populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="emptyOS" class="text-center py-5 d-none">
+                                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                                        <i class="fas fa-clipboard-check fa-2x text-muted opacity-50"></i>
+                                    </div>
+                                    <p class="text-muted m-0 fw-medium">Nenhuma OS aberta.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Viagens -->
+                    <div class="tab-pane fade" id="viagens" role="tabpanel" aria-labelledby="viagens-tab">
+                        <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 0.75rem;">
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="border-0">ID</th>
+                                                <th class="border-0">Técnico</th>
+                                                <th class="border-0">Status Ticket</th>
+                                                <th class="border-0">Data Início</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="listViagens">
+                                            <!-- Populated by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="emptyViagens" class="text-center py-5 d-none">
+                                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                                        <i class="fas fa-map-marked-alt fa-2x text-muted opacity-50"></i>
+                                    </div>
+                                    <p class="text-muted m-0 fw-medium">Nenhuma viagem programada.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Técnicos -->
+                    <div class="tab-pane fade" id="techs" role="tabpanel" aria-labelledby="techs-tab">
+                        <div class="row g-3" id="listTechs">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div id="emptyTechs" class="text-center py-5 d-none">
+                            <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                                <i class="fas fa-users-slash fa-2x text-muted opacity-50"></i>
+                            </div>
+                            <p class="text-muted m-0 fw-medium">Nenhum técnico designado no momento.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-top-0 pt-0 pb-4 pe-4">
+                <button type="button" class="btn btn-secondary px-4 rounded-pill" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ hubs_data|json_script:"hubsData" }}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const hubsData = JSON.parse(document.getElementById('hubsData').textContent);
+        const modal = document.getElementById('hubDetailModal');
+        const modalTitle = document.getElementById('modalHubName');
+        
+        // Lists
+        const listAgendadas = document.getElementById('listAgendadas');
+        const emptyAgendadas = document.getElementById('emptyAgendadas');
+        
+        const listOS = document.getElementById('listOS');
+        const emptyOS = document.getElementById('emptyOS');
+        
+        const listViagens = document.getElementById('listViagens');
+        const emptyViagens = document.getElementById('emptyViagens');
+        
+        const listTechs = document.getElementById('listTechs');
+        const emptyTechs = document.getElementById('emptyTechs');
+
+        // Helper to clear list
+        function clearList(element, emptyElement) {
+            element.innerHTML = '';
+            element.parentElement.style.display = 'block'; // Ensure table wrapper is visible
+            emptyElement.classList.add('d-none');
+        }
+
+        function showEmpty(element, emptyElement) {
+            element.parentElement.style.display = 'none'; // Hide table wrapper
+            emptyElement.classList.remove('d-none');
+        }
+
+        // Event Delegation for buttons
+        document.querySelectorAll('.btn-view-details').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const type = this.dataset.type;
+                const id = this.dataset.id;
+                const name = this.dataset.name;
+                
+                // Construct key: e.g., 'client_1' or 'hub_5'
+                const key = `${type}_${id}`;
+                const data = hubsData[key];
+
+                modalTitle.textContent = name;
+
+                if (!data) {
+                    console.error('No data found for key:', key);
+                    // Clear all lists just in case
+                    showEmpty(listAgendadas, emptyAgendadas);
+                    showEmpty(listOS, emptyOS);
+                    showEmpty(listViagens, emptyViagens);
+                    showEmpty(listTechs, emptyTechs);
+                    return;
+                }
+
+                // 1. Agendadas (Summary)
+                clearList(listAgendadas, emptyAgendadas);
+                if (data.agendadas && data.agendadas.length > 0) {
+                    data.agendadas.forEach(item => {
+                        let statusBadge = 'bg-secondary';
+                        let borderClass = 'border-start border-4 border-secondary';
+                        
+                        // Status styling
+                        if (item.status_code === 'open') {
+                             statusBadge = 'bg-info text-dark';
+                             borderClass = 'border-start border-4 border-info';
+                        } else if (item.status_code === 'in_progress') {
+                             statusBadge = 'bg-warning text-dark';
+                             borderClass = 'border-start border-4 border-warning';
+                        } else if (item.status_code === 'concluded' || item.status_code === 'closed') {
+                             statusBadge = 'bg-success';
+                             borderClass = 'border-start border-4 border-success';
+                        }
+
+                        let travelHtml = '';
+                        if (item.travel) {
+                            if (item.travel.segment_exists) {
+                                travelHtml = `
+                                <div class="mt-3 pt-3 border-top border-light">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px">
+                                            <i class="fas fa-plane small"></i>
+                                        </div>
+                                        <h6 class="fw-bold text-primary mb-0 text-uppercase" style="font-size: 0.75rem;">Detalhes da Viagem</h6>
+                                    </div>
+                                    
+                                    <div class="bg-white p-3 rounded-3 border shadow-sm">
+                                        <!-- Route Header -->
+                                        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                            <div class="d-flex align-items-center text-truncate" style="max-width: 80%;">
+                                                <span class="fw-bold fs-6 text-dark text-truncate">${item.travel.origin}</span>
+                                                <i class="fas fa-long-arrow-alt-right mx-2 text-muted"></i>
+                                                <span class="fw-bold fs-6 text-dark text-truncate">${item.travel.destination}</span>
+                                            </div>
+                                            <span class="badge bg-light text-secondary border ms-2">${item.travel.transport_type_display}</span>
+                                        </div>
+
+                                        <!-- Details Grid -->
+                                        <div class="row g-2 small">
+                                            <!-- Col 1 -->
+                                            <div class="col-6 col-md-4">
+                                                <span class="text-muted d-block" style="font-size: 0.7rem;">Companhia</span>
+                                                <span class="fw-bold text-dark text-truncate d-block" title="${item.travel.carrier || '-'}">${item.travel.carrier || '-'}</span>
+                                            </div>
+                                            <div class="col-6 col-md-4">
+                                                <span class="text-muted d-block" style="font-size: 0.7rem;">Voo/Nº</span>
+                                                <span class="fw-bold text-dark">${item.travel.transport_number || '-'}</span>
+                                            </div>
+                                            <div class="col-6 col-md-4">
+                                                <span class="text-muted d-block" style="font-size: 0.7rem;">Duração</span>
+                                                <span class="fw-bold text-dark"><i class="far fa-clock me-1"></i>${item.travel.duration || '-'}</span>
+                                            </div>
+
+                                            <!-- Col 2 -->
+                                            <div class="col-6 col-md-4">
+                                                <span class="text-muted d-block" style="font-size: 0.7rem;">Localizador</span>
+                                                <span class="fw-bold text-primary font-monospace">${item.travel.locator || '-'}</span>
+                                            </div>
+                                            <div class="col-6 col-md-4">
+                                                <span class="text-muted d-block" style="font-size: 0.7rem;">Bilhete</span>
+                                                <span class="fw-bold text-dark font-monospace">${item.travel.booking_code || '-'}</span>
+                                            </div>
+                                            <div class="col-6 col-md-4">
+                                                 <span class="text-muted d-block" style="font-size: 0.7rem;">Poltrona</span>
+                                                 <span class="fw-bold text-dark">${item.travel.seat || '-'}</span>
+                                            </div>
+                                            
+                                            <!-- Dates -->
+                                            <div class="col-6">
+                                                 <span class="text-muted d-block" style="font-size: 0.7rem;">Saída</span>
+                                                 <span class="fw-bold text-dark">${item.travel.departure || '-'}</span>
+                                            </div>
+                                            <div class="col-6">
+                                                 <span class="text-muted d-block" style="font-size: 0.7rem;">Chegada</span>
+                                                 <span class="fw-bold text-dark">${item.travel.arrival || '-'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                `;
+                            } else {
+                                travelHtml = `
+                                <div class="mt-3 pt-3 border-top bg-light bg-opacity-50 rounded p-2">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px;">
+                                            <i class="fas fa-plane small"></i>
+                                        </div>
+                                        <span class="fw-bold small text-primary text-uppercase">Viagem Vinculada</span>
+                                        <span class="badge bg-light text-dark border ms-auto">${item.travel.status}</span>
+                                    </div>
+                                    <div class="row g-2 small">
+                                        <div class="col-6">
+                                            <span class="text-muted d-block">Técnico</span>
+                                            <span class="fw-medium text-dark">${item.travel.technician}</span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="text-muted d-block">Voo</span>
+                                            <span class="fw-medium text-dark">${item.travel.flight_number || '-'}</span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="text-muted d-block">Saída</span>
+                                            <span class="fw-medium text-dark">${item.travel.departure || '-'}</span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="text-muted d-block">Chegada</span>
+                                            <span class="fw-medium text-dark">${item.travel.arrival || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                `;
+                            }
+                        }
+
+                        let techniciansHtml = '';
+                        if (item.technicians && item.technicians.length > 0) {
+                            techniciansHtml = `
+                                <div class="mt-2 text-muted small">
+                                    <i class="fas fa-user-friends me-1"></i> ${item.technicians.join(', ')}
+                                </div>
+                            `;
+                        }
+
+                        const row = `
+                            <div class="list-group-item p-3 ${borderClass}">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <a href="${item.os_url}" target="_blank" class="fw-bold text-decoration-none text-dark hover-primary">
+                                            OS #${item.leankeep_id} <span class="text-muted fw-normal small">(${item.id})</span> <i class="fas fa-external-link-alt small text-muted ms-1"></i>
+                                        </a>
+                                        <span class="badge bg-light text-dark border ms-2">${item.type}</span>
+                                    </div>
+                                    <span class="badge ${statusBadge}">${item.status}</span>
+                                </div>
+                                <p class="mb-1 text-secondary" title="${item.description}">
+                                    <span class="fw-bold">Sistema:</span> ${item.systems}
+                                </p>
+                                ${techniciansHtml}
+                                ${travelHtml}
+                            </div>
+                        `;
+                        listAgendadas.innerHTML += row;
+                    });
+                } else {
+                    showEmpty(listAgendadas, emptyAgendadas);
+                }
+
+                // 2. OS Abertas
+                clearList(listOS, emptyOS);
+                if (data.os_abertas && data.os_abertas.length > 0) {
+                    data.os_abertas.forEach(item => {
+                        let rowClass = '';
+                        let badgeClass = 'bg-primary';
+                        
+                        // Status styling based on status_code
+                        if (item.status_code === 'open') {
+                             rowClass = 'table-info'; // Blue
+                             badgeClass = 'bg-info text-dark';
+                        } else if (item.status_code === 'in_progress') {
+                             rowClass = 'table-warning'; // Yellow
+                             badgeClass = 'bg-warning text-dark';
+                        } else if (item.status_code === 'pending') {
+                             rowClass = 'table-warning'; // Yellow
+                             badgeClass = 'bg-secondary';
+                        } else if (item.status_code === 'concluded' || item.status_code === 'closed') {
+                             rowClass = 'table-success'; // Green
+                             badgeClass = 'bg-success';
+                        }
+
+                        const row = `
+                            <tr class="${rowClass}" title="${item.description}">
+                                <td><span class="badge bg-secondary">#${item.leankeep}</span> <small class="text-muted ms-1">(${item.id})</small></td>
+                                <td><span class="badge bg-light text-dark border">${item.system}</span></td>
+                                <td><span class="badge ${badgeClass}">${item.status}</span></td>
+                            </tr>
+                        `;
+                        listOS.innerHTML += row;
+                    });
+                } else {
+                    showEmpty(listOS, emptyOS);
+                }
+
+                // 3. Viagens
+                clearList(listViagens, emptyViagens);
+                if (data.viagens && data.viagens.length > 0) {
+                    data.viagens.forEach(item => {
+                        let rowClass = '';
+                        let rowStyle = '';
+                        
+                        // Coloring based on ticket_status
+                        // C-Concluída (Verde), E-Emitida (Azul claro), P-Pendente (Amarelo), N/A-Não se Aplica (Laranja claro)
+                        switch(item.ticket_status) {
+                            case 'concluded':
+                                rowClass = 'table-success';
+                                break;
+                            case 'issued':
+                                rowClass = 'table-info';
+                                break;
+                            case 'pending':
+                                rowClass = 'table-warning';
+                                break;
+                            case 'na':
+                                // Bootstrap doesn't have a standard "light orange" table class, so we use custom style
+                                // #ffe0b2 is a light orange
+                                rowStyle = 'background-color: #ffe0b2;';
+                                break;
+                            default:
+                                rowClass = '';
+                        }
+
+                        const row = `
+                            <tr class="${rowClass}" style="${rowStyle}">
+                                <td><span class="badge bg-secondary">#${item.id}</span></td>
+                                <td>${item.technician}</td>
+                                <td><span class="fw-bold">${item.ticket_status_display}</span></td>
+                                <td>${item.date}</td>
+                            </tr>
+                        `;
+                        listViagens.innerHTML += row;
+                    });
+                } else {
+                    showEmpty(listViagens, emptyViagens);
+                }
+
+                // 4. Técnicos
+                listTechs.innerHTML = '';
+                if (data.technicians && data.technicians.length > 0) {
+                    emptyTechs.classList.add('d-none');
+                    data.technicians.forEach(tech => {
+                        const displayPhoto = tech.photo ? tech.photo : "https://ui-avatars.com/api/?name=" + encodeURIComponent(tech.name) + "&background=random";
+
+                        const card = `
+                            <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 border-0 shadow-sm" style="border-radius: 10px; background-color: #f8f9fa;">
+                                    <div class="card-body d-flex align-items-center p-3">
+                                        <img src="${displayPhoto}" class="rounded-circle me-3 border border-2 border-white shadow-sm" width="50" height="50" style="object-fit: cover;">
+                                        <div>
+                                            <h6 class="mb-0 fw-bold text-dark">${tech.name}</h6>
+                                            <small class="text-muted text-uppercase" style="font-size: 0.75rem;">${tech.role}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        listTechs.innerHTML += card;
+                    });
+                } else {
+                    emptyTechs.classList.remove('d-none');
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Custom Modal Styling to match Task List modern look */
+    .modal-content {
+        border: none;
+    }
+    
+    .nav-pills .nav-link {
+        color: #6c757d;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
+        color: white;
+        box-shadow: 0 4px 6px rgba(13, 110, 253, 0.2);
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(0,0,0,0.02);
+    }
+</style>
+{% endblock %}

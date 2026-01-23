@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-9 col-md-10">
+            <div class="card shadow-sm border-0 rounded-3 mt-4">
+                <div class="card-header bg-white border-bottom pt-4 px-4 pb-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-bold text-primary">
+                            {% if object %}Editar Segmento de Viagem{% else %}Novo Segmento de Viagem{% endif %}
+                        </h5>
+                        <p class="text-muted small mb-0">Informe os detalhes do transporte.</p>
+                    </div>
+                    <a href="{% url 'travel_list' %}" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="fas fa-arrow-left me-1"></i> Voltar
+                    </a>
+                </div>
+                
+                <div class="card-body px-4 py-4">
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+                        
+                        <h6 class="text-secondary text-uppercase fw-bold small mb-3">
+                            <i class="fas fa-route me-2"></i>Informações do Transporte
+                        </h6>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label for="{{ form.transport_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Transporte</label>
+                                {% render_field form.transport_type class="form-select" %}
+                                <div class="text-danger small">{{ form.transport_type.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.carrier.id_for_label }}" class="form-label small fw-bold mb-1">Companhia/Locadora</label>
+                                {% render_field form.carrier class="form-control" placeholder="Ex: LATAM, GOL, Azul" %}
+                                <div class="text-danger small">{{ form.carrier.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.transport_number.id_for_label }}" class="form-label small fw-bold mb-1">Número (Voo/Linha)</label>
+                                {% render_field form.transport_number class="form-control" placeholder="Ex: LA3270" %}
+                                <div class="text-danger small">{{ form.transport_number.errors }}</div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label for="{{ form.origin.id_for_label }}" class="form-label small fw-bold mb-1">Origem</label>
+                                {% render_field form.origin class="form-control" placeholder="Ex: São Paulo (GRU)" %}
+                                <div class="text-danger small">{{ form.origin.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.destination.id_for_label }}" class="form-label small fw-bold mb-1">Destino</label>
+                                {% render_field form.destination class="form-control" placeholder="Ex: Recife (REC)" %}
+                                <div class="text-danger small">{{ form.destination.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.departure_time.id_for_label }}" class="form-label small fw-bold mb-1">Data/Hora Saída</label>
+                                {% render_field form.departure_time class="form-control" type="datetime-local" %}
+                                <div class="text-danger small">{{ form.departure_time.errors }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="{{ form.arrival_time.id_for_label }}" class="form-label small fw-bold mb-1">Data/Hora Chegada</label>
+                                {% render_field form.arrival_time class="form-control" type="datetime-local" %}
+                                <div class="text-danger small">{{ form.arrival_time.errors }}</div>
+                            </div>
+                        </div>
+                        
+                        <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
+                            <i class="fas fa-ticket-alt me-2"></i>Detalhes da Reserva
+                        </h6>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label for="{{ form.booking_code.id_for_label }}" class="form-label small fw-bold mb-1">Número do Bilhete</label>
+                                {% render_field form.booking_code class="form-control" placeholder="Ex: 9572261127853" %}
+                                <div class="text-danger small">{{ form.booking_code.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.locator.id_for_label }}" class="form-label small fw-bold mb-1">Localizador</label>
+                                {% render_field form.locator class="form-control" placeholder="Ex: UJMQZS" %}
+                                <div class="text-danger small">{{ form.locator.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
+                                {% render_field form.status class="form-control" %}
+                                <div class="text-danger small">{{ form.status.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.fare_type.id_for_label }}" class="form-label small fw-bold mb-1">Tarifa</label>
+                                {% render_field form.fare_type class="form-control" placeholder="Ex: Plus" %}
+                                <div class="text-danger small">{{ form.fare_type.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.seat.id_for_label }}" class="form-label small fw-bold mb-1">Assento</label>
+                                {% render_field form.seat class="form-control" placeholder="Ex: 12A" %}
+                                <div class="text-danger small">{{ form.seat.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.vehicle_details.id_for_label }}" class="form-label small fw-bold mb-1">Veículo/Aeronave</label>
+                                {% render_field form.vehicle_details class="form-control" placeholder="Ex: Boeing 737-800" %}
+                                <div class="text-danger small">{{ form.vehicle_details.errors }}</div>
+                            </div>
+                        </div>
+
+                        <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
+                            <i class="fas fa-user me-2"></i>Passageiro
+                        </h6>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <label for="{{ form.passenger_name.id_for_label }}" class="form-label small fw-bold mb-1">Nome Completo</label>
+                                {% render_field form.passenger_name class="form-control" %}
+                                <div class="text-danger small">{{ form.passenger_name.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.passenger_document.id_for_label }}" class="form-label small fw-bold mb-1">Documento</label>
+                                {% render_field form.passenger_document class="form-control" %}
+                                <div class="text-danger small">{{ form.passenger_document.errors }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="{{ form.loyalty_program.id_for_label }}" class="form-label small fw-bold mb-1">Programa de Fidelidade</label>
+                                {% render_field form.loyalty_program class="form-control" placeholder="Ex: Smiles 123456" %}
+                                <div class="text-danger small">{{ form.loyalty_program.errors }}</div>
+                            </div>
+                            <div class="col-12">
+                                <label for="{{ form.attachment.id_for_label }}" class="form-label small fw-bold mb-1">Anexo (PDF/Imagem)</label>
+                                {% render_field form.attachment class="form-control" %}
+                                <div class="text-danger small">{{ form.attachment.errors }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                            <a href="{% url 'travel_list' %}" class="btn btn-light border">Cancelar</a>
+                            <button type="submit" class="btn btn-primary px-4">Salvar Segmento</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
