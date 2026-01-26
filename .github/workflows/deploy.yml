@@ -32,6 +32,11 @@ jobs:
             source .venv/bin/activate
             pip install -r requirements.txt
             
+            # Carrega variáveis de ambiente do arquivo .env para garantir que o manage.py use as configurações corretas (ex: MySQL)
+            if [ -f .env ]; then
+              export $(grep -v '^#' .env | xargs)
+            fi
+
             # Aplica migrações de banco de dados e coleta estáticos
             python manage.py migrate
             python manage.py collectstatic --noinput
