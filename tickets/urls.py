@@ -2,8 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
     DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
-    TicketUpdateEditView, TicketUpdateDeleteView,
-    ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView,
+    ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
     OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
     ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView,
@@ -46,11 +45,11 @@ urlpatterns = [
     path('tickets/<int:pk>/delete/', TicketDeleteView.as_view(), name='ticket_delete'),
     
     # Evolution Updates
-    path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
-    path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
+    # path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
+    # path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
 
     # Cadastros
-    path('clients/', ClientListView.as_view(), name='client_list'),
+    # path('clients/', ClientListView.as_view(), name='client_list'),
     path('clients/search/', ClientSearchView.as_view(), name='client_search'),
     path('clients/new/', ClientCreateView.as_view(), name='client_create'),
     path('clients/<int:pk>/edit/', ClientUpdateView.as_view(), name='client_update'),
