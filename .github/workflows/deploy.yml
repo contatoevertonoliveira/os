@@ -41,6 +41,12 @@ jobs:
             python manage.py migrate
             python manage.py collectstatic --noinput
             
+            # Importa dados de clientes do Excel (se existir)
+            if [ -f data/clientes.xlsx ]; then
+              echo "Importing clients from Excel..."
+              python manage.py import_clients_excel
+            fi
+            
             # Atualiza o arquivo de serviço do Gunicorn (agora com nome específico para evitar conflitos)
             cp deploy/os_gunicorn.service /etc/systemd/system/os_gunicorn.service
             systemctl daemon-reload

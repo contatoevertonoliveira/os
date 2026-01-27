@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Busca de Clientes - JumperFour{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Busca de Clientes</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="{% url 'client_list' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-list me-1"></i> Lista Completa
+            </a>
+            <a href="{% url 'client_create' %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-plus me-1"></i> Novo Cliente
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Search Bar -->
+<div class="card card-custom mb-4">
+    <div class="card-body">
+        <form method="get" action="." class="row g-3 align-items-center">
+            <div class="col-md-10">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" name="q" class="form-control form-control-lg" placeholder="Buscar por Nome, Contrato, Endereço, Supervisor, Técnico, Sistema, Email..." value="{{ q }}">
+                </div>
+                <div class="form-text">Digite qualquer termo para buscar em todos os campos do cadastro de clientes.</div>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary btn-lg">Buscar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if q %}
+    <h4 class="mb-3">Resultados para "{{ q }}" <span class="badge bg-secondary rounded-pill">{{ page_obj.paginator.count }}</span></h4>
+{% endif %}
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+    {% for client in clients %}
+    <div class="col">
+        <div class="card h-100 card-custom border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title fw-bold text-primary mb-0">
+                        {{ client.name }}
+                        {% if client.cm_code %}
+                            <small class="text-muted d-block fs-6 mt-1">CM: {{ client.cm_code }}</small>
+                        {% endif %}
+                    </h5>
+                    {% if client.is_preferred %}
+                        <span class="badge bg-success" title="Cliente Preferencial"><i class="fas fa-star"></i></span>
+                    {% endif %}
+                </div>
+
+                <div class="card-text small text-muted mb-3">
+                    {% if client.group %}
+                    <div class="mb-1"><i class="fas fa-layer-group me-2 w-20"></i>{{ client.group }}</div>
+                    {% endif %}
+                    
+                    {% if client.address or client.city or client.state %}
+                    <div class="mb-1">
+                        <i class="fas fa-map-marker-alt me-2 w-20"></i>
+                        {{ client.address }}{% if client.city %}, {{ client.city }}{% endif %}{% if client.state %} - {{ client.state }}{% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if client.contact1_name or client.contact1_email or client.contact1_phone %}
+                    <div class="mb-1">
+                        <i class="fas fa-user-tie me-2 w-20"></i>
+                        {{ client.contact1_name|default:"" }} 
+                        {% if client.contact1_phone %}<span class="ms-1 text-nowrap"><i class="fas fa-phone-alt ms-1 me-1"></i>{{ client.contact1_phone }}</span>{% endif %}
+                    </div>
+                    {% if client.contact1_email %}
+                    <div class="mb-1 text-truncate">
+                        <i class="fas fa-envelope me-2 w-20"></i><a href="mailto:{{ client.contact1_email }}">{{ client.contact1_email }}</a>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+                <hr class="my-2">
+
+                <div class="small">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <strong><i class="fas fa-user-shield me-1"></i> Supervisor:</strong><br>
+                            {% if client.supervisor %}
+                                {{ client.supervisor.get_full_name|default:client.supervisor.username }}
+                            {% else %}
+                                <span class="text-muted fst-italic">Não definido</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-6">
+                            <strong><i class="fas fa-clock me-1"></i> Periodicidade:</strong><br>
+                            {{ client.periodicity|default:"-" }}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <strong><i class="fas fa-laptop-code me-1"></i> Sistemas:</strong><br>
+                        {% for system in client.systems.all %}
+                            <span class="badge bg-light text-dark border me-1 mb-1">{{ system.name }}</span>
+                        {% empty %}
+                            <span class="text-muted fst-italic">Nenhum sistema vinculado</span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-2">
+                        <strong><i class="fas fa-users-cog me-1"></i> Técnicos:</strong><br>
+                        {% for tech in client.technicians.all %}
+                            <span class="badge bg-info text-dark me-1 mb-1" title="{{ tech.username }}">
+                                {{ tech.get_full_name|default:tech.username }}
+                            </span>
+                        {% empty %}
+                            <span class="text-muted fst-italic">Nenhum técnico alocado</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent border-top-0 d-flex justify-content-end">
+                <a href="{% url 'client_update' client.pk %}" class="btn btn-sm btn-outline-secondary me-2">
+                    <i class="fas fa-edit"></i> Editar
+                </a>
+                <a href="{% url 'ticket_create' %}?client={{ client.pk }}" class="btn btn-sm btn-success">
+                    <i class="fas fa-ticket-alt"></i> Abrir OS
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <div class="text-muted">
+            <i class="fas fa-search fa-3x mb-3"></i>
+            <h4>Nenhum cliente encontrado</h4>
+            <p>Tente buscar por outros termos ou verifique a ortografia.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if is_paginated %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1{% if q %}&q={{ q }}{% endif %}">&laquo; Primeira</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}">Anterior</a>
+        </li>
+        {% endif %}
+
+        <li class="page-item disabled">
+            <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        </li>
+
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}">Próxima</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if q %}&q={{ q }}{% endif %}">Última &raquo;</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<style>
+    .w-20 { width: 20px; text-align: center; display: inline-block; }
+</style>
+{% endblock %}

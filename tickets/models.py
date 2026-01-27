@@ -57,6 +57,18 @@ class Client(models.Model):
     contact2_phone = models.CharField(max_length=20, verbose_name="Contato 2 (Telefone)", blank=True, null=True)
     contact2_email = models.EmailField(verbose_name="Contato 2 (Email)", blank=True, null=True)
     
+    # Excel Import Fields
+    group = models.CharField(max_length=100, verbose_name="Grupo", blank=True, null=True)
+    cm_code = models.CharField(max_length=50, verbose_name="CM", blank=True, null=True)
+    supervisor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='supervised_clients', verbose_name="Supervisor")
+    systems = models.ManyToManyField('System', blank=True, related_name='clients', verbose_name="Sistemas")
+    periodicity = models.CharField(max_length=100, verbose_name="Periodicidade", blank=True, null=True)
+    visits_count = models.IntegerField(default=0, verbose_name="Quantidade de Visitas", blank=True, null=True)
+    service_hours = models.CharField(max_length=100, verbose_name="Horário de Atendimento", blank=True, null=True)
+    technicians = models.ManyToManyField(User, blank=True, related_name='client_allocations', verbose_name="Técnicos Alocados")
+    city = models.CharField(max_length=100, verbose_name="Cidade", blank=True, null=True)
+    state = models.CharField(max_length=100, verbose_name="Estado", blank=True, null=True)
+    
     is_preferred = models.BooleanField(default=False, verbose_name="Empresa Preferencial/Padrão")
     
     created_at = models.DateTimeField(auto_now_add=True)
