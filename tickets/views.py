@@ -14,6 +14,7 @@ from .api import TicketAPIView  # Re-export for URL compatibility
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Count, Q
+from collections import defaultdict
 
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard.html'
@@ -739,212 +740,6 @@ class TechnicianListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return User.objects.filter(profile__role__in=['technician', 'standard'])
 
-class HubDashboardView(LoginRequiredMixin, ListView):
-    model = ClientHub
-    template_name = 'tickets/hub_dashboard.html'
-    context_object_name = 'hubs'
-
-    def get_queryset(self):
-        # We will handle data fetching in get_context_data to mix Clients and Hubs
-        return ClientHub.objects.none()
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        
-        # Filter Context
-        context['clients'] = Client.objects.all().order_by('name')
-        selected_client_id = self.request.GET.get('client')
-        
-        # If no client selected, check for preferred client
-        if not selected_client_id:
-            preferred_client = Client.objects.filter(is_preferred=True).first()
-            if preferred_client:
-                selected_client_id = preferred_client.id
-        
-        context['selected_client_id'] = int(selected_client_id) if selected_client_id else None
-
-        # Build Items List (Clients + Hubs)
-        dashboard_items = []
-        hubs_data = {}
-
-        # Helper to process tickets for a specific location
-        def process_location_data(key_prefix, obj, tickets_queryset):
-            # Fetch all active tickets for the "Summary" tab
-            active_tickets_summary = tickets_queryset.filter(status__in=['open', 'in_progress', 'pending']).select_related('ticket_type').prefetch_related('technicians', 'technicians__profile', 'travels', 'travels__segments', 'systems')
-
-            # 1. Agendadas (Summary of everything active)
-            rich_agendadas = []
-            technicians_set = set()
-
-            for t in active_tickets_summary:
-                # Add technicians to set for the Technicians tab
-                for tech in t.technicians.all():
-                    technicians_set.add(tech)
-
-                # Check for linked travel
-                travel = t.travels.first()
-                
-                travel_data = None
-                if travel:
-                    # Try to get the most relevant segment (e.g., air travel)
-                    segment = travel.segments.filter(transport_type='air').first()
-                    if not segment:
-                        segment = travel.segments.first()
-
-                    travel_data = {
-                        'exists': True,
-                        'id': travel.id,
-                        'technician': travel.technician.get_full_name() or travel.technician.username,
-                        'flight_number': travel.flight_number,
-                        'departure': travel.departure_time.strftime('%d/%m %H:%M') if travel.departure_time else None,
-                        'arrival': travel.arrival_time.strftime('%d/%m %H:%M') if travel.arrival_time else None,
-                        'status': travel.get_status_display(),
-                        'icon': 'plane'
-                    }
-
-                    if segment:
-                        travel_data.update({
-                            'segment_exists': True,
-                            'carrier': segment.carrier,
-                            'transport_number': segment.transport_number,
-                            'origin': segment.origin,
-                            'destination': segment.destination,
-                            'booking_code': segment.booking_code,
-                            'locator': segment.locator,
-                            'seat': segment.seat,
-                            'fare_type': segment.fare_type,
-                            'duration': segment.duration,
-                            'transport_type': segment.transport_type,
-                            'transport_type_display': segment.get_transport_type_display()
-                        })
-                
-                rich_agendadas.append({
-                    'id': t.id,
-                    'leankeep_id': t.leankeep_id or '-',
-                    'description': t.description,
-                    'systems': ', '.join([s.name for s in t.systems.all()]) or 'N/A',
-                    'status': t.get_status_display(),
-                    'status_code': t.status,
-                    'type': t.ticket_type.name if t.ticket_type else 'N/A',
-                    'created_at': t.created_at.strftime('%d/%m/%Y'),
-                    'technicians': [tech.get_full_name() or tech.username for tech in t.technicians.all()],
-                    'os_url': reverse('ticket_detail', args=[t.id]),
-                    'travel': travel_data
-                })
-            
-            # 2. OS Abertas (Open/In Progress)
-            os_abertas = tickets_queryset.filter(status__in=['open', 'in_progress'])
-            
-            # 3. Viagens (TechnicianTravel)
-            if key_prefix == 'client':
-                viagens = TechnicianTravel.objects.filter(client=obj, hub__isnull=True)
-            else:
-                viagens = TechnicianTravel.objects.filter(hub=obj)
-            
-            viagens = viagens.select_related('technician', 'service_order')
-            
-            hubs_data[f"{key_prefix}_{obj.id}"] = {
-                'agendadas': rich_agendadas,
-                'os_abertas': [
-                    {
-                        'id': t.id,
-                        'description': t.description[:50] + '...' if len(t.description) > 50 else t.description,
-                        'status': t.get_status_display(),
-                        'status_code': t.status,
-                        'system': ', '.join([s.name for s in t.systems.all()]) or 'N/A',
-                        'leankeep': t.leankeep_id or '-'
-                    } for t in os_abertas
-                ],
-                'viagens': [
-                    {
-                        'id': t.id,
-                        'description': f"Viagem para {t.technician.get_full_name() or t.technician.username}",
-                        'date': t.scheduled_date.strftime('%d/%m/%Y %H:%M') if t.scheduled_date else '-',
-                        'status': t.get_status_display(),
-                        'ticket_status': t.ticket_status, # For coloring: concluded, issued, pending, na
-                        'ticket_status_display': t.get_ticket_status_display(),
-                        'technician': t.technician.get_full_name() or t.technician.username
-                    } for t in viagens
-                ],
-                'technicians': [
-                    {
-                        'name': tech.get_full_name() or tech.username,
-                        'role': tech.profile.get_role_display() if hasattr(tech, 'profile') else 'Técnico',
-                        'photo': tech.profile.photo.url if hasattr(tech, 'profile') and tech.profile.photo else None
-                    } for tech in list(technicians_set)
-                ]
-            }
-
-        # Logic to fetch items
-        if selected_client_id:
-            # Specific Client
-            try:
-                client = Client.objects.get(id=selected_client_id)
-                # Add Client (Sede)
-                client.type = 'client'
-                client.display_name = f"{client.name} (Matriz/Sede)"
-                client.client_name = client.name
-                dashboard_items.append(client)
-                
-                # Process Client Data (Sede = Tickets with this client AND no hub)
-                tickets = Ticket.objects.filter(client=client, hub__isnull=True).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
-                process_location_data('client', client, tickets)
-
-                # Add Hubs
-                hubs = ClientHub.objects.filter(client=client).order_by('name')
-                for hub in hubs:
-                    hub.type = 'hub'
-                    hub.display_name = hub.name
-                    hub.client_name = client.name
-                    dashboard_items.append(hub)
-                    
-                    # Process Hub Data
-                    tickets = Ticket.objects.filter(hub=hub).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
-                    process_location_data('hub', hub, tickets)
-
-            except Client.DoesNotExist:
-                pass
-        else:
-            # All Clients and Hubs (Default View)
-            # Fetch all Clients
-            clients = Client.objects.all().order_by('name')
-            for client in clients:
-                # Add Client (Sede)
-                client.type = 'client'
-                client.display_name = f"{client.name} (Matriz/Sede)"
-                client.client_name = client.name
-                dashboard_items.append(client)
-                
-                # Process Client Data
-                tickets = Ticket.objects.filter(client=client, hub__isnull=True).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
-                process_location_data('client', client, tickets)
-
-            # Fetch all Hubs
-            hubs = ClientHub.objects.select_related('client').all().order_by('client__name', 'name')
-            for hub in hubs:
-                hub.type = 'hub'
-                hub.display_name = hub.name
-                hub.client_name = hub.client.name
-                dashboard_items.append(hub)
-                
-                # Process Hub Data
-                tickets = Ticket.objects.filter(hub=hub).select_related('ticket_type').prefetch_related('systems', 'technicians', 'technicians__profile')
-                process_location_data('hub', hub, tickets)
-        
-        # Sort dashboard items: Clients first, then Hubs? Or grouped?
-        # Current list append order:
-        # If filtered: Client then Hubs. (Perfect)
-        # If not filtered: All Clients then All Hubs. (Maybe messy?)
-        # Let's try to group by Client if not filtered?
-        # Actually, sorting by client_name then type might be better.
-        if not selected_client_id:
-             dashboard_items.sort(key=lambda x: (x.client_name, 0 if x.type == 'client' else 1, x.display_name))
-
-        context['dashboard_items'] = dashboard_items
-        context['hubs_data'] = hubs_data
-        return context
-
-
 class TechnicianCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = User
     form_class = TechnicianForm
@@ -1459,4 +1254,228 @@ class TechnicianTravelDeleteView(LoginRequiredMixin, SuccessMessageMixin, Delete
         context['title'] = "Excluir Viagem"
         context['back_url'] = reverse_lazy('travel_list')
         return context
+
+class ClientSearchView(LoginRequiredMixin, ListView):
+    model = Client
+    template_name = 'tickets/client_search.html'
+    context_object_name = 'clients'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = Client.objects.all().prefetch_related('systems', 'technicians', 'supervisor')
+        q = self.request.GET.get('q')
+
+        if q:
+            queryset = queryset.filter(
+                Q(name__icontains=q) |
+                Q(group__icontains=q) |
+                Q(cm_code__icontains=q) |
+                Q(address__icontains=q) |
+                Q(city__icontains=q) |
+                Q(state__icontains=q) |
+                Q(contact1_name__icontains=q) |
+                Q(contact1_email__icontains=q) |
+                Q(supervisor__username__icontains=q) |
+                Q(supervisor__first_name__icontains=q) |
+                Q(technicians__username__icontains=q) |
+                Q(technicians__first_name__icontains=q) |
+                Q(systems__name__icontains=q)
+            ).distinct()
+        
+        return queryset.order_by('name')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['q'] = self.request.GET.get('q', '')
+        return context
+
+class HubDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = 'tickets/hub_dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        selected_client_id = self.request.GET.get('client')
+        selected_client_id_int = None
+        try:
+            if selected_client_id:
+                selected_client_id_int = int(selected_client_id)
+        except (TypeError, ValueError):
+            selected_client_id_int = None
+
+        clients_qs = Client.objects.all().order_by('name')
+        context['clients'] = clients_qs
+        context['selected_client_id'] = selected_client_id_int
+
+        # Filter Logic
+        hubs_qs = ClientHub.objects.all()
+        tickets_qs = Ticket.objects.select_related('client', 'hub', 'ticket_type').prefetch_related('technicians', 'systems')
+        travels_qs = TechnicianTravel.objects.select_related('technician', 'service_order').prefetch_related('segments')
+
+        if selected_client_id_int:
+            hubs_qs = hubs_qs.filter(client_id=selected_client_id_int)
+            tickets_qs = tickets_qs.filter(client_id=selected_client_id_int)
+            travels_qs = travels_qs.filter(client_id=selected_client_id_int)
+
+        # Helper for date formatting
+        def fmt_dt(dt, with_time=False):
+            if not dt: return '-'
+            if with_time:
+                return timezone.localtime(dt).strftime('%d/%m/%Y %H:%M')
+            return timezone.localtime(dt).strftime('%d/%m/%Y')
+
+        # Organize data by hub
+        hubs_data = {}
+        
+        # Initialize with real hubs
+        for hub in hubs_qs:
+            hubs_data[hub.id] = {
+                'id': hub.id,
+                'name': hub.name,
+                'address': hub.address,
+                'client_name': hub.client.name,
+                'tickets': [],
+                'travels': []
+            }
+        
+        no_hub_key = 'no_hub'
+        hubs_data[no_hub_key] = {
+            'id': None,
+            'name': 'Sem Hub/Loja',
+            'address': '-',
+            'client_name': '-',
+            'tickets': [],
+            'travels': []
+        }
+
+        hub_tickets_map = defaultdict(list)
+        for t in tickets_qs:
+            hub_id = t.hub_id if t.hub_id else no_hub_key
+            hub_tickets_map[hub_id].append(t)
+            
+        hub_travels_map = defaultdict(list)
+        for tr in travels_qs:
+            if tr.service_order and tr.service_order.hub_id:
+                hub_id = tr.service_order.hub_id
+            else:
+                hub_id = no_hub_key
+            hub_travels_map[hub_id].append(tr)
+
+        final_hubs_list = []
+        
+        for hub_id, hub_info in hubs_data.items():
+            tickets = hub_tickets_map[hub_id]
+            travels = hub_travels_map[hub_id]
+            
+            # Skip empty "No Hub"
+            if hub_id == no_hub_key and not tickets and not travels:
+                continue
+
+            data = self._build_hub_data(tickets, travels, fmt_dt)
+            hub_info.update(data)
+            final_hubs_list.append(hub_info)
+
+        # Sort: "No Hub" last, others by name
+        final_hubs_list.sort(key=lambda x: (x['id'] is None, x['name']))
+        
+        context['hubs_data'] = final_hubs_list
+        return context
+
+    def _build_hub_data(self, tickets, travels, fmt_dt):
+        agendadas = []
+        os_abertas = []
+        viagens = []
+        technicians_map = {}
+
+        open_statuses = {'open', 'in_progress', 'pending'}
+
+        for ticket in tickets:
+            systems_names = ", ".join(system.name for system in ticket.systems.all()) or "-"
+            tech_names = []
+            for tech in ticket.technicians.all():
+                technicians_map[tech.id] = tech
+                tech_names.append(tech.get_full_name() or tech.username)
+
+            travel_obj = None
+            if hasattr(ticket, 'travels'):
+                travel_obj = ticket.travels.all().first()
+
+            travel_payload = None
+            if travel_obj:
+                segment = travel_obj.segments.all().first()
+                if segment:
+                    travel_payload = {
+                        'segment_exists': True,
+                        'origin': segment.origin,
+                        'destination': segment.destination,
+                        'transport_type_display': segment.get_transport_type_display(),
+                        'carrier': segment.carrier,
+                        'transport_number': segment.transport_number,
+                        'duration': segment.duration,
+                        'locator': segment.locator,
+                        'booking_code': segment.booking_code,
+                        'seat': segment.seat,
+                        'departure': fmt_dt(segment.departure_time, with_time=True),
+                        'arrival': fmt_dt(segment.arrival_time, with_time=True),
+                    }
+                else:
+                    travel_payload = {
+                        'segment_exists': False,
+                        'status': travel_obj.get_status_display(),
+                        'technician': travel_obj.technician.get_full_name() or travel_obj.technician.username,
+                        'flight_number': travel_obj.flight_number,
+                        'departure': fmt_dt(travel_obj.departure_time, with_time=True),
+                        'arrival': fmt_dt(travel_obj.arrival_time, with_time=True),
+                    }
+
+            agendadas.append({
+                'id': ticket.id,
+                'leankeep_id': ticket.leankeep_id or ticket.formatted_id,
+                'type': ticket.ticket_type.name if ticket.ticket_type else '-',
+                'status': ticket.get_status_display(),
+                'status_code': ticket.status,
+                'systems': systems_names,
+                'description': (ticket.description or '')[:200],
+                'technicians': tech_names,
+                'os_url': reverse('ticket_detail', args=[ticket.id]),
+                'travel': travel_payload,
+            })
+
+            if ticket.status in open_statuses:
+                os_abertas.append({
+                    'id': ticket.id,
+                    'leankeep': ticket.leankeep_id or ticket.formatted_id,
+                    'system': systems_names,
+                    'status': ticket.get_status_display(),
+                    'status_code': ticket.status,
+                    'description': (ticket.description or '')[:200],
+                })
+
+        for travel in travels:
+            technicians_map[travel.technician_id] = travel.technician
+            viagens.append({
+                'id': travel.id,
+                'technician': travel.technician.get_full_name() or travel.technician.username,
+                'ticket_status': travel.ticket_status,
+                'ticket_status_display': travel.get_ticket_status_display(),
+                'date': fmt_dt(travel.scheduled_date),
+            })
+
+        technicians = []
+        for tech in technicians_map.values():
+            profile = getattr(tech, 'profile', None)
+            photo_url = profile.photo.url if profile and profile.photo else None
+            role = profile.job_title if profile and profile.job_title else 'Técnico'
+            technicians.append({
+                'name': tech.get_full_name() or tech.username,
+                'role': role,
+                'photo': photo_url,
+            })
+
+        return {
+            'agendadas': agendadas,
+            'os_abertas': os_abertas,
+            'viagens': viagens,
+            'technicians': technicians,
+        }
 

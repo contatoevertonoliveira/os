@@ -4,6 +4,9 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Clientes</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'client_search' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-search"></i> Busca Avançada
+        </a>
         <a href="{% url 'client_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Cliente
         </a>
