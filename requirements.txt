@@ -13,3 +13,5 @@ six==1.17.0
 sqlparse==0.5.5
 tzdata==2025.3
 gunicorn==23.0.0
+mysqlclient==2.2.7
+packaging==25.0
