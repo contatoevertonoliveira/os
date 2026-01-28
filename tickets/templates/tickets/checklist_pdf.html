@@ -1,0 +1,251 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Checklist Diário - {{ user.get_full_name }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+            @frame footer_frame {
+                -pdf-frame-content: footerContent;
+                bottom: 1cm;
+                margin-left: 2cm;
+                margin-right: 2cm;
+                height: 1cm;
+            }
+        }
+        
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .header {
+            margin-bottom: 20px;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+        
+        .logo {
+            height: 50px;
+            margin-bottom: 10px;
+        }
+        
+        h1 {
+            font-size: 18pt;
+            color: #0d6efd;
+            margin: 0;
+            text-transform: uppercase;
+        }
+        
+        .meta-info {
+            margin-bottom: 20px;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .meta-table {
+            width: 100%;
+        }
+        
+        .meta-table td {
+            padding: 5px;
+        }
+        
+        .label {
+            font-weight: bold;
+            color: #6c757d;
+        }
+        
+        .section-title {
+            font-size: 14pt;
+            color: #212529;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .checklist-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .checklist-table th, .checklist-table td {
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .checklist-table th {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        
+        .status-checked {
+            color: #198754;
+            font-weight: bold;
+        }
+        
+        .status-unchecked {
+            color: #dc3545;
+        }
+        
+        .stats-box {
+            border: 1px solid #cfe2ff;
+            background-color: #e7f1ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .ticket-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .ticket-header {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        
+        .footer {
+            font-size: 8pt;
+            color: #aaa;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="/media/images/logo_jumper.png" alt="JumperFour" class="logo">
+        <div style="font-size: 12pt; color: #555;">Relatório de Checklist Diário</div>
+    </div>
+
+    <div class="meta-info">
+        <table class="meta-table">
+            <tr>
+                <td width="20%"><span class="label">Colaborador:</span></td>
+                <td width="30%">{{ user.get_full_name|default:user.username }}</td>
+                <td width="20%"><span class="label">Data:</span></td>
+                <td width="30%">{{ date|date:"d/m/Y" }}</td>
+            </tr>
+            <tr>
+                <td><span class="label">Departamento:</span></td>
+                <td>{{ checklist.template.department|default:"-" }}</td>
+                <td><span class="label">Modelo:</span></td>
+                <td>{{ checklist.template.name|default:"Padrão" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="stats-box">
+        <table width="100%">
+            <tr>
+                <td align="center">
+                    <div style="font-size: 16pt; font-weight: bold;">{{ total_items }}</div>
+                    <div style="font-size: 8pt; color: #666;">ITENS TOTAIS</div>
+                </td>
+                <td align="center">
+                    <div style="font-size: 16pt; font-weight: bold; color: #198754;">{{ checked_items }}</div>
+                    <div style="font-size: 8pt; color: #666;">REALIZADOS</div>
+                </td>
+                <td align="center">
+                    <div style="font-size: 16pt; font-weight: bold; color: #dc3545;">{{ pending_items }}</div>
+                    <div style="font-size: 8pt; color: #666;">PENDENTES</div>
+                </td>
+                <td align="center">
+                    <div style="font-size: 16pt; font-weight: bold; color: #0d6efd;">{{ activities_count }}</div>
+                    <div style="font-size: 8pt; color: #666;">ATIVIDADES SISTEMA</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section-title">Checklist de Rotina</div>
+    <table class="checklist-table">
+        <thead>
+            <tr>
+                <th width="10%">Status</th>
+                <th width="40%">Atividade</th>
+                <th width="35%">Observações</th>
+                <th width="15%">Imagem</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in checklist.items.all %}
+            <tr>
+                <td align="center">
+                    {% if item.is_checked %}
+                        <span class="status-checked">OK</span>
+                    {% else %}
+                        <span class="status-unchecked">PENDENTE</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <strong>{{ item.title }}</strong><br>
+                    <span style="color: #666; font-size: 8pt;">{{ item.description }}</span>
+                </td>
+                <td>{{ item.observation|default:"-" }}</td>
+                <td align="center">
+                    {% if item.images.exists %}
+                        <div style="text-align: center;">
+                            {% for img in item.images.all %}
+                                <img src="{{ img.image.path }}" style="width: 40px; height: 40px; margin: 2px; object-fit: cover; display: inline-block;">
+                            {% endfor %}
+                        </div>
+                    {% elif item.image %}
+                        <img src="{{ item.image.path }}" style="width: 50px; height: 50px; object-fit: cover;">
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="section-title">Atividades no Sistema (Tickets)</div>
+    {% if tickets_activities %}
+        <table class="checklist-table">
+            <thead>
+                <tr>
+                    <th width="15%">ID</th>
+                    <th width="15%">Hora</th>
+                    <th width="50%">Descrição/Cliente</th>
+                    <th width="20%">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets_activities %}
+                <tr>
+                    <td>{{ ticket.formatted_id }}</td>
+                    <td>{{ ticket.updated_at|date:"H:i" }}</td>
+                    <td>
+                        <div>{{ ticket.client.name }}</div>
+                        <div style="font-size: 8pt; color: #666;">{{ ticket.description|truncatechars:100 }}</div>
+                    </td>
+                    <td>{{ ticket.get_status_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #666; font-style: italic;">Nenhuma atividade registrada no sistema para hoje.</p>
+    {% endif %}
+
+    <div id="footerContent">
+        <div class="footer">
+            Gerado em {% now "d/m/Y H:i" %} por Sistema JumperFour
+        </div>
+    </div>
+</body>
+</html>

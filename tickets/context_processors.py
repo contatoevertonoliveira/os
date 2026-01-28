@@ -1,4 +1,4 @@
-from .models import SystemSettings, Notification
+from .models import SystemSettings, Notification, ChecklistTemplate
 
 def system_settings(request):
     try:
@@ -17,5 +17,8 @@ def system_settings(request):
         unread = Notification.objects.filter(recipient=request.user, is_read=False).order_by('-created_at')
         context['unread_notifications'] = unread
         context['unread_notifications_count'] = unread.count()
+        
+        # Add checklist templates for sidebar
+        context['sidebar_checklist_templates'] = ChecklistTemplate.objects.all().order_by('department', 'name')
         
     return context

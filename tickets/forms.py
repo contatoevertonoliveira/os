@@ -1,8 +1,9 @@
 from django import forms
+from django.forms import inlineformset_factory
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -412,6 +413,36 @@ class SystemSettingsForm(forms.ModelForm):
         widgets = {
             'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
         }
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+class DailyChecklistItemForm(forms.ModelForm):
+    # Field for multiple images (not bound to model directly)
+    new_images = forms.FileField(
+        widget=MultipleFileInput(attrs={'class': 'form-control form-control-sm', 'multiple': True}),
+        label="Adicionar Fotos",
+        required=False
+    )
+
+    class Meta:
+        model = DailyChecklistItem
+        fields = ['title', 'description', 'is_checked', 'observation'] # Removed 'image' from here to use new_images logic
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control fw-bold', 'placeholder': 'Título da Atividade'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Descrição da Tarefa'}),
+            'is_checked': forms.CheckboxInput(attrs={'class': 'form-check-input', 'style': 'width: 2.5em; height: 1.25em;'}),
+            'observation': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Observações Adicionais...'}),
+        }
+
+DailyChecklistItemFormSet = forms.inlineformset_factory(
+    DailyChecklist,
+    DailyChecklistItem,
+    form=DailyChecklistItemForm,
+    fields=['title', 'description', 'is_checked', 'observation'], # Removed 'image'
+    extra=0,
+    can_delete=False
+)
 
 class UserManagementForm(forms.ModelForm):
     first_name = forms.CharField(label="Nome Completo", max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))

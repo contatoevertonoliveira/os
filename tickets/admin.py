@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -49,3 +49,27 @@ class TicketAdmin(admin.ModelAdmin):
     def get_technicians(self, obj):
         return ", ".join([t.username for t in obj.technicians.all()])
     get_technicians.short_description = 'Técnicos'
+
+class ChecklistTemplateItemInline(admin.TabularInline):
+    model = ChecklistTemplateItem
+    extra = 1
+
+@admin.register(ChecklistTemplate)
+class ChecklistTemplateAdmin(admin.ModelAdmin):
+    list_display = ('name', 'department', 'created_at')
+    search_fields = ('name', 'department')
+    inlines = [ChecklistTemplateItemInline]
+
+class DailyChecklistItemInline(admin.TabularInline):
+    model = DailyChecklistItem
+    extra = 0
+    readonly_fields = ('description', 'is_checked', 'image', 'observation')
+    can_delete = False
+
+@admin.register(DailyChecklist)
+class DailyChecklistAdmin(admin.ModelAdmin):
+    list_display = ('user', 'date', 'template', 'created_at')
+    list_filter = ('date', 'user', 'template')
+    search_fields = ('user__username', 'template__name')
+    inlines = [DailyChecklistItemInline]
+

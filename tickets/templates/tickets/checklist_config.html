@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Configuração de Checklists</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+             <a href="{% url 'checklist_daily' %}" class="btn btn-sm btn-outline-secondary me-2">
+                <i class="fas fa-arrow-left"></i> Voltar para Checklist Diário
+            </a>
+            <!-- Button to trigger modal could go here for new template, but let's keep it simple for now -->
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Modelos Disponíveis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Nome do Modelo</th>
+                                    <th>Departamento</th>
+                                    <th>Qtd. Itens</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for template in templates %}
+                                <tr>
+                                    <td class="fw-bold">{{ template.name }}</td>
+                                    <td><span class="badge bg-secondary">{{ template.department }}</span></td>
+                                    <td>{{ template.item_count }}</td>
+                                    <td>
+                                        <a href="{% url 'checklist_template_edit' template.id %}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-edit"></i> Editar Itens
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">Nenhum modelo de checklist cadastrado.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 import uuid
 
 class UserProfile(models.Model):
@@ -452,3 +453,67 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.recipient.username}"
+
+class ChecklistTemplate(models.Model):
+    name = models.CharField(max_length=200, verbose_name="Nome do Checklist")
+    department = models.CharField(max_length=100, verbose_name="Departamento/Área", help_text="Ex: CSO, TI, Manutenção")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.department}"
+    
+    class Meta:
+        verbose_name = "Modelo de Checklist"
+        verbose_name_plural = "Modelos de Checklist"
+
+class ChecklistTemplateItem(models.Model):
+    template = models.ForeignKey(ChecklistTemplate, on_delete=models.CASCADE, related_name='items')
+    title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
+    description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+
+    def __str__(self):
+        return self.description
+    
+    class Meta:
+        ordering = ['order']
+        verbose_name = "Item do Modelo"
+        verbose_name_plural = "Itens do Modelo"
+
+class DailyChecklist(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuário")
+    date = models.DateField(verbose_name="Data", default=timezone.now)
+    template = models.ForeignKey(ChecklistTemplate, on_delete=models.SET_NULL, null=True, verbose_name="Modelo Utilizado")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Checklist {self.user.username} - {self.date}"
+
+    class Meta:
+        unique_together = ('user', 'date')
+        verbose_name = "Checklist Diário"
+        verbose_name_plural = "Checklists Diários"
+
+class DailyChecklistItem(models.Model):
+    daily_checklist = models.ForeignKey(DailyChecklist, on_delete=models.CASCADE, related_name='items')
+    title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
+    description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
+    is_checked = models.BooleanField(default=False, verbose_name="Realizado")
+    image = models.ImageField(upload_to='checklist_photos/', null=True, blank=True, verbose_name="Foto Comprobatória")
+    observation = models.TextField(blank=True, null=True, verbose_name="Observação")
+    
+    def __str__(self):
+        return self.description
+
+    class Meta:
+        verbose_name = "Item do Checklist Diário"
+        verbose_name_plural = "Itens do Checklist Diário"
+
+class DailyChecklistItemImage(models.Model):
+    item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='checklist_photos/', verbose_name="Foto")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Imagem do item {self.item.id}"

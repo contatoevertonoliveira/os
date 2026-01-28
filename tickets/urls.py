@@ -14,7 +14,8 @@ from .views import (
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
-    load_hubs
+    load_hubs, ChecklistDailyView, ChecklistPDFView,
+    ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -29,6 +30,16 @@ urlpatterns = [
     path('tasks/', TaskListView.as_view(), name='task_list'),
     path('tasks/<int:pk>/favorite/', TaskFavoriteView.as_view(), name='task_favorite'),
     
+    # Checklist
+    path('checklist/daily/', ChecklistDailyView.as_view(), name='checklist_daily'),
+    path('checklist/daily/pdf/', ChecklistPDFView.as_view(), name='checklist_pdf'),
+    path('checklist/config/', ChecklistConfigView.as_view(), name='checklist_config'),
+    path('checklist/config/new/', ChecklistTemplateCreateView.as_view(), name='checklist_template_create'),
+    path('checklist/config/<int:pk>/edit/', ChecklistTemplateUpdateView.as_view(), name='checklist_template_edit'),
+    path('checklist/config/<int:pk>/delete/', ChecklistTemplateDeleteView.as_view(), name='checklist_template_delete'),
+    path('checklist/config/<int:pk>/items/add/', ChecklistItemCreateView.as_view(), name='checklist_item_add'),
+    path('checklist/config/items/<int:pk>/delete/', ChecklistItemDeleteView.as_view(), name='checklist_item_delete'),
+
     # Dashboard Hubs
     path('dashboard/hubs/', HubDashboardView.as_view(), name='hub_dashboard'),
 

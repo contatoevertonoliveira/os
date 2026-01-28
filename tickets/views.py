@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+import os
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView, View
 from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib import messages
@@ -6,11 +7,16 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy, reverse
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Exists, OuterRef, Subquery
+from django.template.loader import get_template
+from xhtml2pdf import pisa
+from django.contrib.staticfiles import finders
+from django.conf import settings
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
+from .views_checklist_config import ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Count, Q
@@ -435,7 +441,7 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
 
 class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
-    form_class = TicketUpdateForm
+    form_class = TicketForm
     template_name = 'tickets/ticket_form.html'
     success_url = reverse_lazy('ticket_list')
     success_message = "Ordem de Serviço atualizada com sucesso!"
@@ -918,9 +924,22 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     success_url = reverse_lazy('settings')
     success_message = "Configurações atualizadas com sucesso!"
     
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not hasattr(request.user, 'profile') or request.user.profile.role not in ['admin', 'super_admin']:
+             from django.core.exceptions import PermissionDenied
+             raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+    
     def get_object(self, queryset=None):
         obj, created = SystemSettings.objects.get_or_create(pk=1)
         return obj
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['checklist_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+        return context
 
 # Tasks
 class TaskListView(LoginRequiredMixin, ListView):
@@ -1310,7 +1329,7 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
         # Filter Logic
         hubs_qs = ClientHub.objects.all()
         tickets_qs = Ticket.objects.select_related('client', 'hub', 'ticket_type').prefetch_related('technicians', 'systems')
-        travels_qs = TechnicianTravel.objects.select_related('technician', 'service_order').prefetch_related('segments')
+        travels_qs = TechnicianTravel.objects.select_related('technician', 'service_order', 'hub', 'client').prefetch_related('segments')
 
         if selected_client_id_int:
             hubs_qs = hubs_qs.filter(client_id=selected_client_id_int)
@@ -1324,7 +1343,43 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
                 return timezone.localtime(dt).strftime('%d/%m/%Y %H:%M')
             return timezone.localtime(dt).strftime('%d/%m/%Y')
 
-        # Organize data by hub
+        # Build card items for grid (clients + hubs)
+        dashboard_items = []
+        if selected_client_id_int:
+            client_obj = clients_qs.filter(id=selected_client_id_int).first()
+            if client_obj:
+                dashboard_items.append({
+                    'type': 'client',
+                    'id': client_obj.id,
+                    'display_name': client_obj.name,
+                    'client_name': client_obj.name,
+                    'address': getattr(client_obj, 'address', None),
+                    'logo': client_obj.logo if hasattr(client_obj, 'logo') else None,
+                })
+            hubs_iter = hubs_qs.filter(client_id=selected_client_id_int)
+        else:
+            hubs_iter = hubs_qs
+            for client_obj in clients_qs:
+                dashboard_items.append({
+                    'type': 'client',
+                    'id': client_obj.id,
+                    'display_name': client_obj.name,
+                    'client_name': client_obj.name,
+                    'address': getattr(client_obj, 'address', None),
+                    'logo': client_obj.logo if hasattr(client_obj, 'logo') else None,
+                })
+        for hub in hubs_iter:
+            dashboard_items.append({
+                'type': 'hub',
+                'id': hub.id,
+                'display_name': hub.name,
+                'client_name': hub.client.name,
+                'address': hub.address,
+                'logo': hub.logo if hasattr(hub, 'logo') else None,
+            })
+        context['dashboard_items'] = dashboard_items
+
+        # Organize data by hub/client for modal details
         hubs_data = {}
         
         # Initialize with real hubs
@@ -1357,11 +1412,24 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
         for tr in travels_qs:
             if tr.service_order and tr.service_order.hub_id:
                 hub_id = tr.service_order.hub_id
+            elif tr.hub_id:
+                hub_id = tr.hub_id
             else:
                 hub_id = no_hub_key
             hub_travels_map[hub_id].append(tr)
 
+        # Client-level aggregation
+        client_tickets_map = defaultdict(list)
+        for t in tickets_qs:
+            if t.client_id:
+                client_tickets_map[t.client_id].append(t)
+        client_travels_map = defaultdict(list)
+        for tr in travels_qs:
+            if tr.client_id:
+                client_travels_map[tr.client_id].append(tr)
+
         final_hubs_list = []
+        hubs_data_map = {}
         
         for hub_id, hub_info in hubs_data.items():
             tickets = hub_tickets_map[hub_id]
@@ -1374,11 +1442,19 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
             data = self._build_hub_data(tickets, travels, fmt_dt)
             hub_info.update(data)
             final_hubs_list.append(hub_info)
+            hubs_data_map[f"hub_{hub_info['id'] if hub_info['id'] is not None else 'nohub'}"] = data
 
         # Sort: "No Hub" last, others by name
         final_hubs_list.sort(key=lambda x: (x['id'] is None, x['name']))
         
-        context['hubs_data'] = final_hubs_list
+        # Add client-level entries to hubs_data_map
+        for client in clients_qs:
+            ct = client_tickets_map.get(client.id, [])
+            cv = client_travels_map.get(client.id, [])
+            data = self._build_hub_data(ct, cv, fmt_dt)
+            hubs_data_map[f"client_{client.id}"] = data
+
+        context['hubs_data'] = hubs_data_map
         return context
 
     def _build_hub_data(self, tickets, travels, fmt_dt):
@@ -1478,4 +1554,267 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
             'viagens': viagens,
             'technicians': technicians,
         }
+
+class ChecklistDailyView(LoginRequiredMixin, TemplateView):
+    template_name = 'tickets/daily_checklist.html'
+
+    def get(self, request, *args, **kwargs):
+        # Handle template selection via GET param (e.g. from sidebar)
+        if 'template_id' in request.GET:
+            template_id = request.GET.get('template_id')
+            today = timezone.now().date()
+            
+            # Check if we already have a checklist
+            existing_checklist = DailyChecklist.objects.filter(user=request.user, date=today).first()
+            
+            if existing_checklist:
+                # If existing checklist has no template (orphan), we can adopt it
+                if existing_checklist.template_id is None:
+                    template = get_object_or_404(ChecklistTemplate, pk=template_id)
+                    existing_checklist.template = template
+                    existing_checklist.save()
+                    
+                    # Populate items
+                    for item in template.items.all():
+                        DailyChecklistItem.objects.create(
+                            daily_checklist=existing_checklist,
+                            title=item.title,
+                            description=item.description
+                        )
+                    
+                    messages.success(request, f"Checklist iniciado: {template.name}")
+                    return redirect('checklist_daily')
+
+                # If we have one with template, check if it matches the requested template
+                elif str(existing_checklist.template_id) != str(template_id):
+                    # Different template. 
+                    # We can't have two checklists per day (unique_together constraint).
+                    # We notify the user they are viewing their current checklist.
+                    target_template = ChecklistTemplate.objects.filter(pk=template_id).first()
+                    target_name = target_template.name if target_template else "Outro"
+                    current_name = existing_checklist.template.name if existing_checklist.template else "Sem Modelo"
+                    messages.warning(request, f"Você já possui um checklist aberto hoje ({current_name}). Finalize ou reinicie para mudar para {target_name}.")
+                # If it matches, we just proceed to show it.
+            else:
+                # No checklist exists. Create one for this template!
+                template = get_object_or_404(ChecklistTemplate, pk=template_id)
+                
+                checklist = DailyChecklist.objects.create(
+                    user=request.user,
+                    date=today,
+                    template=template
+                )
+                
+                # Populate items
+                for item in template.items.all():
+                    DailyChecklistItem.objects.create(
+                        daily_checklist=checklist,
+                        title=item.title,
+                        description=item.description
+                    )
+                
+                messages.success(request, f"Checklist iniciado: {template.name}")
+                return redirect('checklist_daily')
+        
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+        user = self.request.user
+        
+        # Try to get existing checklist
+        checklist = DailyChecklist.objects.filter(user=user, date=today).prefetch_related('items__images').first()
+        
+        # Only consider checklist valid if it has a template associated
+        # This handles cases where a checklist was created automatically but no template matched
+        if checklist and checklist.template:
+            # If checklist exists, check if items need population (e.g. created but empty)
+            if not checklist.items.exists():
+                for item in checklist.template.items.all():
+                    DailyChecklistItem.objects.create(
+                        daily_checklist=checklist,
+                        title=item.title,
+                        description=item.description
+                    )
+            
+            # Formset for existing checklist
+            if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
+                formset = DailyChecklistItemFormSet(self.request.POST, self.request.FILES, instance=checklist, prefix='items')
+            else:
+                formset = DailyChecklistItemFormSet(instance=checklist, prefix='items')
+            
+            context['checklist'] = checklist
+            context['formset'] = formset
+        else:
+            # No checklist yet OR orphan checklist (no template), provide templates for selection
+            context['available_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+            # If it's an orphan checklist, pass it so we can update it instead of creating new
+            context['checklist'] = None # We treat it as None for the UI to show selection
+            context['existing_orphan_checklist'] = checklist 
+            context['formset'] = None
+        
+        # System Activities (Tickets)
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        tickets_activities = Ticket.objects.filter(
+            Q(technicians=user) | Q(requester=user),
+            updated_at__range=(today_start, today_end)
+        ).distinct()
+        
+        context['tickets_activities'] = tickets_activities
+        
+        return context
+
+    def post(self, request, *args, **kwargs):
+        # Handle Reset/Change Template
+        if request.POST.get('action') == 'reset':
+            today = timezone.now().date()
+            checklist = DailyChecklist.objects.filter(user=request.user, date=today).first()
+            if checklist:
+                checklist.delete()
+                messages.success(request, "Checklist reiniciado. Selecione um novo modelo.")
+            return redirect('checklist_daily')
+
+        # Handle Template Selection
+        if 'template_id' in request.POST:
+            template_id = request.POST.get('template_id')
+            template = get_object_or_404(ChecklistTemplate, pk=template_id)
+            today = timezone.now().date()
+            
+            # Check if an orphan checklist exists to update, or create new
+            checklist = DailyChecklist.objects.filter(user=request.user, date=today).first()
+            
+            if checklist:
+                # Update existing
+                checklist.template = template
+                checklist.save()
+                # Clear any old items if they exist (though orphan shouldn't have valid items usually)
+                checklist.items.all().delete()
+            else:
+                # Create new
+                checklist = DailyChecklist.objects.create(
+                    user=request.user,
+                    date=today,
+                    template=template
+                )
+            
+            # Populate items
+            for item in template.items.all():
+                DailyChecklistItem.objects.create(
+                    daily_checklist=checklist,
+                    title=item.title,
+                    description=item.description
+                )
+                
+            messages.success(request, f"Checklist iniciado com o modelo: {template.name}")
+            return redirect('checklist_daily')
+
+        # Handle Checklist Save (Updated for multiple images)
+        context = self.get_context_data(**kwargs)
+        formset = context.get('formset')
+        
+        if formset and formset.is_valid():
+            instances = formset.save()
+            
+            # Process multiple images manually
+            # We iterate over the formset forms to find the corresponding instance and files
+            for i, form in enumerate(formset.forms):
+                if not form.cleaned_data.get('id'): # skip if empty/deleted (though can_delete=False)
+                     continue
+                
+                instance = form.instance
+                # Look for files in request.FILES with key 'items-N-new_images'
+                files = request.FILES.getlist(f'items-{i}-new_images')
+                
+                for f in files:
+                    DailyChecklistItemImage.objects.create(
+                        item=instance,
+                        image=f
+                    )
+
+            messages.success(request, "Checklist atualizado com sucesso!")
+            return redirect('checklist_daily')
+        
+        if formset:
+             messages.error(request, "Erro ao atualizar checklist. Verifique os campos.")
+        
+        return self.render_to_response(context)
+
+class ChecklistPDFView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        today = timezone.now().date()
+        user = request.user
+        
+        checklist = DailyChecklist.objects.filter(user=user, date=today).prefetch_related('items__images').first()
+        if not checklist:
+            messages.warning(request, "Nenhum checklist encontrado para hoje.")
+            return redirect('checklist_daily')
+
+        # Tickets Activities
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        
+        tickets_activities = Ticket.objects.filter(
+            Q(technicians=user) | Q(requester=user),
+            updated_at__range=(today_start, today_end)
+        ).distinct()
+
+        total_items = checklist.items.count()
+        checked_items = checklist.items.filter(is_checked=True).count()
+        pending_items = total_items - checked_items
+        activities_count = tickets_activities.count()
+
+        context = {
+            'checklist': checklist,
+            'tickets_activities': tickets_activities,
+            'user': user,
+            'date': today,
+            'total_items': total_items,
+            'checked_items': checked_items,
+            'pending_items': pending_items,
+            'activities_count': activities_count,
+        }
+        
+        template_path = 'tickets/checklist_pdf.html'
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="checklist_{user.username}_{today}.pdf"'
+        
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        def link_callback(uri, rel):
+            if uri.startswith('http://') or uri.startswith('https://'):
+                return uri
+            
+            # Handle Static Files
+            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                path = uri.replace(settings.STATIC_URL, '')
+                absolute_path = finders.find(path)
+                if absolute_path:
+                    return absolute_path
+
+            # Handle Media Files
+            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                path = uri.replace(settings.MEDIA_URL, '')
+                absolute_path = os.path.join(settings.MEDIA_ROOT, path)
+                if os.path.exists(absolute_path):
+                    return absolute_path
+            
+            # Handle relative paths (fallback)
+            if not uri.startswith('/'):
+                 # Check if it is a media file referenced relatively
+                 if 'media/' in uri:
+                     possible_path = os.path.join(settings.BASE_DIR, uri)
+                     if os.path.exists(possible_path):
+                         return possible_path
+
+            return uri
+        
+        pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+        
+        if pisa_status.err:
+            return HttpResponse('We had some errors <pre>' + html + '</pre>')
+        return response
 

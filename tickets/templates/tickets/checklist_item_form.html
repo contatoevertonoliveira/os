@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="card-title mb-0">Adicionar Item ao Checklist</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Título da Atividade</label>
+                            {% render_field form.title class="form-control" placeholder="Ex: Backup Noturno" %}
+                            <div class="form-text text-muted">Nome curto da atividade.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Descrição da Atividade</label>
+                            {% render_field form.description class="form-control" placeholder="Ex: Verificar se o backup foi concluído com sucesso e sem erros." %}
+                            <div class="form-text text-muted">Instruções detalhadas da tarefa.</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Ordem de Exibição</label>
+                            {% render_field form.order class="form-control" type="number" %}
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                            <button type="button" class="btn btn-light border" onclick="history.back()">Cancelar</button>
+                            <button type="submit" class="btn btn-success px-4">Adicionar Item</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

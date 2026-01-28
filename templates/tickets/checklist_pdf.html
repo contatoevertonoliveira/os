@@ -1,0 +1,116 @@
+{% load static %}
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>Relatório Diário - {{ user.get_full_name|default:user.username }}</title>
+    <style type="text/css">
+        @page { size: A4; margin: 1.2cm; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
+        .brand-header { width: 100%; border-bottom: 2px solid #26923B; margin-bottom: 10px; }
+        .brand-table { width: 100%; }
+        .brand-table td { vertical-align: middle; }
+        .brand-title { font-size: 16px; font-weight: bold; color: #1E2E40; text-align: right; }
+        .muted { color: #666; font-size: 11px; }
+        .section { margin: 14px 0; }
+        .section-title { font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 6px; border: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+        th { background-color: #f9fafb; font-weight: bold; }
+        .summary-grid { width: 100%; border: 1px solid #ddd; margin-top: 8px; }
+        .summary-grid td { padding: 6px; border: 1px solid #ddd; }
+        .checked { color: #198754; font-weight: bold; }
+        .unchecked { color: #dc3545; }
+        .signature { margin-top: 30px; }
+        .signature-line { border-top: 1px solid #aaa; width: 60%; margin: 20px 0 5px; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="brand-header">
+        <table class="brand-table">
+            <tr>
+                <td width="50%">
+                    <img src="{% static 'images/logo_jumper2.svg' %}" alt="JumperFour" style="height: 55px;">
+                </td>
+                <td width="50%" class="brand-title">
+                    Relatório Diário de Atividades
+                    <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="summary-grid">
+        <tr>
+            <td><strong>Colaborador</strong><br>{{ user.get_full_name|default:user.username }}</td>
+            <td><strong>Departamento</strong><br>{{ checklist.template.department|default:"-" }}</td>
+            <td><strong>Checklist</strong><br>{{ checklist.template.name|default:"Geral" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Itens Realizados</strong><br>{{ checked_items }} de {{ total_items }}</td>
+            <td><strong>Pendentes</strong><br>{{ pending_items }}</td>
+            <td><strong>Atividades no Sistema</strong><br>{{ activities_count }}</td>
+        </tr>
+    </table>
+
+    <div class="section">
+        <div class="section-title">Checklist de Rotina</div>
+        <table>
+            <thead>
+                <tr>
+                    <th width="12%">Status</th>
+                    <th width="48%">Atividade</th>
+                    <th width="40%">Observação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in checklist.items.all %}
+                <tr>
+                    <td align="center">
+                        {% if item.is_checked %}
+                            <span class="checked">Realizado</span>
+                        {% else %}
+                            <span class="unchecked">Pendente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.description }}</td>
+                    <td>{{ item.observation|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Atividades Registradas no Sistema (Hoje)</div>
+        {% if tickets_activities %}
+            <table>
+                <thead>
+                    <tr>
+                        <th width="15%">Hora</th>
+                        <th width="15%">OS #</th>
+                        <th width="25%">Cliente</th>
+                        <th width="45%">Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets_activities %}
+                    <tr>
+                        <td>{{ ticket.updated_at|date:"H:i" }}</td>
+                        <td>{{ ticket.id }}</td>
+                        <td>{{ ticket.client.name|default:"-" }}</td>
+                        <td>{{ ticket.description|default:"-"|truncatechars:100 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="muted">Nenhuma atividade registrada no sistema para esta data.</p>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        Gerado em {% now "d/m/Y H:i" %} pelo sistema JumperFour
+    </div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0 text-gray-800"><i class="fas fa-clipboard-list me-2"></i>Checklist Diário - {{ checklist.date|date:"d/m/Y" }}</h2>
+        <div>
+            <a href="{% url 'checklist_pdf' %}" class="btn btn-danger" target="_blank">
+                <i class="fas fa-file-pdf me-2"></i>Gerar Relatório PDF
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row">
+        <!-- Checklist Form -->
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-white">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        {{ checklist.template.name|default:"Checklist Geral" }}
+                        {% if checklist.template.department %}
+                            <span class="badge bg-info ms-2">{{ checklist.template.department }}</span>
+                        {% endif %}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        {{ formset.management_form }}
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 5%;">OK</th>
+                                        <th style="width: 40%;">Atividade</th>
+                                        <th style="width: 30%;">Observação</th>
+                                        <th style="width: 25%;">Foto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for form in formset %}
+                                        <tr>
+                                            {{ form.id }}
+                                            <td>
+                                                <div class="form-check form-switch">
+                                                    {{ form.is_checked|add_class:"form-check-input" }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {{ form.instance.description }}
+                                            </td>
+                                            <td>
+                                                {{ form.observation|add_class:"form-control form-control-sm" }}
+                                            </td>
+                                            <td>
+                                                {{ form.image|add_class:"form-control form-control-sm" }}
+                                                {% if form.instance.image %}
+                                                    <a href="{{ form.instance.image.url }}" target="_blank" class="small text-decoration-none mt-1 d-block">
+                                                        <i class="fas fa-eye"></i> Ver atual
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save me-2"></i>Salvar Checklist
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Activities Sidebar -->
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-white">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-history me-2"></i>Atividades no Sistema (Hoje)
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    {% if tickets_activities %}
+                        <div class="list-group list-group-flush">
+                            {% for ticket in tickets_activities %}
+                                <a href="{% url 'ticket_detail' ticket.pk %}" class="list-group-item list-group-item-action">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">OS #{{ ticket.id }}</h6>
+                                        <small class="text-muted">{{ ticket.updated_at|date:"H:i" }}</small>
+                                    </div>
+                                    <p class="mb-1 small text-truncate">{{ ticket.description }}</p>
+                                    <small>
+                                        <span class="badge bg-{{ ticket.get_status_color }}">{{ ticket.get_status_display }}</span>
+                                        {% if ticket.client %}
+                                            <span class="text-muted ms-2"><i class="fas fa-building me-1"></i>{{ ticket.client.name }}</span>
+                                        {% endif %}
+                                    </small>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center p-4 text-muted">
+                            <i class="fas fa-info-circle fa-2x mb-2"></i>
+                            <p class="mb-0">Nenhuma atividade registrada hoje.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -527,6 +527,28 @@
                     </ul>
                 </li>
 
+                <!-- Checklist -->
+                <li>
+                    <a href="#checklistSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'checklist' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Checklist">
+                        <i class="fas fa-clipboard-check"></i> Checklist
+                    </a>
+                    <ul class="collapse sidebar-submenu {% if 'checklist' in request.resolver_match.url_name %}show{% endif %}" id="checklistSubmenu">
+                        {% for template in sidebar_checklist_templates %}
+                        <li>
+                            <a href="{% url 'checklist_daily' %}?template_id={{ template.id }}">
+                                <i class="fas fa-check-square"></i> {{ template.name }}
+                            </a>
+                        </li>
+                        {% empty %}
+                        <li>
+                            <a href="{% url 'checklist_daily' %}">
+                                <i class="fas fa-list"></i> Ver Checklist
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </li>
+
                 <!-- Notifications -->
                 <li>
                     <a href="{% url 'notification_list' %}" class="{% if request.resolver_match.url_name == 'notification_list' %}active{% endif %} sidebar-link-tooltip d-flex justify-content-between align-items-center pe-3" data-bs-toggle="tooltip" data-bs-placement="right" title="Notificações">
