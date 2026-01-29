@@ -3,127 +3,514 @@
 {% load widget_tweaks %}
 
 {% block content %}
+<style>
+    /* Custom Switch Colors for Checklist */
+    .form-switch .form-check-input {
+        width: 3.5em; /* Make them slightly wider for better visibility */
+        height: 1.75em;
+    }
+
+    /* State: Checked (ON) -> Green */
+    .form-switch .form-check-input:checked {
+        background-color: #198754 !important; /* Success Green */
+        border-color: #198754 !important;
+    }
+
+    /* State: Unchecked (OFF) -> Red */
+    .form-switch .form-check-input:not(:checked) {
+        background-color: #dc3545 !important; /* Danger Red */
+        border-color: #dc3545 !important;
+        /* Maintain the white circle knob */
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e") !important;
+    }
+
+    /* Remove Focus Glow/Yellow State */
+    .form-switch .form-check-input:focus {
+        border-color: inherit;
+        outline: 0;
+        box-shadow: none !important;
+    }
+</style>
 <div class="container-fluid py-4">
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="h4 mb-0 text-gray-800"><i class="fas fa-clipboard-list me-2"></i>Checklist Diário - {{ checklist.date|date:"d/m/Y" }}</h2>
         <div>
-            <a href="{% url 'checklist_pdf' %}" class="btn btn-danger" target="_blank">
-                <i class="fas fa-file-pdf me-2"></i>Gerar Relatório PDF
+            <h2 class="h3 text-gray-800"><i class="fas fa-tasks me-2"></i>Checklist Diário</h2>
+            <p class="text-muted mb-0">
+                <i class="far fa-calendar me-1"></i> {{ view_date|date:"d/m/Y" }}
+                {% if not is_today %}
+                    <span class="badge bg-warning text-dark ms-2">Visualizando Histórico</span>
+                    <a href="{% url 'checklist_daily' %}" class="btn btn-sm btn-outline-secondary ms-2">
+                        <i class="fas fa-undo me-1"></i> Voltar para Hoje
+                    </a>
+                {% endif %}
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'checklist_pdf' %}?date={{ view_date|date:'Y-m-d' }}" class="btn btn-danger shadow-sm">
+                <i class="fas fa-file-pdf me-2"></i>Exportar PDF
             </a>
         </div>
     </div>
 
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
+    <!-- Nav Tabs -->
+    <ul class="nav nav-tabs mb-4" id="checklistTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab" aria-controls="daily" aria-selected="true">
+                <i class="fas fa-list-check me-2"></i>Checklist Diário
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab" aria-controls="activities" aria-selected="false">
+                <i class="fas fa-clipboard-list me-2"></i>Histórico de Atividades (OS)
+            </button>
+        </li>
+        {% if checklist and checklist.template %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">
+                <i class="fas fa-history me-2"></i>Histórico do Checklist
+            </button>
+        </li>
+        {% endif %}
+    </ul>
 
-    <div class="row">
-        <!-- Checklist Form -->
-        <div class="col-lg-8">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 bg-white">
-                    <h6 class="m-0 font-weight-bold text-primary">
-                        {{ checklist.template.name|default:"Checklist Geral" }}
-                        {% if checklist.template.department %}
-                            <span class="badge bg-info ms-2">{{ checklist.template.department }}</span>
-                        {% endif %}
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        {{ formset.management_form }}
-                        
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th style="width: 5%;">OK</th>
-                                        <th style="width: 40%;">Atividade</th>
-                                        <th style="width: 30%;">Observação</th>
-                                        <th style="width: 25%;">Foto</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for form in formset %}
-                                        <tr>
-                                            {{ form.id }}
-                                            <td>
-                                                <div class="form-check form-switch">
-                                                    {{ form.is_checked|add_class:"form-check-input" }}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                {{ form.instance.description }}
-                                            </td>
-                                            <td>
-                                                {{ form.observation|add_class:"form-control form-control-sm" }}
-                                            </td>
-                                            <td>
-                                                {{ form.image|add_class:"form-control form-control-sm" }}
-                                                {% if form.instance.image %}
-                                                    <a href="{{ form.instance.image.url }}" target="_blank" class="small text-decoration-none mt-1 d-block">
-                                                        <i class="fas fa-eye"></i> Ver atual
-                                                    </a>
-                                                {% endif %}
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+    <div class="tab-content" id="checklistTabsContent">
+        <!-- Daily Tab -->
+        <div class="tab-pane fade show active" id="daily" role="tabpanel" aria-labelledby="daily-tab">
+            <div class="row">
+                <!-- Checklist Column (Full Width now) -->
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h6 class="m-0 font-weight-bold text-primary">Itens de Verificação</h6>
                         </div>
-                        
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-save me-2"></i>Salvar Checklist
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- System Activities Sidebar -->
-        <div class="col-lg-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 bg-white">
-                    <h6 class="m-0 font-weight-bold text-secondary">
-                        <i class="fas fa-history me-2"></i>Atividades no Sistema (Hoje)
-                    </h6>
-                </div>
-                <div class="card-body p-0">
-                    {% if tickets_activities %}
-                        <div class="list-group list-group-flush">
-                            {% for ticket in tickets_activities %}
-                                <a href="{% url 'ticket_detail' ticket.pk %}" class="list-group-item list-group-item-action">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1">OS #{{ ticket.id }}</h6>
-                                        <small class="text-muted">{{ ticket.updated_at|date:"H:i" }}</small>
-                                    </div>
-                                    <p class="mb-1 small text-truncate">{{ ticket.description }}</p>
-                                    <small>
-                                        <span class="badge bg-{{ ticket.get_status_color }}">{{ ticket.get_status_display }}</span>
-                                        {% if ticket.client %}
-                                            <span class="text-muted ms-2"><i class="fas fa-building me-1"></i>{{ ticket.client.name }}</span>
+                        <div class="card-body">
+                            {% if checklist %}
+                                {% if checklist.template %}
+                                    <div class="alert alert-info mb-4 d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            Modelo utilizado: <strong>{{ checklist.template.name }}</strong> ({{ checklist.template.department }})
+                                        </div>
+                                        {% if is_today %}
+                                        <form method="post" class="m-0" onsubmit="return confirm('Tem certeza? Isso apagará o preenchimento atual e permitirá escolher outro modelo.');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reset">
+                                            <button type="submit" class="btn btn-sm btn-outline-info bg-white text-info border-info">
+                                                <i class="fas fa-sync-alt me-1"></i> Trocar Modelo
+                                            </button>
+                                        </form>
                                         {% endif %}
-                                    </small>
-                                </a>
-                            {% endfor %}
+                                    </div>
+                                {% endif %}
+
+                                <form method="post" enctype="multipart/form-data">
+                                    {% csrf_token %}
+                                    {{ formset.management_form }}
+                                    
+                                    <div class="list-group list-group-flush mb-4">
+                                        {% for form in formset %}
+                                            <div class="list-group-item px-0 border-bottom">
+                                                {{ form.id }}
+                                                <div class="row">
+                                                    <div class="col-12 mb-3">
+                                                        <div class="d-flex align-items-center mb-2">
+                                                            <div class="form-check form-switch me-3">
+                                                                {{ form.is_checked }}
+                                                            </div>
+                                                            <div class="flex-grow-1">
+                                                                <label class="form-label small text-muted text-uppercase fw-bold mb-1">Título da Atividade</label>
+                                                                {{ form.title }}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label class="form-label small text-muted mb-1">Descrição da Tarefa</label>
+                                                            {{ form.description }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="row ps-4">
+                                                    <div class="col-md-7">
+                                                        <label class="form-label small text-muted mb-1">Observações Adicionais</label>
+                                                        {{ form.observation }}
+                                                    </div>
+                                                    <div class="col-md-5">
+                                                        <label class="form-label small text-muted mb-1">Fotos Comprobatórias</label>
+                                                        
+                                                        <!-- File Input -->
+                                                        {% if is_today %}
+                                                        <div class="mb-2">
+                                                            {{ form.new_images }}
+                                                            <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Selecione uma ou várias imagens (Ctrl+Click)</small>
+                                                            <!-- Dynamic Preview Container -->
+                                                            <div class="image-preview-container d-flex flex-wrap gap-2 mt-2"></div>
+                                                        </div>
+                                                        {% endif %}
+
+                                                        <!-- Thumbnails Display -->
+                                                        {% if form.instance.images.exists %}
+                                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                                {% for img in form.instance.images.all %}
+                                                                    <a href="{{ img.image.url }}" target="_blank" class="d-block border rounded position-relative" style="width: 50px; height: 50px; overflow: hidden;">
+                                                                        <img src="{{ img.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
+                                                                    </a>
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% elif form.instance.image %}
+                                                            <!-- Legacy single image fallback -->
+                                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                                <a href="{{ form.instance.image.url }}" target="_blank" class="d-block border rounded position-relative" style="width: 50px; height: 50px; overflow: hidden;">
+                                                                    <img src="{{ form.instance.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
+                                                                </a>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                
+                                                {% if form.errors %}
+                                                    <div class="alert alert-danger mt-2 ms-4">
+                                                        {{ form.errors }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+
+                                    {% if is_today %}
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <button type="submit" class="btn btn-primary px-4">
+                                            <i class="fas fa-save me-2"></i>Salvar Checklist
+                                        </button>
+                                    </div>
+                                    {% else %}
+                                    <div class="alert alert-warning text-center">
+                                        <i class="fas fa-lock me-2"></i>Visualizando modo somente leitura (Histórico)
+                                    </div>
+                                    {% endif %}
+                                </form>
+                            {% else %}
+                                <!-- No changes to template selection part -->
+                                <div class="text-center py-4">
+                                    <i class="fas fa-clipboard-list fa-3x text-gray-300 mb-3"></i>
+                                    <h5>Iniciar Checklist Diário</h5>
+                                    <p class="text-muted mb-4">Selecione um modelo abaixo para começar suas atividades de hoje.</p>
+                                    
+                                    <div class="row g-3 justify-content-center">
+                                        {% for template in available_templates %}
+                                            <div class="col-md-6">
+                                                <div class="card h-100 border hover-shadow transition">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title fw-bold text-primary">{{ template.name }}</h6>
+                                                        <p class="card-text small text-muted mb-3">{{ template.department }}</p>
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <span class="badge bg-light text-dark border">{{ template.item_count }} Itens</span>
+                                                            <form method="post" class="d-inline">
+                                                                {% csrf_token %}
+                                                                <input type="hidden" name="template_id" value="{{ template.id }}">
+                                                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                                    Iniciar <i class="fas fa-arrow-right ms-1"></i>
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% empty %}
+                                            <div class="col-12">
+                                                <div class="alert alert-warning">
+                                                    Nenhum modelo de checklist disponível. Entre em contato com o administrador.
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
                         </div>
-                    {% else %}
-                        <div class="text-center p-4 text-muted">
-                            <i class="fas fa-info-circle fa-2x mb-2"></i>
-                            <p class="mb-0">Nenhuma atividade registrada hoje.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- System Activities Section (Moved to Tab) -->
+        </div>
+
+        <!-- Activities Tab -->
+        <div class="tab-pane fade" id="activities" role="tabpanel" aria-labelledby="activities-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                            <h6 class="m-0 font-weight-bold text-success">Atividades do Sistema (OS) - {{ view_date|date:"d/m/Y" }}</h6>
+                            <span class="badge bg-success">{{ tickets_activities.count }} atividades</span>
                         </div>
-                    {% endif %}
+                        <div class="card-body p-0">
+                             {% if tickets_activities %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th class="ps-4">ID</th>
+                                                <th>Cliente</th>
+                                                <th>Descrição</th>
+                                                <th>Status</th>
+                                                <th>Horário</th>
+                                                <th class="text-end pe-4">Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for ticket in tickets_activities %}
+                                                <tr>
+                                                    <td class="ps-4 fw-bold text-primary">#{{ ticket.formatted_id }}</td>
+                                                    <td>{{ ticket.client.name|truncatechars:30 }}</td>
+                                                    <td>{{ ticket.description|truncatechars:50 }}</td>
+                                                    <td>
+                                                        <span class="badge {% if ticket.status == 'open' %}bg-primary{% elif ticket.status == 'in_progress' %}bg-warning{% elif ticket.status == 'finished' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                            {{ ticket.get_status_display }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-muted small">{{ ticket.updated_at|date:"H:i" }}</td>
+                                                    <td class="text-end pe-4">
+                                                        <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-sm btn-outline-secondary">
+                                                            Ver
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-ghost fa-2x mb-2 opacity-50"></i>
+                                    <p class="m-0 small">Nenhuma atividade registrada nesta data.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- History Tab -->
+        {% if checklist and checklist.template %}
+        <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h6 class="m-0 font-weight-bold text-info">Histórico de Checklists - {{ checklist.template.name }}</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if history_checklists %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th class="ps-4">Data</th>
+                                                <th>Modelo</th>
+                                                <th>Atividades</th>
+                                                <th>PDF Gerado?</th>
+                                                <th>Status</th>
+                                                <th class="text-end pe-4">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for hist in history_checklists %}
+                                                <tr>
+                                                    <td class="ps-4">{{ hist.date|date:"d/m/Y" }}</td>
+                                                    <td>{{ hist.template }}</td>
+                                                    <td>
+                                                        <span class="badge bg-light text-dark border">{{ hist.activities_status }}</span>
+                                                    </td>
+                                                    <td>
+                                                        {% if hist.pdf_generated %}
+                                                            <span class="badge bg-success">Sim</span>
+                                                        {% else %}
+                                                            <span class="badge bg-secondary">Não</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if hist.status == 'completed' or hist.is_complete %}
+                                                            <span class="badge bg-success">Concluído</span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning text-dark">Pendente</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-end pe-4">
+                                                    <!-- Edit Button -->
+                                                    <a href="{% url 'checklist_daily' %}?date={{ hist.date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary me-1" title="Editar/Visualizar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    
+                                                    <!-- Delete Button Trigger Modal -->
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ hist.id }}" title="Excluir">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                        
+                                                        <!-- Delete Modal -->
+                                                        <div class="modal fade text-start" id="deleteModal{{ hist.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ hist.id }}" aria-hidden="true">
+                                                            <div class="modal-dialog">
+                                                                <div class="modal-content">
+                                                                    <div class="modal-header">
+                                                                        <h5 class="modal-title" id="deleteModalLabel{{ hist.id }}">Confirmar Exclusão</h5>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                    </div>
+                                                                    <div class="modal-body">
+                                                                        Tem certeza que deseja excluir o histórico do checklist de <strong>{{ hist.date|date:"d/m/Y" }}</strong>?<br>
+                                                                        Essa ação não pode ser desfeita.
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                        <!-- Form for deletion (need to implement delete view or handle via JS/POST) -->
+                                                                        <!-- Since we don't have a specific delete URL for history yet, we'll need to add one or use a generic action. 
+                                                                             For now, let's assume we might add a 'delete_history' action to the main view or a separate view.
+                                                                             Actually, I'll use a form posting to the current view with a specific action. -->
+                                                                        <form method="post" action="">
+                                                                            {% csrf_token %}
+                                                                            <input type="hidden" name="action" value="delete_history">
+                                                                            <input type="hidden" name="history_id" value="{{ hist.id }}">
+                                                                            <button type="submit" class="btn btn-danger">Excluir</button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-history fa-2x mb-2 opacity-50"></i>
+                                    <p class="m-0 small">Nenhum histórico encontrado para este modelo.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- No Config Tab here; moved to Settings page -->
     </div>
 </div>
+
+<style>
+    /* Custom styles for checklist inputs */
+    .form-check-input {
+        width: 2.5em;
+        height: 1.25em;
+        cursor: pointer;
+    }
+    textarea.form-control {
+        font-size: 0.9rem;
+        border-color: #e3e6f0;
+        resize: vertical;
+        min-height: 38px;
+        height: 38px;
+        transition: height 0.2s;
+    }
+    textarea.form-control:focus {
+        height: 80px;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle Image Previews for Checklist Items
+        const checklistFileInputs = document.querySelectorAll('input[type="file"][name$="new_images"]');
+        const dtMap = new WeakMap(); // Store DataTransfer objects for each input
+
+        checklistFileInputs.forEach(input => {
+            // Initialize DataTransfer for this input
+            dtMap.set(input, new DataTransfer());
+
+            input.addEventListener('change', function(e) {
+                const dt = dtMap.get(this);
+                const container = this.parentNode.querySelector('.image-preview-container');
+                if (!container) return;
+
+                // Get newly selected files
+                const newFiles = Array.from(this.files);
+                
+                // Add new files to DataTransfer (avoiding exact duplicates)
+                newFiles.forEach(file => {
+                    let exists = false;
+                    for (let i = 0; i < dt.files.length; i++) {
+                        const existingFile = dt.files[i];
+                        if (existingFile.name === file.name && 
+                            existingFile.size === file.size && 
+                            existingFile.lastModified === file.lastModified) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        dt.items.add(file);
+                    }
+                });
+
+                // Update the input's files property
+                this.files = dt.files;
+
+                // Re-render previews
+                renderPreviews(this, container, dt);
+            });
+        });
+
+        function renderPreviews(input, container, dt) {
+            container.innerHTML = '';
+            
+            Array.from(dt.files).forEach((file, index) => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(event) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'position-relative border rounded overflow-hidden shadow-sm';
+                        wrapper.style.width = '50px';
+                        wrapper.style.height = '50px';
+                        
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        img.className = 'w-100 h-100';
+                        img.style.objectFit = 'cover';
+                        img.title = file.name;
+                        
+                        // Delete button
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.type = 'button';
+                        deleteBtn.className = 'btn btn-danger btn-sm position-absolute top-0 end-0 p-0 d-flex justify-content-center align-items-center';
+                        deleteBtn.style.width = '16px';
+                        deleteBtn.style.height = '16px';
+                        deleteBtn.style.fontSize = '10px';
+                        deleteBtn.style.lineHeight = '1';
+                        deleteBtn.style.borderRadius = '0 0 0 4px';
+                        deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        deleteBtn.title = 'Remover imagem';
+                        
+                        deleteBtn.onclick = function(e) {
+                            e.preventDefault();
+                            // Remove from DataTransfer
+                            dt.items.remove(index);
+                            // Update input
+                            input.files = dt.files;
+                            // Re-render
+                            renderPreviews(input, container, dt);
+                        };
+                        
+                        wrapper.appendChild(img);
+                        wrapper.appendChild(deleteBtn);
+                        container.appendChild(wrapper);
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

@@ -57,7 +57,7 @@ class ChecklistTemplateUpdateView(LoginRequiredMixin, UpdateView):
 
 class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
     model = ChecklistTemplateItem
-    fields = ['title', 'description', 'order']
+    fields = ['title', 'description', 'order', 'client']
     template_name = 'tickets/checklist_item_form.html'
 
     def dispatch(self, request, *args, **kwargs):
@@ -75,6 +75,22 @@ class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
 
     def get_success_url(self):
         return reverse('checklist_template_edit', args=[self.kwargs['pk']])
+
+class ChecklistItemUpdateView(LoginRequiredMixin, UpdateView):
+    model = ChecklistTemplateItem
+    fields = ['title', 'description', 'order', 'client']
+    template_name = 'tickets/checklist_item_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not hasattr(request.user, 'profile') or request.user.profile.role not in ['admin', 'super_admin']:
+             from django.core.exceptions import PermissionDenied
+             raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse('checklist_template_edit', args=[self.object.template.id])
 
 class ChecklistItemDeleteView(LoginRequiredMixin, DeleteView):
     model = ChecklistTemplateItem

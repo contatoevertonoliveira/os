@@ -30,10 +30,11 @@
         <table class="brand-table">
             <tr>
                 <td width="50%">
-                    <img src="{% static 'images/logo_jumper2.svg' %}" alt="JumperFour" style="height: 55px;">
+                    <img src="/media/images/logo_jumper.png" alt="JumperFour" style="height: 55px;">
                 </td>
                 <td width="50%" class="brand-title">
                     Relatório Diário de Atividades
+                    <div class="muted">Nº {{ checklist.id|stringformat:"03d" }} - {{ day_of_week }}</div>
                     <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
                 </td>
             </tr>
@@ -58,9 +59,10 @@
         <table>
             <thead>
                 <tr>
-                    <th width="12%">Status</th>
-                    <th width="48%">Atividade</th>
-                    <th width="40%">Observação</th>
+                    <th width="10%">Status</th>
+                    <th width="40%">Atividade</th>
+                    <th width="35%">Observação</th>
+                    <th width="15%">Imagem</th>
                 </tr>
             </thead>
             <tbody>
@@ -73,9 +75,47 @@
                             <span class="unchecked">Pendente</span>
                         {% endif %}
                     </td>
-                    <td>{{ item.description }}</td>
+                    <td>
+                        <strong>{{ item.title }}</strong><br>
+                        <span style="color: #666; font-size: 11px;">{{ item.description }}</span>
+                    </td>
                     <td>{{ item.observation|default:"-" }}</td>
+                    <td align="center">
+                        {% if item.images.exists %}
+                            <div style="text-align: center;">
+                                {% for img in item.images.all %}
+                                    <img src="{{ img.image.path }}" style="width: 50px; height: 50px; margin: 2px; object-fit: cover; border: 1px solid #ddd; display: inline-block;">
+                                {% endfor %}
+                            </div>
+                        {% elif item.image %}
+                            <img src="{{ item.image.path }}" style="width: 50px; height: 50px; object-fit: cover; border: 1px solid #ddd;">
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
                 </tr>
+                {% if item.details.exists %}
+                <tr>
+                    <td colspan="4" style="background-color: #f9f9f9; padding: 5px 10px 5px 30px; border-top: none;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 2px;"><strong>Detalhes / Sub-itens:</strong></div>
+                        <ul style="margin: 0; padding-left: 15px; list-style-type: circle;">
+                            {% for detail in item.details.all %}
+                            <li style="font-size: 11px; color: #444; margin-bottom: 2px;">
+                                <span style="color: #888;">[{{ detail.created_at|date:"H:i" }}]</span>
+                                {% if detail.client %}
+                                    <strong>{{ detail.client.name }}</strong>
+                                    {% if detail.hub %} / {{ detail.hub.name }}{% endif %} - 
+                                {% endif %}
+                                {{ detail.description }}
+                                {% if detail.ticket %} 
+                                    <span style="color: #0d6efd;">(OS #{{ detail.ticket.formatted_id }})</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </td>
+                </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
@@ -97,20 +137,23 @@
                     {% for ticket in tickets_activities %}
                     <tr>
                         <td>{{ ticket.updated_at|date:"H:i" }}</td>
-                        <td>{{ ticket.id }}</td>
-                        <td>{{ ticket.client.name|default:"-" }}</td>
-                        <td>{{ ticket.description|default:"-"|truncatechars:100 }}</td>
+                        <td>{{ ticket.formatted_id }}</td>
+                        <td>{{ ticket.client.name }}</td>
+                        <td>
+                            {{ ticket.description|truncatechars:100 }}
+                            <div class="muted">Status: {{ ticket.get_status_display }}</div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
-            <p class="muted">Nenhuma atividade registrada no sistema para esta data.</p>
+            <p style="color: #666; font-style: italic; padding: 10px;">Nenhuma atividade registrada no sistema para hoje.</p>
         {% endif %}
     </div>
 
     <div class="footer">
-        Gerado em {% now "d/m/Y H:i" %} pelo sistema JumperFour
+        Gerado em {% now "d/m/Y H:i" %} por Sistema JumperFour
     </div>
 </body>
 </html>

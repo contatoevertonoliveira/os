@@ -56,15 +56,25 @@
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center">
                                 <span class="badge bg-light text-dark border me-3">#{{ item.order }}</span>
-                                <span class="fw-medium">{{ item.description }}</span>
+                                <div>
+                                    <span class="fw-medium d-block">{{ item.description }}</span>
+                                    {% if item.client %}
+                                        <small class="text-muted"><i class="fas fa-building me-1"></i>{{ item.client.name }}</small>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div>
-                                <form action="{% url 'checklist_item_delete' item.id %}" method="post" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este item?');">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                                <div class="btn-group">
+                                    <a href="{% url 'checklist_item_edit' item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form action="{% url 'checklist_item_delete' item.id %}" method="post" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este item?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                         {% empty %}

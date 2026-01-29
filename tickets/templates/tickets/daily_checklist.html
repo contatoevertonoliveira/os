@@ -15,7 +15,7 @@
             </p>
         </div>
         <div>
-            <a href="{% url 'checklist_pdf' %}" class="btn btn-danger shadow-sm">
+            <a href="{% url 'checklist_pdf' %}?date={{ target_date|date:'Y-m-d' }}" class="btn btn-danger shadow-sm {% if checklist and checklist.status != 'completed' and not system_settings.allow_checklist_pdf_debug %}disabled{% endif %}">
                 <i class="fas fa-file-pdf me-2"></i>Exportar PDF
             </a>
         </div>
@@ -26,6 +26,16 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab" aria-controls="daily" aria-selected="true">
                 <i class="fas fa-list-check me-2"></i>Checklist Diário
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="activities-tab" data-bs-toggle="tab" data-bs-target="#activities" type="button" role="tab" aria-controls="activities" aria-selected="false">
+                <i class="fas fa-clipboard-list me-2"></i>Histórico de Atividades (OS)
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab" aria-controls="history" aria-selected="false">
+                <i class="fas fa-history me-2"></i>Histórico de Checklists
             </button>
         </li>
     </ul>
@@ -73,7 +83,12 @@
                                                                 {{ form.is_checked }}
                                                             </div>
                                                             <div class="flex-grow-1">
-                                                                <label class="form-label small text-muted text-uppercase fw-bold mb-1">Título da Atividade</label>
+                                                                <div class="d-flex justify-content-between">
+                                                                    <label class="form-label small text-muted text-uppercase fw-bold mb-1">Título da Atividade</label>
+                                                                    {% if form.instance.template_item.client %}
+                                                                        <span class="badge bg-info text-white"><i class="fas fa-building me-1"></i>{{ form.instance.template_item.client.name }}</span>
+                                                                    {% endif %}
+                                                                </div>
                                                                 {{ form.title }}
                                                             </div>
                                                         </div>
@@ -100,11 +115,20 @@
 
                                                         <!-- Thumbnails Display -->
                                                         {% if form.instance.images.exists %}
-                                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                            <div class="d-flex flex-wrap gap-2 mt-2" id="images-container-{{ form.instance.id }}">
                                                                 {% for img in form.instance.images.all %}
-                                                                    <a href="{{ img.image.url }}" target="_blank" class="d-block border rounded position-relative" style="width: 50px; height: 50px; overflow: hidden;">
-                                                                        <img src="{{ img.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
-                                                                    </a>
+                                                                    <div class="position-relative" style="width: 50px; height: 50px;" id="img-wrapper-{{ img.id }}">
+                                                                        <a href="{{ img.image.url }}" target="_blank" class="d-block border rounded w-100 h-100 overflow-hidden">
+                                                                            <img src="{{ img.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
+                                                                        </a>
+                                                                        <button type="button" 
+                                                                                class="btn btn-sm p-0 position-absolute top-0 end-0 star-btn {% if img.is_report_image %}text-warning{% else %}text-white{% endif %}" 
+                                                                                style="z-index: 10; text-shadow: 0 0 3px rgba(0,0,0,0.8); right: 2px; top: 0;"
+                                                                                onclick="toggleReportImage({{ img.id }}, {{ form.instance.id }})"
+                                                                                title="Definir como foto do relatório">
+                                                                            <i class="fas fa-star"></i>
+                                                                        </button>
+                                                                    </div>
                                                                 {% endfor %}
                                                             </div>
                                                         {% elif form.instance.image %}
@@ -115,6 +139,73 @@
                                                                 </a>
                                                             </div>
                                                         {% endif %}
+                                                    </div>
+                                                </div>
+
+                                                <!-- Sub-items Section -->
+                                                <div class="row ps-4 mt-3">
+                                                    <div class="col-12">
+                                                        <div class="card bg-light border-0">
+                                                            <div class="card-body p-3">
+                                                                <h6 class="card-title small fw-bold text-uppercase text-muted mb-3">
+                                                                    <i class="fas fa-list-ul me-1"></i> Detalhes / Sub-itens
+                                                                </h6>
+                                                                
+                                                                <!-- List of existing details -->
+                                                                <div id="details-list-{{ form.instance.id }}" class="mb-3">
+                                                                    {% for detail in form.instance.details.all %}
+                                                                        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{{ detail.id }}">
+                                                                            <div>
+                                                                                <small class="text-muted d-block">{{ detail.created_at|date:"H:i" }} 
+                                                                                {% if detail.client %}- <strong>{{ detail.client.name }}</strong>{% endif %}
+                                                                                {% if detail.hub %} / {{ detail.hub.name }}{% endif %}
+                                                                                </small>
+                                                                                <span>{{ detail.description }}</span>
+                                                                                {% if detail.ticket %}
+                                                                                    <span class="badge bg-info text-white ms-2" title="OS Vinculada">OS #{{ detail.ticket.id }}</span>
+                                                                                {% endif %}
+                                                                            </div>
+                                                                            <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({{ detail.id }})">
+                                                                                <i class="fas fa-trash-alt"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    {% endfor %}
+                                                                </div>
+
+                                                                <!-- Add new detail form -->
+                                                                <div class="row g-2 align-items-end">
+                                                                    <div class="col-md-3">
+                                                                        <label class="form-label small mb-1">Cliente</label>
+                                                                        <select class="form-select form-select-sm client-select" data-item-id="{{ form.instance.id }}" id="client-{{ form.instance.id }}">
+                                                                            <option value="">Selecione...</option>
+                                                                            {% for client in clients_for_details %}
+                                                                                <option value="{{ client.id }}" {% if form.instance.template_item.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
+                                                                            {% endfor %}
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-md-3">
+                                                                        <label class="form-label small mb-1">Hub/Loja</label>
+                                                                        <select class="form-select form-select-sm hub-select" id="hub-{{ form.instance.id }}" disabled>
+                                                                            <option value="">Selecione Cliente...</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div class="col-md-5">
+                                                                        <label class="form-label small mb-1">Descrição</label>
+                                                                        <div class="input-group input-group-sm">
+                                                                            <input type="text" class="form-control" id="desc-{{ form.instance.id }}" placeholder="Descreva o detalhe...">
+                                                                            <button class="btn btn-outline-secondary" type="button" onclick="detectOS({{ form.instance.id }})" title="Detectar OS do dia">
+                                                                                <i class="fas fa-magic"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-md-1">
+                                                                        <button type="button" class="btn btn-sm btn-primary w-100" onclick="addDetail({{ form.instance.id }})">
+                                                                            <i class="fas fa-plus"></i>
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 
@@ -175,12 +266,16 @@
                 </div>
             </div>
             
-            <!-- System Activities Section (Moved to bottom) -->
+            <!-- System Activities Section (Moved to Tab) -->
+        </div>
+
+        <!-- Activities Tab -->
+        <div class="tab-pane fade" id="activities" role="tabpanel" aria-labelledby="activities-tab">
             <div class="row">
                 <div class="col-12">
                     <div class="card border-0 shadow-sm mb-4">
                         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                            <h6 class="m-0 font-weight-bold text-success">Atividades do Sistema</h6>
+                            <h6 class="m-0 font-weight-bold text-success">Atividades do Sistema (OS) - {% now "d/m/Y" %}</h6>
                             <span class="badge bg-success">{{ tickets_activities.count }} atividades hoje</span>
                         </div>
                         <div class="card-body p-0">
@@ -227,9 +322,107 @@
                             {% endif %}
                         </div>
                     </div>
-                    
-                    <!-- Summary Card (Optional, or removed if redundant) -->
-                    <!-- Keeping it simple as requested, just the activities table section -->
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div class="tab-pane fade" id="history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h6 class="m-0 font-weight-bold text-info">Histórico de Checklists</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if history_checklists %}
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0 align-middle">
+                                        <thead class="bg-light">
+                                            <tr>
+                                                <th class="ps-4">Data</th>
+                                                <th>Modelo</th>
+                                                <th>Atividades</th>
+                                                <th>PDF Gerado?</th>
+                                                <th>Status</th>
+                                                <th class="text-end pe-4">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for hist in history_checklists %}
+                                                <tr>
+                                                    <td class="ps-4">{{ hist.date|date:"d/m/Y" }}</td>
+                                                    <td>{{ hist.template }}</td>
+                                                    <td>
+                                                        <span class="badge bg-light text-dark border">{{ hist.activities_status }}</span>
+                                                    </td>
+                                                    <td>
+                                                        {% if hist.pdf_generated %}
+                                                            <span class="badge bg-success">Sim</span>
+                                                        {% else %}
+                                                            <span class="badge bg-secondary">Não</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if hist.status == 'completed' or hist.is_complete %}
+                                                            <span class="badge bg-success">Concluído</span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning text-dark">Pendente</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-end pe-4">
+                                                    <!-- Edit Button -->
+                                                    <a href="{% url 'checklist_daily' %}?date={{ hist.date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary me-1" title="Editar/Visualizar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    
+                                                    <!-- Delete Button Trigger Modal -->
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ hist.id }}" title="Excluir">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                        
+                                                        <!-- Delete Modal -->
+                                                        <div class="modal fade text-start" id="deleteModal{{ hist.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ hist.id }}" aria-hidden="true">
+                                                            <div class="modal-dialog">
+                                                                <div class="modal-content">
+                                                                    <div class="modal-header">
+                                                                        <h5 class="modal-title" id="deleteModalLabel{{ hist.id }}">Confirmar Exclusão</h5>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                    </div>
+                                                                    <div class="modal-body">
+                                                                        Tem certeza que deseja excluir o histórico do checklist de <strong>{{ hist.date|date:"d/m/Y" }}</strong>?<br>
+                                                                        Essa ação não pode ser desfeita.
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                                        <!-- Form for deletion (need to implement delete view or handle via JS/POST) -->
+                                                                        <!-- Since we don't have a specific delete URL for history yet, we'll need to add one or use a generic action. 
+                                                                             For now, let's assume we might add a 'delete_history' action to the main view or a separate view.
+                                                                             Actually, I'll use a form posting to the current view with a specific action. -->
+                                                                        <form method="post" action="">
+                                                                            {% csrf_token %}
+                                                                            <input type="hidden" name="action" value="delete_history">
+                                                                            <input type="hidden" name="history_id" value="{{ hist.id }}">
+                                                                            <button type="submit" class="btn btn-danger">Excluir</button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-history fa-2x mb-2 opacity-50"></i>
+                                    <p class="m-0 small">Nenhum histórico encontrado.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -256,5 +449,207 @@
     textarea.form-control:focus {
         height: 80px;
     }
+
 </style>
+
+<script>
+    // Sub-items Management
+    document.addEventListener('DOMContentLoaded', function() {
+        // Client Selection Handler
+        document.querySelectorAll('.client-select').forEach(select => {
+            select.addEventListener('change', function() {
+                const itemId = this.dataset.itemId;
+                const clientId = this.value;
+                const hubSelect = document.getElementById(`hub-${itemId}`);
+                
+                // Reset Hub Select
+                hubSelect.innerHTML = '<option value="">Selecione...</option>';
+                hubSelect.disabled = true;
+                
+                if (clientId) {
+                    // Fetch Hubs
+                    fetch(`/api/client/${clientId}/hubs/`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.length > 0) {
+                                data.forEach(hub => {
+                                    const option = document.createElement('option');
+                                    option.value = hub.id;
+                                    option.textContent = hub.name;
+                                    hubSelect.appendChild(option);
+                                });
+                                hubSelect.disabled = false;
+                            } else {
+                                hubSelect.innerHTML = '<option value="">Sem Hubs</option>';
+                            }
+                        });
+                }
+            });
+            
+            // Trigger change if value is already selected (e.g. from template)
+            if (select.value) {
+                select.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    function addDetail(itemId) {
+        const clientSelect = document.getElementById(`client-${itemId}`);
+        const hubSelect = document.getElementById(`hub-${itemId}`);
+        const descInput = document.getElementById(`desc-${itemId}`);
+        
+        const clientId = clientSelect.value;
+        const hubId = hubSelect.value;
+        const description = descInput.value;
+        
+        if (!description) {
+            alert('Por favor, insira uma descrição.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('description', description);
+        if (clientId) formData.append('client', clientId);
+        if (hubId) formData.append('hub', hubId);
+        
+        // Add CSRF Token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/checklist/item/${itemId}/detail/add/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const list = document.getElementById(`details-list-${itemId}`);
+                list.insertAdjacentHTML('beforeend', data.html);
+                descInput.value = ''; // Clear input
+            } else {
+                alert(data.message || 'Erro ao adicionar detalhe.');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function deleteDetail(detailId) {
+        if (!confirm('Tem certeza que deseja remover este detalhe?')) return;
+        
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/checklist/detail/${detailId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const el = document.getElementById(`detail-${detailId}`);
+                if(el) el.remove();
+            } else {
+                alert('Erro ao remover detalhe.');
+            }
+        });
+    }
+
+    function detectOS(itemId) {
+        const clientSelect = document.getElementById(`client-${itemId}`);
+        const clientId = clientSelect.value;
+        
+        if (!clientId) {
+            alert('Selecione um cliente primeiro.');
+            return;
+        }
+        
+        fetch(`/api/client/${clientId}/todays-tickets/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.length > 0) {
+                    // Create details for each ticket
+                    if(confirm(`Encontradas ${data.length} OS(s) para hoje. Deseja adicionar como detalhes?`)) {
+                        data.forEach(ticket => {
+                            addTicketDetail(itemId, ticket);
+                        });
+                    }
+                } else {
+                    alert('Nenhuma OS encontrada para este cliente hoje.');
+                }
+            });
+    }
+
+    function addTicketDetail(itemId, ticket) {
+        const formData = new FormData();
+        formData.append('description', `OS #${ticket.id} - ${ticket.description}`);
+        formData.append('client', ticket.client_id);
+        if (ticket.hub_id) formData.append('hub', ticket.hub_id);
+        formData.append('ticket', ticket.id);
+        
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/checklist/item/${itemId}/detail/add/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const list = document.getElementById(`details-list-${itemId}`);
+                // Simple check to avoid duplicate UI entries immediately after add (optional)
+                // The backend doesn't prevent duplicates unless we enforce it, but let's just append.
+                list.insertAdjacentHTML('beforeend', data.html);
+            }
+        });
+    }
+
+    function toggleReportImage(imageId, itemId) {
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/checklist/image/${imageId}/toggle-report/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI
+                const container = document.getElementById(`images-container-${itemId}`);
+                
+                // If the clicked image is now the report image
+                if (data.is_report_image) {
+                    // Remove active class from all stars in this container
+                    const allStars = container.querySelectorAll('.star-btn');
+                    allStars.forEach(btn => {
+                        btn.classList.remove('text-warning');
+                        btn.classList.add('text-white');
+                    });
+                    
+                    // Add active class to the clicked star
+                    const clickedBtn = document.querySelector(`#img-wrapper-${imageId} .star-btn`);
+                    if (clickedBtn) {
+                        clickedBtn.classList.remove('text-white');
+                        clickedBtn.classList.add('text-warning');
+                    }
+                } else {
+                    // If untoggled (if allowed), remove class
+                    const clickedBtn = document.querySelector(`#img-wrapper-${imageId} .star-btn`);
+                    if (clickedBtn) {
+                        clickedBtn.classList.remove('text-warning');
+                        clickedBtn.classList.add('text-white');
+                    }
+                }
+            } else {
+                alert(data.error || 'Erro ao atualizar imagem de relatório.');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+</script>
 {% endblock %}

@@ -68,8 +68,18 @@ class DailyChecklistItemInline(admin.TabularInline):
 
 @admin.register(DailyChecklist)
 class DailyChecklistAdmin(admin.ModelAdmin):
-    list_display = ('user', 'date', 'template', 'created_at')
-    list_filter = ('date', 'user', 'template')
+    list_display = ('user', 'date', 'template', 'status', 'created_at')
+    list_filter = ('date', 'user', 'template', 'status')
     search_fields = ('user__username', 'template__name')
     inlines = [DailyChecklistItemInline]
+
+@admin.register(SystemSettings)
+class SystemSettingsAdmin(admin.ModelAdmin):
+    list_display = ('session_timeout_minutes', 'allow_checklist_pdf_debug')
+
+    def has_add_permission(self, request):
+        # Only allow adding if no instance exists
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
 

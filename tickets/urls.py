@@ -15,7 +15,10 @@ from .views import (
     TaskListView, TaskFavoriteView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
     load_hubs, ChecklistDailyView, ChecklistPDFView,
-    ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView
+    ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
+    TicketUpdateEditView, TicketUpdateDeleteView,
+    ChecklistItemDetailAddView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
+    ChecklistImageToggleReportView, ServicesHubView, WelcomeView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -24,7 +27,10 @@ urlpatterns = [
     path('api/clients/', ClientAPIView.as_view(), name='api_clients'),
     path('api/equipments/', EquipmentAPIView.as_view(), name='api_equipments'),
     path('ajax/load-hubs/', load_hubs, name='ajax_load_hubs'),
-    path('', DashboardView.as_view(), name='dashboard'),
+    path('checklist/image/<int:pk>/toggle-report/', ChecklistImageToggleReportView.as_view(), name='checklist_image_toggle_report'),
+    path('hub/', ServicesHubView.as_view(), name='services_hub'),
+    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('', WelcomeView.as_view(), name='home'),
     
     # Tasks
     path('tasks/', TaskListView.as_view(), name='task_list'),
@@ -38,6 +44,7 @@ urlpatterns = [
     path('checklist/config/<int:pk>/edit/', ChecklistTemplateUpdateView.as_view(), name='checklist_template_edit'),
     path('checklist/config/<int:pk>/delete/', ChecklistTemplateDeleteView.as_view(), name='checklist_template_delete'),
     path('checklist/config/<int:pk>/items/add/', ChecklistItemCreateView.as_view(), name='checklist_item_add'),
+    path('checklist/config/items/<int:pk>/edit/', ChecklistItemUpdateView.as_view(), name='checklist_item_edit'),
     path('checklist/config/items/<int:pk>/delete/', ChecklistItemDeleteView.as_view(), name='checklist_item_delete'),
 
     # Dashboard Hubs
@@ -46,7 +53,7 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='profile'),
     path('settings/', SettingsView.as_view(), name='settings'),
     path('login/', TokenLoginView.as_view(), name='login'),
-    path('logout/', LogoutView.as_view(next_page='login'), name='logout'),
+    path('logout/', LogoutView.as_view(next_page='home'), name='logout'),
     
     path('tickets/', TicketListView.as_view(), name='ticket_list'),
     path('tickets/new/', TicketCreateView.as_view(), name='ticket_create'),
@@ -56,8 +63,14 @@ urlpatterns = [
     path('tickets/<int:pk>/delete/', TicketDeleteView.as_view(), name='ticket_delete'),
     
     # Evolution Updates
-    # path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
-    # path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
+    path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
+    path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
+
+    # Checklist Sub-items
+    path('checklist/item/<int:item_id>/detail/add/', ChecklistItemDetailAddView.as_view(), name='checklist_item_detail_add'),
+    path('checklist/detail/<int:pk>/delete/', ChecklistItemDetailDeleteView.as_view(), name='checklist_item_detail_delete'),
+    path('api/client/<int:client_id>/hubs/', ClientHubsAPIView.as_view(), name='api_client_hubs'),
+    path('api/client/<int:client_id>/todays-tickets/', ClientTodaysTicketsAPIView.as_view(), name='api_client_todays_tickets'),
 
     # Cadastros
     path('clients/', ClientListView.as_view(), name='client_list'),

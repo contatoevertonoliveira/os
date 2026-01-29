@@ -7,7 +7,7 @@
         <div class="col-md-6">
             <div class="card shadow-sm">
                 <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">Adicionar Item ao Checklist</h5>
+                    <h5 class="card-title mb-0">{% if object %}Editar Item{% else %}Adicionar Item ao Checklist{% endif %}</h5>
                 </div>
                 <div class="card-body">
                     <form method="post">
@@ -16,6 +16,12 @@
                             <label class="form-label">Título da Atividade</label>
                             {% render_field form.title class="form-control" placeholder="Ex: Backup Noturno" %}
                             <div class="form-text text-muted">Nome curto da atividade.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Cliente Vinculado (Opcional)</label>
+                            {% render_field form.client class="form-select" %}
+                            <div class="form-text text-muted">Selecione se esta tarefa for específica para um cliente.</div>
                         </div>
 
                         <div class="mb-3">
@@ -31,7 +37,7 @@
 
                         <div class="d-flex justify-content-end gap-2 pt-3 border-top">
                             <button type="button" class="btn btn-light border" onclick="history.back()">Cancelar</button>
-                            <button type="submit" class="btn btn-success px-4">Adicionar Item</button>
+                            <button type="submit" class="btn btn-success px-4">{% if object %}Salvar Alterações{% else %}Adicionar Item{% endif %}</button>
                         </div>
                     </form>
                 </div>

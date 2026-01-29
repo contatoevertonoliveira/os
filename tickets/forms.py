@@ -173,10 +173,10 @@ class TechnicianMultipleChoiceField(forms.ModelMultipleChoiceField):
 
 class TicketForm(forms.ModelForm):
     technicians = TechnicianMultipleChoiceField(
-        queryset=User.objects.filter(profile__role='technician', is_active=True).order_by('first_name'),
+        queryset=User.objects.filter(profile__role__in=['technician', 'standard', 'admin', 'super_admin'], is_active=True).order_by('first_name'),
         required=False,
         label="Técnicos Responsáveis",
-        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '4'})
+        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '6'})
     )
     requester = TechnicianChoiceField(
         queryset=User.objects.filter(is_active=True).order_by('first_name'),
@@ -319,7 +319,7 @@ class TicketModalForm(TicketUpdateForm):
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
         }
 
-class MultipleFileInput(forms.ClearableFileInput):
+class MultipleFileInput(forms.FileInput):
     allow_multiple_selected = True
 
 class TicketEvolutionForm(forms.ModelForm):
@@ -417,9 +417,24 @@ class SystemSettingsForm(forms.ModelForm):
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
+class MultipleFileField(forms.FileField):
+    def to_python(self, data):
+        if not data:
+            return []
+        if not isinstance(data, list):
+            data = [data]
+        return data
+
+    def clean(self, data, initial=None):
+        if not data and self.required:
+             raise forms.ValidationError(self.error_messages['required'], code='required')
+        if not data:
+             return []
+        return data
+
 class DailyChecklistItemForm(forms.ModelForm):
     # Field for multiple images (not bound to model directly)
-    new_images = forms.FileField(
+    new_images = MultipleFileField(
         widget=MultipleFileInput(attrs={'class': 'form-control form-control-sm', 'multiple': True}),
         label="Adicionar Fotos",
         required=False

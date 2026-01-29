@@ -176,6 +176,12 @@ class SystemSettings(models.Model):
         verbose_name="Tempo de Sessão (minutos)", 
         help_text="Tempo de inatividade para desconectar o usuário automaticamente."
     )
+    
+    allow_checklist_pdf_debug = models.BooleanField(
+        default=False, 
+        verbose_name="Liberar PDF de Checklist (Debug)", 
+        help_text="Se marcado, permite gerar PDF de checklists não finalizados para testes."
+    )
 
     def __str__(self):
         return "Configurações do Sistema"
@@ -471,6 +477,9 @@ class ChecklistTemplateItem(models.Model):
     title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
     description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
     order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    
+    # New field to link to a client
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente Vinculado", help_text="Se selecionado, esta tarefa será vinculada a este cliente específico.")
 
     def __str__(self):
         return self.description
@@ -484,8 +493,25 @@ class DailyChecklist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuário")
     date = models.DateField(verbose_name="Data", default=timezone.now)
     template = models.ForeignKey(ChecklistTemplate, on_delete=models.SET_NULL, null=True, verbose_name="Modelo Utilizado")
+    pdf_generated_at = models.DateTimeField(null=True, blank=True, verbose_name="PDF Gerado em")
+    status = models.CharField(max_length=20, default='pending', choices=[('pending', 'Pendente'), ('completed', 'Concluído')], verbose_name="Status")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def activities_status(self):
+        """Returns a summary of activities status."""
+        total = self.items.count()
+        completed = self.items.filter(is_checked=True).count()
+        return f"{completed}/{total} Concluídos"
+
+    @property
+    def pdf_generated(self):
+        return self.pdf_generated_at is not None
+
+    @property
+    def is_complete(self):
+        return self.status == 'completed'
 
     def __str__(self):
         return f"Checklist {self.user.username} - {self.date}"
@@ -497,6 +523,9 @@ class DailyChecklist(models.Model):
 
 class DailyChecklistItem(models.Model):
     daily_checklist = models.ForeignKey(DailyChecklist, on_delete=models.CASCADE, related_name='items')
+    # Link back to the template item to access configuration like client
+    template_item = models.ForeignKey(ChecklistTemplateItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_items')
+    
     title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
     description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
     is_checked = models.BooleanField(default=False, verbose_name="Realizado")
@@ -506,6 +535,17 @@ class DailyChecklistItem(models.Model):
     def __str__(self):
         return self.description
 
+    @property
+    def report_image(self):
+        """Returns the image selected for the report, or the first one if none selected."""
+        # Check for explicitly selected report image
+        report_img = self.images.filter(is_report_image=True).first()
+        if report_img:
+            return report_img
+        
+        # Fallback to first image
+        return self.images.first()
+
     class Meta:
         verbose_name = "Item do Checklist Diário"
         verbose_name_plural = "Itens do Checklist Diário"
@@ -513,7 +553,29 @@ class DailyChecklistItem(models.Model):
 class DailyChecklistItemImage(models.Model):
     item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='checklist_photos/', verbose_name="Foto")
+    is_report_image = models.BooleanField(default=False, verbose_name="Foto do Relatório")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.is_report_image:
+            # Ensure only one image per item is selected for the report
+            DailyChecklistItemImage.objects.filter(item=self.item, is_report_image=True).exclude(pk=self.pk).update(is_report_image=False)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Imagem do item {self.item.id}"
+
+class DailyChecklistItemDetail(models.Model):
+    item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='details')
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")
+    hub = models.ForeignKey(ClientHub, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja")
+    ticket = models.ForeignKey(Ticket, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="OS Relacionada")
+    description = models.TextField(verbose_name="Descrição do Detalhe")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Detalhe para {self.item} - {self.client}"
+
+    class Meta:
+        verbose_name = "Detalhe do Item"
+        verbose_name_plural = "Detalhes dos Itens"

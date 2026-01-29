@@ -16,7 +16,7 @@ from django.conf import settings
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
-from .views_checklist_config import ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView
+from .views_checklist_config import ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView, ChecklistItemUpdateView
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Count, Q
@@ -255,11 +255,33 @@ class TokenLoginView(LoginView):
         # Garante que o usuário está ativo
         user = form.get_user()
         if not user.is_active:
+            if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'errors': {'token': ['Usuário inativo.']}}, status=400)
             return self.form_invalid(form)
-        return super().form_valid(form)
+            
+        # Realiza o login (chama auth_login internamente)
+        response = super().form_valid(form)
+        
+        # Se for AJAX, retorna JSON em vez de redirecionar
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'redirect_url': self.get_success_url()})
+            
+        return response
+
+    def form_invalid(self, form):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
+        return super().form_invalid(form)
 
     def get_success_url(self):
-        return reverse_lazy('dashboard')
+        url = self.get_redirect_url()
+        return url or reverse_lazy('dashboard')
+
+class ServicesHubView(TemplateView):
+    template_name = 'services_hub.html'
+
+class WelcomeView(TemplateView):
+    template_name = 'welcome.html'
 
 # Ticket Views
 class TicketListView(LoginRequiredMixin, ListView):
@@ -1558,11 +1580,20 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
 class ChecklistDailyView(LoginRequiredMixin, TemplateView):
     template_name = 'tickets/daily_checklist.html'
 
+    def get_target_date(self):
+        date_str = self.request.GET.get('date')
+        if date_str:
+            try:
+                return datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        return timezone.now().date()
+
     def get(self, request, *args, **kwargs):
         # Handle template selection via GET param (e.g. from sidebar)
         if 'template_id' in request.GET:
             template_id = request.GET.get('template_id')
-            today = timezone.now().date()
+            today = timezone.now().date() # Creation defaults to today
             
             # Check if we already have a checklist
             existing_checklist = DailyChecklist.objects.filter(user=request.user, date=today).first()
@@ -1578,6 +1609,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     for item in template.items.all():
                         DailyChecklistItem.objects.create(
                             daily_checklist=existing_checklist,
+                            template_item=item,
                             title=item.title,
                             description=item.description
                         )
@@ -1609,6 +1641,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 for item in template.items.all():
                     DailyChecklistItem.objects.create(
                         daily_checklist=checklist,
+                        template_item=item,
                         title=item.title,
                         description=item.description
                     )
@@ -1620,11 +1653,17 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        today = timezone.now().date()
+        target_date = self.get_target_date()
         user = self.request.user
         
-        # Try to get existing checklist
-        checklist = DailyChecklist.objects.filter(user=user, date=today).prefetch_related('items__images').first()
+        context['target_date'] = target_date
+        context['is_today'] = (target_date == timezone.now().date())
+        
+        # Get System Settings
+        context['system_settings'] = SystemSettings.objects.first()
+        
+        # Try to get existing checklist for target date
+        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related('items__images').first()
         
         # Only consider checklist valid if it has a template associated
         # This handles cases where a checklist was created automatically but no template matched
@@ -1634,6 +1673,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 for item in checklist.template.items.all():
                     DailyChecklistItem.objects.create(
                         daily_checklist=checklist,
+                        template_item=item,
                         title=item.title,
                         description=item.description
                     )
@@ -1648,33 +1688,87 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             context['formset'] = formset
         else:
             # No checklist yet OR orphan checklist (no template), provide templates for selection
-            context['available_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+            # Only show templates if we are on today (cannot create checklists for past days via this flow)
+            if context['is_today']:
+                context['available_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+            else:
+                context['available_templates'] = []
+                
             # If it's an orphan checklist, pass it so we can update it instead of creating new
             context['checklist'] = None # We treat it as None for the UI to show selection
             context['existing_orphan_checklist'] = checklist 
             context['formset'] = None
         
         # System Activities (Tickets)
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        # Should we show activities for the target date? Yes, makes sense for context.
+        date_start = datetime.combine(target_date, datetime.min.time())
+        date_end = datetime.combine(target_date, datetime.max.time())
         
         tickets_activities = Ticket.objects.filter(
             Q(technicians=user) | Q(requester=user),
-            updated_at__range=(today_start, today_end)
+            updated_at__range=(date_start, date_end)
         ).distinct()
         
         context['tickets_activities'] = tickets_activities
+
+        # History Checklists
+        context['history_checklists'] = DailyChecklist.objects.filter(user=user).order_by('-date')
         
+        # Clients for details
+        context['clients_for_details'] = Client.objects.all().order_by('name')
+
         return context
 
     def post(self, request, *args, **kwargs):
+        # Handle Delete History
+        if request.POST.get('action') == 'delete_history':
+            history_id = request.POST.get('history_id')
+            history_item = get_object_or_404(DailyChecklist, pk=history_id, user=request.user)
+            history_item.delete()
+            messages.success(request, "Histórico de checklist excluído com sucesso.")
+            return redirect('checklist_daily')
+
         # Handle Reset/Change Template
         if request.POST.get('action') == 'reset':
-            today = timezone.now().date()
+            today = timezone.now().date() # Reset only applies to today? Or target date?
+            # Assuming reset is for the current active checklist, usually today. 
+            # If viewing past checklist, 'reset' button might not be visible or appropriate.
+            # Let's stick to today for reset for safety, or use target_date if we want to allow deleting past checklists via reset.
+            # Given delete_history exists, maybe reset is just for today.
             checklist = DailyChecklist.objects.filter(user=request.user, date=today).first()
             if checklist:
                 checklist.delete()
                 messages.success(request, "Checklist reiniciado. Selecione um novo modelo.")
+            return redirect('checklist_daily')
+            
+        # Handle Finish Checklist
+        if request.POST.get('action') == 'finish':
+            target_date = self.get_target_date()
+            checklist = DailyChecklist.objects.filter(user=request.user, date=target_date).first()
+            
+            # Save current state first (handle formset save)
+            context = self.get_context_data(**kwargs)
+            formset = context.get('formset')
+            
+            if formset and formset.is_valid():
+                formset.save()
+                
+                # Process images similar to normal save
+                for i, form in enumerate(formset.forms):
+                    if not form.cleaned_data.get('id'): continue
+                    instance = form.instance
+                    files = request.FILES.getlist(f'items-{i}-new_images')
+                    for f in files:
+                        DailyChecklistItemImage.objects.create(item=instance, image=f)
+
+            if checklist:
+                checklist.status = 'completed'
+                checklist.save()
+                messages.success(request, "Checklist finalizado com sucesso! Agora você pode gerar o relatório PDF.")
+            
+            # Redirect preserving date if it's not today
+            if target_date != timezone.now().date():
+                return redirect(f"{reverse('checklist_daily')}?date={target_date}")
             return redirect('checklist_daily')
 
         # Handle Template Selection
@@ -1704,6 +1798,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             for item in template.items.all():
                 DailyChecklistItem.objects.create(
                     daily_checklist=checklist,
+                    template_item=item,
                     title=item.title,
                     description=item.description
                 )
@@ -1735,6 +1830,9 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     )
 
             messages.success(request, "Checklist atualizado com sucesso!")
+            target_date = self.get_target_date()
+            if target_date != timezone.now().date():
+                 return redirect(f"{reverse('checklist_daily')}?date={target_date}")
             return redirect('checklist_daily')
         
         if formset:
@@ -1744,21 +1842,37 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
 
 class ChecklistPDFView(LoginRequiredMixin, View):
     def get(self, request, *args, **kwargs):
-        today = timezone.now().date()
+        # Determine date
+        date_str = request.GET.get('date')
+        target_date = timezone.now().date()
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
         user = request.user
         
-        checklist = DailyChecklist.objects.filter(user=user, date=today).prefetch_related('items__images').first()
+        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related('items__images').first()
         if not checklist:
-            messages.warning(request, "Nenhum checklist encontrado para hoje.")
+            messages.warning(request, f"Nenhum checklist encontrado para {target_date.strftime('%d/%m/%Y')}.")
             return redirect('checklist_daily')
 
+        # Check permission (Completed or Debug Mode)
+        settings_obj = SystemSettings.objects.first()
+        allow_debug = settings_obj.allow_checklist_pdf_debug if settings_obj else False
+        
+        if checklist.status != 'completed' and not allow_debug:
+             messages.error(request, "O checklist precisa ser finalizado antes de gerar o PDF.")
+             return redirect('checklist_daily')
+
         # Tickets Activities
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
+        date_start = datetime.combine(target_date, datetime.min.time())
+        date_end = datetime.combine(target_date, datetime.max.time())
         
         tickets_activities = Ticket.objects.filter(
             Q(technicians=user) | Q(requester=user),
-            updated_at__range=(today_start, today_end)
+            updated_at__range=(date_start, date_end)
         ).distinct()
 
         total_items = checklist.items.count()
@@ -1770,7 +1884,7 @@ class ChecklistPDFView(LoginRequiredMixin, View):
             'checklist': checklist,
             'tickets_activities': tickets_activities,
             'user': user,
-            'date': today,
+            'date': target_date,
             'total_items': total_items,
             'checked_items': checked_items,
             'pending_items': pending_items,
@@ -1817,4 +1931,109 @@ class ChecklistPDFView(LoginRequiredMixin, View):
         if pisa_status.err:
             return HttpResponse('We had some errors <pre>' + html + '</pre>')
         return response
+
+class ChecklistItemDetailAddView(LoginRequiredMixin, View):
+    def post(self, request, item_id):
+        item = get_object_or_404(DailyChecklistItem, pk=item_id)
+        
+        # Verify ownership (optional but recommended)
+        if item.daily_checklist.user != request.user:
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+        client_id = request.POST.get('client')
+        hub_id = request.POST.get('hub')
+        description = request.POST.get('description')
+        ticket_id = request.POST.get('ticket') # Optional link to OS
+
+        if not description:
+             return JsonResponse({'status': 'error', 'message': 'Descrição é obrigatória'}, status=400)
+
+        detail = DailyChecklistItemDetail(
+            item=item,
+            description=description
+        )
+
+        if client_id:
+            detail.client_id = client_id
+        if hub_id:
+            detail.hub_id = hub_id
+        if ticket_id:
+            detail.ticket_id = ticket_id
+
+        detail.save()
+
+        # Return HTML fragment for the new detail row
+        html = f"""
+        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{detail.id}">
+            <div>
+                <small class="text-muted d-block">{detail.created_at.strftime('%H:%M')} 
+                {f'- <strong>{detail.client.name}</strong>' if detail.client else ''}
+                {f' / {detail.hub.name}' if detail.hub else ''}
+                </small>
+                <span>{detail.description}</span>
+            </div>
+            <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({detail.id})">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+        """
+
+        return JsonResponse({'status': 'success', 'html': html})
+
+class ChecklistItemDetailDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        detail = get_object_or_404(DailyChecklistItemDetail, pk=pk)
+        
+        if detail.item.daily_checklist.user != request.user:
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+            
+        detail.delete()
+        return JsonResponse({'status': 'success'})
+
+class ClientHubsAPIView(LoginRequiredMixin, View):
+    def get(self, request, client_id):
+        hubs = ClientHub.objects.filter(client_id=client_id).values('id', 'name').order_by('name')
+        return JsonResponse(list(hubs), safe=False)
+
+class ClientTodaysTicketsAPIView(LoginRequiredMixin, View):
+    def get(self, request, client_id):
+        today = timezone.now().date()
+        today_start = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
+        today_end = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
+        
+        tickets = Ticket.objects.filter(
+            client_id=client_id,
+            created_at__range=(today_start, today_end)
+        ).values('id', 'formatted_id', 'description', 'hub__name', 'hub__id', 'client__id', 'created_at')
+        
+        # Format for frontend
+        data = []
+        for t in tickets:
+            data.append({
+                'id': t['id'],
+                'label': f"OS #{t['formatted_id']} - {t['created_at'].strftime('%H:%M')} - {t['hub__name'] or 'Geral'}",
+                'description': t['description'],
+                'client_id': t['client__id'],
+                'hub_id': t['hub__id']
+            })
+            
+        return JsonResponse(data, safe=False)
+
+class ChecklistImageToggleReportView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        image = get_object_or_404(DailyChecklistItemImage, pk=pk)
+        
+        # Verify ownership (optional but recommended)
+        if image.item.daily_checklist.user != request.user and not request.user.is_superuser:
+             return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+        # Toggle status
+        image.is_report_image = not image.is_report_image
+        image.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'is_report_image': image.is_report_image,
+            'item_id': image.item.id
+        })
 
