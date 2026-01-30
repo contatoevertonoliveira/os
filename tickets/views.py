@@ -1858,14 +1858,6 @@ class ChecklistPDFView(LoginRequiredMixin, View):
             messages.warning(request, f"Nenhum checklist encontrado para {target_date.strftime('%d/%m/%Y')}.")
             return redirect('checklist_daily')
 
-        # Check permission (Completed or Debug Mode)
-        settings_obj = SystemSettings.objects.first()
-        allow_debug = settings_obj.allow_checklist_pdf_debug if settings_obj else False
-        
-        if checklist.status != 'completed' and not allow_debug:
-             messages.error(request, "O checklist precisa ser finalizado antes de gerar o PDF.")
-             return redirect('checklist_daily')
-
         # Tickets Activities
         date_start = datetime.combine(target_date, datetime.min.time())
         date_end = datetime.combine(target_date, datetime.max.time())
