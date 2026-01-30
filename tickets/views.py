@@ -1881,56 +1881,60 @@ class ChecklistPDFView(LoginRequiredMixin, View):
         activities_count = tickets_activities.count()
 
         context = {
-            'checklist': checklist,
-            'tickets_activities': tickets_activities,
-            'user': user,
-            'date': target_date,
-            'total_items': total_items,
-            'checked_items': checked_items,
-            'pending_items': pending_items,
-            'activities_count': activities_count,
-        }
-        
-        template_path = 'tickets/checklist_pdf.html'
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="checklist_{user.username}_{today}.pdf"'
-        
-        template = get_template(template_path)
-        html = template.render(context)
-        
-        def link_callback(uri, rel):
-            if uri.startswith('http://') or uri.startswith('https://'):
-                return uri
-            
-            # Handle Static Files
-            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
-                path = uri.replace(settings.STATIC_URL, '')
-                absolute_path = finders.find(path)
-                if absolute_path:
-                    return absolute_path
+                    'checklist': checklist,
+                    'tickets_activities': tickets_activities,
+                    'user': user,
+                    'date': target_date,
+                    'total_items': total_items,
+                    'checked_items': checked_items,
+                    'pending_items': pending_items,
+                    'activities_count': activities_count,
+                    'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_jumper.png'),
+                }
+                
+                template_path = 'tickets/checklist_pdf.html'
+                response = HttpResponse(content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="checklist_{user.username}_{target_date}.pdf"'
+                
+                template = get_template(template_path)
+                html = template.render(context)
+                
+                def link_callback(uri, rel):
+                    if uri.startswith('http://') or uri.startswith('https://'):
+                        return uri
+                    
+                    # Handle Static Files
+                    if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                        path = uri.replace(settings.STATIC_URL, '')
+                        absolute_path = finders.find(path)
+                        if absolute_path:
+                            return absolute_path
 
-            # Handle Media Files
-            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
-                path = uri.replace(settings.MEDIA_URL, '')
-                absolute_path = os.path.join(settings.MEDIA_ROOT, path)
-                if os.path.exists(absolute_path):
-                    return absolute_path
-            
-            # Handle relative paths (fallback)
-            if not uri.startswith('/'):
-                 # Check if it is a media file referenced relatively
-                 if 'media/' in uri:
-                     possible_path = os.path.join(settings.BASE_DIR, uri)
-                     if os.path.exists(possible_path):
-                         return possible_path
+                    # Handle Media Files
+                    if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                        path = uri.replace(settings.MEDIA_URL, '')
+                        absolute_path = os.path.join(settings.MEDIA_ROOT, path.replace('/', os.sep))
+                        if os.path.exists(absolute_path):
+                            return absolute_path
+                    
+                    # Handle relative paths (fallback)
+                    if not uri.startswith('/'):
+                         # Check if it is a media file referenced relatively
+                         if 'media/' in uri:
+                             possible_path = os.path.join(settings.BASE_DIR, uri.replace('/', os.sep))
+                             if os.path.exists(possible_path):
+                                 return possible_path
 
-            return uri
-        
-        pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
-        
-        if pisa_status.err:
-            return HttpResponse('We had some errors <pre>' + html + '</pre>')
-        return response
+                    return uri
+                
+                try:
+                    pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+                    if pisa_status.err:
+                        return HttpResponse(f'We had some errors <pre>{html}</pre>')
+                except Exception as e:
+                    return HttpResponse(f'Error generating PDF: {str(e)}')
+                    
+                return response
 
 class ChecklistItemDetailAddView(LoginRequiredMixin, View):
     def post(self, request, item_id):
