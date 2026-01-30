@@ -20,6 +20,7 @@
         .summary-grid td { padding: 6px; border: 1px solid #ddd; }
         .checked { color: #198754; font-weight: bold; }
         .unchecked { color: #dc3545; }
+        .badge-approved { background-color: #198754; color: white; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; margin-bottom: 5px; text-transform: uppercase; }
         .signature { margin-top: 30px; }
         .signature-line { border-top: 1px solid #aaa; width: 60%; margin: 20px 0 5px; }
         .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #777; }
@@ -33,9 +34,12 @@
                     <img src="{{ logo_path }}" alt="JumperFour" style="height: 55px;">
                 </td>
                 <td width="50%" class="brand-title">
+                    {% if checklist.status == 'completed' %}
+                        <div class="badge-approved">APROVADO</div>
+                    {% endif %}
                     Relatório Diário de Atividades
-                    <div class="muted">Nº {{ checklist.id|stringformat:"03d" }} - {{ day_of_week }}</div>
-                    <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
+                    <div class="muted">Nº {{ checklist.id|stringformat:"03d" }}</div>
+                    <div class="muted">Data: {{ date|date:"l"|capfirst }}, {{ date|date:"d/m/Y" }}</div>
                 </td>
             </tr>
         </table>
