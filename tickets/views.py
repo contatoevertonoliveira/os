@@ -8,7 +8,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Q, Exists, OuterRef, Subquery
+from django.db.models import Q, Exists, OuterRef, Subquery, Prefetch
 from django.template.loader import get_template
 from xhtml2pdf import pisa
 from django.contrib.staticfiles import finders
@@ -1663,7 +1663,10 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         context['system_settings'] = SystemSettings.objects.first()
         
         # Try to get existing checklist for target date
-        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related('items__images').first()
+        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related(
+            'items__images',
+            Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at'))
+        ).first()
         
         # Only consider checklist valid if it has a template associated
         # This handles cases where a checklist was created automatically but no template matched
@@ -1853,7 +1856,10 @@ class ChecklistPDFView(LoginRequiredMixin, View):
 
         user = request.user
         
-        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related('items__images').first()
+        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related(
+            'items__images',
+            Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at'))
+        ).first()
         if not checklist:
             messages.warning(request, f"Nenhum checklist encontrado para {target_date.strftime('%d/%m/%Y')}.")
             return redirect('checklist_daily')

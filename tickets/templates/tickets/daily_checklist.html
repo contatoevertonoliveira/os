@@ -371,7 +371,12 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-end pe-4">
-                                                    <!-- Edit Button -->
+                                                        <!-- PDF Button -->
+                                                        <a href="{% url 'checklist_pdf' %}?date={{ hist.date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-secondary me-1" title="Baixar PDF" target="_blank">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+
+                                                        <!-- Edit Button -->
                                                     <a href="{% url 'checklist_daily' %}?date={{ hist.date|date:'Y-m-d' }}" class="btn btn-sm btn-outline-primary me-1" title="Editar/Visualizar">
                                                         <i class="fas fa-edit"></i>
                                                     </a>

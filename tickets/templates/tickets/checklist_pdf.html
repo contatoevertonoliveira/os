@@ -94,21 +94,31 @@
                 <tr>
                     <td colspan="4" style="background-color: #f9f9f9; padding: 5px 10px 5px 30px; border-top: none;">
                         <div style="font-size: 11px; color: #666; margin-bottom: 2px;"><strong>Detalhes / Sub-itens:</strong></div>
-                        <ul style="margin: 0; padding-left: 15px; list-style-type: circle;">
-                            {% for detail in item.details.all %}
-                            <li style="font-size: 11px; color: #444; margin-bottom: 2px;">
-                                <span style="color: #888;">[{{ detail.created_at|date:"H:i" }}]</span>
-                                {% if detail.client %}
-                                    <strong>{{ detail.client.name }}</strong>
-                                    {% if detail.hub %} / {{ detail.hub.name }}{% endif %} - 
-                                {% endif %}
-                                {{ detail.description }}
-                                {% if detail.ticket %} 
-                                    <span style="color: #0d6efd;">(OS #{{ detail.ticket.leankeep_id|default:detail.ticket.formatted_id }})</span>
-                                {% endif %}
-                            </li>
-                            {% endfor %}
-                        </ul>
+                        
+                        {% regroup item.details.all by hub as hub_list %}
+                        
+                        {% for hub_group in hub_list %}
+                            {% if hub_group.grouper %}
+                                <div style="font-size: 11px; color: #333; font-weight: bold; margin-top: 6px; margin-bottom: 2px; padding-left: 15px;">
+                                    <span style="color: #555;">Hub:</span> {{ hub_group.grouper.name }}
+                                </div>
+                            {% endif %}
+                            
+                            <ul style="margin: 0; padding-left: 15px; list-style-type: circle;">
+                                {% for detail in hub_group.list %}
+                                <li style="font-size: 11px; color: #444; margin-bottom: 2px;">
+                                    <span style="color: #888;">[{{ detail.created_at|date:"H:i" }}]</span>
+                                    {% if detail.client and not hub_group.grouper %}
+                                        <strong>{{ detail.client.name }}</strong> - 
+                                    {% endif %}
+                                    {{ detail.description }}
+                                    {% if detail.ticket %} 
+                                        <span style="color: #0d6efd;">(OS #{{ detail.ticket.leankeep_id|default:detail.ticket.formatted_id }})</span>
+                                    {% endif %}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% endfor %}
                     </td>
                 </tr>
                 {% endif %}
