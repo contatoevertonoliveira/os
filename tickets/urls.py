@@ -17,7 +17,7 @@ from .views import (
     load_hubs, ChecklistDailyView, ChecklistPDFView,
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
     TicketUpdateEditView, TicketUpdateDeleteView,
-    ChecklistItemDetailAddView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
+    ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
     ChecklistImageToggleReportView, ServicesHubView, WelcomeView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
@@ -68,6 +68,7 @@ urlpatterns = [
 
     # Checklist Sub-items
     path('checklist/item/<int:item_id>/detail/add/', ChecklistItemDetailAddView.as_view(), name='checklist_item_detail_add'),
+    path('checklist/detail/<int:pk>/edit/', ChecklistItemDetailUpdateView.as_view(), name='checklist_item_detail_edit'),
     path('checklist/detail/<int:pk>/delete/', ChecklistItemDetailDeleteView.as_view(), name='checklist_item_detail_delete'),
     path('api/client/<int:client_id>/hubs/', ClientHubsAPIView.as_view(), name='api_client_hubs'),
     path('api/client/<int:client_id>/todays-tickets/', ClientTodaysTicketsAPIView.as_view(), name='api_client_todays_tickets'),

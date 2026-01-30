@@ -177,30 +177,39 @@
                                                     </h6>
                                                     
                                                     <!-- Existing Details List -->
-                                                    <div id="details-container-{{ form.instance.id }}" class="mb-2">
-                                                        {% for detail in form.instance.details.all %}
-                                                            <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{{ detail.id }}">
-                                                                <div>
-                                                                    <small class="text-muted d-block">
-                                                                        {{ detail.created_at|date:"H:i" }}
-                                                                        {% if detail.hub %} / <strong>{{ detail.hub.name }}</strong>{% endif %}
-                                                                    </small>
-                                                                    <span class="small">{{ detail.description }}</span>
-                                                                </div>
-                                                                {% if is_today %}
-                                                                <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({{ detail.id }})">
-                                                                    <i class="fas fa-trash-alt"></i>
-                                                                </button>
-                                                                {% endif %}
-                                                            </div>
-                                                        {% endfor %}
+                                                    <div class="table-responsive mb-2">
+                                                        <table class="table table-sm table-borderless align-middle mb-0">
+                                                            <tbody id="details-container-{{ form.instance.id }}">
+                                                                {% for detail in form.instance.details.all %}
+                                                                    <tr id="detail-{{ detail.id }}">
+                                                                        <td>
+                                                                            <span class="badge bg-light text-dark border">{{ detail.hub.name|default:"-" }}</span>
+                                                                        </td>
+                                                                        <td>
+                                                                            {{ detail.description }}
+                                                                        </td>
+                                                                        <td class="text-end" style="width: 100px;">
+                                                                            {% if is_today %}
+                                                                            <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editDetail({{ detail.id }}, '{{ detail.hub.id|default:'' }}', '{{ detail.description|escapejs }}')" title="Editar">
+                                                                                <i class="fas fa-edit"></i>
+                                                                            </button>
+                                                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteDetail({{ detail.id }})" title="Excluir">
+                                                                                <i class="fas fa-trash-alt"></i>
+                                                                            </button>
+                                                                            {% endif %}
+                                                                        </td>
+                                                                    </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
                                                     </div>
 
                                                     <!-- Add New Detail Form -->
                                                     {% if is_today %}
                                                     <div class="bg-light p-2 rounded">
-                                                        <form onsubmit="return addDetail(event, {{ form.instance.id }})">
+                                                        <form onsubmit="return saveDetail(event, {{ form.instance.id }})">
                                                             <input type="hidden" name="client" value="{{ form.instance.template_item.client.id }}">
+                                                            <input type="hidden" name="detail_id" value="">
                                                             <div class="row g-2 align-items-center">
                                                                 <div class="col-md-4">
                                                                     <select name="hub" class="form-select form-select-sm" required>
@@ -479,20 +488,24 @@
 </style>
 
 <script>
-    function addDetail(e, itemId) {
+    function saveDetail(e, itemId) {
         e.preventDefault();
         const form = e.target;
         const formData = new FormData(form);
         const container = document.getElementById(`details-container-${itemId}`);
         const submitBtn = form.querySelector('button[type="submit"]');
         const originalBtnContent = submitBtn.innerHTML;
+        const detailId = form.querySelector('input[name="detail_id"]').value;
         
         // Disable button and show loading
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
-        // Add item_id to URL
-        const url = `/tickets/checklist/item/${itemId}/detail/add/`;
+        // Determine URL based on whether we are adding or editing
+        let url = `/tickets/checklist/item/${itemId}/detail/add/`;
+        if (detailId) {
+            url = `/tickets/checklist/detail/${detailId}/edit/`;
+        }
 
         fetch(url, {
             method: 'POST',
@@ -504,12 +517,21 @@
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
-                container.insertAdjacentHTML('beforeend', data.html);
-                form.reset();
-                // Reset select (sometimes reset() doesn't clear fully if there are defaults)
-                form.querySelector('select[name="hub"]').value = "";
+                if (detailId) {
+                    // Update existing row
+                    const row = document.getElementById(`detail-${detailId}`);
+                    if (row) {
+                        row.innerHTML = data.html;
+                        // Reset form to "Add" mode
+                        resetForm(form);
+                    }
+                } else {
+                    // Add new row
+                    container.insertAdjacentHTML('beforeend', data.html);
+                    resetForm(form);
+                }
             } else {
-                alert(data.message || 'Erro ao adicionar detalhe');
+                alert(data.message || 'Erro ao salvar detalhe');
             }
         })
         .catch(error => {
@@ -518,10 +540,67 @@
         })
         .finally(() => {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnContent;
+            // Only restore button content if we are still in the same mode (edit/add)
+            // But since we reset form on success, we only need to handle error/finally state where form might not be reset
+            if (!detailId && submitBtn.innerHTML.includes('spinner')) {
+                 submitBtn.innerHTML = originalBtnContent;
+            }
         });
         
         return false;
+    }
+
+    function editDetail(detailId, hubId, description) {
+        const detailRow = document.getElementById(`detail-${detailId}`);
+        // Find the form related to this detail. It's in the parent structure.
+        // Structure: .border-start -> form
+        const container = detailRow.closest('.border-start');
+        const form = container.querySelector('form');
+        
+        if (!form) return;
+
+        form.querySelector('input[name="detail_id"]').value = detailId;
+        form.querySelector('input[name="description"]').value = description;
+        
+        const hubSelect = form.querySelector('select[name="hub"]');
+        if (hubSelect) hubSelect.value = hubId;
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-check"></i>';
+        submitBtn.classList.remove('btn-info');
+        submitBtn.classList.add('btn-success');
+        submitBtn.title = "Salvar Edição";
+        
+        // Add cancel button if not exists
+        if (!form.querySelector('.btn-cancel-edit')) {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'btn btn-sm btn-secondary ms-1 btn-cancel-edit';
+            cancelBtn.innerHTML = '<i class="fas fa-times"></i>';
+            cancelBtn.title = "Cancelar Edição";
+            cancelBtn.onclick = function() {
+                resetForm(form);
+            };
+            submitBtn.parentNode.appendChild(cancelBtn);
+        }
+        
+        // Scroll to form
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function resetForm(form) {
+        form.reset();
+        form.querySelector('input[name="detail_id"]').value = '';
+        form.querySelector('select[name="hub"]').value = ""; // Ensure select is reset
+        
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-plus"></i>';
+        submitBtn.classList.remove('btn-success');
+        submitBtn.classList.add('btn-info');
+        submitBtn.title = "Adicionar Detalhe";
+        
+        const cancelBtn = form.querySelector('.btn-cancel-edit');
+        if (cancelBtn) cancelBtn.remove();
     }
 
     function deleteDetail(detailId) {

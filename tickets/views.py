@@ -1960,21 +1960,66 @@ class ChecklistItemDetailAddView(LoginRequiredMixin, View):
 
         # Return HTML fragment for the new detail row
         html = f"""
-        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{detail.id}">
-            <div>
-                <small class="text-muted d-block">{detail.created_at.strftime('%H:%M')} 
-                {f'- <strong>{detail.client.name}</strong>' if detail.client else ''}
-                {f' / {detail.hub.name}' if detail.hub else ''}
-                </small>
-                <span>{detail.description}</span>
-            </div>
-            <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({detail.id})">
-                <i class="fas fa-trash-alt"></i>
-            </button>
-        </div>
+        <tr id="detail-{detail.id}">
+            <td>
+                <span class="badge bg-light text-dark border">{detail.hub.name if detail.hub else '-'}</span>
+            </td>
+            <td>
+                {detail.description}
+            </td>
+            <td class="text-end" style="width: 100px;">
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editDetail({detail.id}, '{detail.hub.id if detail.hub else ''}', '{detail.description}')" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteDetail({detail.id})" title="Excluir">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        </tr>
         """
 
         return JsonResponse({'status': 'success', 'html': html})
+
+class ChecklistItemDetailUpdateView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        detail = get_object_or_404(DailyChecklistItemDetail, pk=pk)
+        
+        if detail.item.daily_checklist.user != request.user:
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+        hub_id = request.POST.get('hub')
+        description = request.POST.get('description')
+
+        if not description:
+             return JsonResponse({'status': 'error', 'message': 'Descrição é obrigatória'}, status=400)
+
+        if hub_id:
+            detail.hub_id = hub_id
+        else:
+            detail.hub_id = None
+            
+        detail.description = description
+        detail.save()
+
+        # Return updated HTML fragment for the row
+        html = f"""
+            <td>
+                <span class="badge bg-light text-dark border">{detail.hub.name if detail.hub else '-'}</span>
+            </td>
+            <td>
+                {detail.description}
+            </td>
+            <td class="text-end" style="width: 100px;">
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editDetail({detail.id}, '{detail.hub.id if detail.hub else ''}', '{detail.description}')" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteDetail({detail.id})" title="Excluir">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        """
+
+        return JsonResponse({'status': 'success', 'html': html, 'id': detail.id})
 
 class ChecklistItemDetailDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk):
