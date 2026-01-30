@@ -169,7 +169,7 @@
                                                 </div>
                                                 
                                                 <!-- Client Hub Details Section -->
-                                                {% if form.instance.template_item.client %}
+                                                {% if form.instance.template_item.client and form.instance.template_item.client.hubs.exists %}
                                                 <div class="mt-3 ps-4 border-start border-3 border-info">
                                                     <h6 class="text-info small fw-bold mb-2">
                                                         <i class="fas fa-building me-1"></i>
