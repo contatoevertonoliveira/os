@@ -3,6 +3,76 @@
 {% load widget_tweaks %}
 
 {% block content %}
+<style>
+    /* Custom Switch Colors for Checklist */
+    .form-switch .form-check-input {
+        width: 3.5em; /* Make them slightly wider for better visibility */
+        height: 1.75em;
+    }
+
+    /* State: Checked (ON) -> Green */
+    .form-switch .form-check-input:checked {
+        background-color: #198754 !important; /* Success Green */
+        border-color: #198754 !important;
+    }
+
+    /* State: Unchecked (OFF) -> Red */
+    .form-switch .form-check-input:not(:checked) {
+        background-color: #dc3545 !important; /* Danger Red */
+        border-color: #dc3545 !important;
+        /* Maintain the white circle knob */
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e") !important;
+    }
+
+    /* Remove Focus Glow/Yellow State */
+    .form-switch .form-check-input:focus {
+        border-color: inherit;
+        outline: 0;
+        box-shadow: none !important;
+    }
+
+    /* Toggle Plus/Minus Icons */
+    .card-header[aria-expanded="true"] .icon-plus {
+        display: none;
+    }
+    .card-header[aria-expanded="false"] .icon-minus {
+        display: none;
+    }
+    .card-header[aria-expanded="true"] .icon-minus {
+        display: inline-block;
+    }
+    .card-header[aria-expanded="false"] .icon-plus {
+        display: inline-block;
+    }
+    
+    .toggle-icon-wrapper {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background-color: #f8f9fa;
+        transition: background-color 0.2s, transform 0.2s;
+    }
+    .card-header:hover .toggle-icon-wrapper {
+        background-color: #e9ecef;
+        transform: scale(1.1);
+    }
+
+    /* Additional Tweaks */
+    textarea.form-control {
+        font-size: 0.9rem;
+        border-color: #e3e6f0;
+        resize: vertical;
+        min-height: 38px;
+        height: 38px;
+        transition: height 0.2s;
+    }
+    textarea.form-control:focus {
+        height: 80px;
+    }
+</style>
 <div class="container-fluid py-4">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -72,148 +142,178 @@
                                     {% csrf_token %}
                                     {{ formset.management_form }}
                                     
-                                    <div class="list-group list-group-flush mb-4">
+                                    <div class="checklist-container mb-4">
                                         {% for form in formset %}
-                                            <div class="list-group-item px-0 border-bottom">
+                                            <div class="card mb-3 shadow-sm border-0 checklist-item-card" id="item-{{ form.instance.template_item.id }}">
                                                 {{ form.id }}
-                                                <div class="row">
-                                                    <div class="col-12 mb-3">
-                                                        <div class="d-flex align-items-center mb-2">
-                                                            <div class="form-check form-switch me-3">
-                                                                {{ form.is_checked }}
-                                                            </div>
-                                                            <div class="flex-grow-1">
-                                                                <div class="d-flex justify-content-between">
-                                                                    <label class="form-label small text-muted text-uppercase fw-bold mb-1">Título da Atividade</label>
-                                                                    {% if form.instance.template_item.client %}
-                                                                        <span class="badge bg-info text-white"><i class="fas fa-building me-1"></i>{{ form.instance.template_item.client.name }}</span>
-                                                                    {% endif %}
-                                                                </div>
-                                                                {{ form.title }}
+                                                
+                                                <!-- Card Header: Clickable to toggle collapse -->
+                                                <div class="card-header collapsed bg-white py-3 cursor-pointer d-flex align-items-center justify-content-between" 
+                                                     role="button"
+                                                     data-bs-toggle="collapse" 
+                                                     data-bs-target="#collapse-task-{{ forloop.counter }}" 
+                                                     aria-expanded="false" 
+                                                     aria-controls="collapse-task-{{ forloop.counter }}">
+                                                    
+                                                    <div class="d-flex align-items-center flex-grow-1">
+                                                        <!-- Status Icon (Visual indicator only) -->
+                                                        <div class="me-3">
+                                                            {% if form.instance.is_checked %}
+                                                                <i class="fas fa-check-circle text-success fa-lg"></i>
+                                                            {% else %}
+                                                                <i class="far fa-circle text-muted fa-lg"></i>
+                                                            {% endif %}
+                                                        </div>
+                                                        
+                                                        <div class="flex-grow-1">
+                                                            <div class="d-flex flex-column">
+                                                                <span class="fw-bold text-dark">{{ form.instance.title|default:"Sem Título" }}</span>
+                                                                {% if form.instance.template_item.client %}
+                                                                    <small class="text-muted"><i class="fas fa-building me-1"></i>{{ form.instance.template_item.client.name }}</small>
+                                                                {% endif %}
                                                             </div>
                                                         </div>
-                                                        <div>
-                                                            <label class="form-label small text-muted mb-1">Descrição da Tarefa</label>
-                                                            {{ form.description }}
-                                                        </div>
+                                                    </div>
+                                                    
+                                                    <!-- Toggle Plus/Minus -->
+                                                    <div class="ms-3 toggle-icon-wrapper">
+                                                        <i class="fas fa-plus text-secondary icon-plus"></i>
+                                                        <i class="fas fa-minus text-secondary icon-minus"></i>
                                                     </div>
                                                 </div>
-                                                
-                                                <div class="row ps-4">
-                                                    <div class="col-md-7">
-                                                        <label class="form-label small text-muted mb-1">Observações Adicionais</label>
-                                                        {{ form.observation }}
-                                                    </div>
-                                                    <div class="col-md-5">
-                                                        <label class="form-label small text-muted mb-1">Fotos Comprobatórias</label>
-                                                        
-                                                        <!-- File Input -->
-                                                        <div class="mb-2">
-                                                            {{ form.new_images }}
-                                                            <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Selecione uma ou várias imagens (Ctrl+Click)</small>
+
+                                                <!-- Collapsible Content -->
+                                                <div class="collapse" id="collapse-task-{{ forloop.counter }}">
+                                                    <div class="card-body bg-light border-top">
+                                                        <div class="row mb-3">
+                                                            <div class="col-auto">
+                                                                <label class="form-label small text-muted mb-1 d-block fw-bold">Ação</label>
+                                                                <div class="form-check form-switch form-switch-lg">
+                                                                    {{ form.is_checked }}
+                                                                    <label class="form-check-label ms-1 fw-bold">Marcar como Concluído</label>
+                                                                </div>
+                                                            </div>
+                                                            <div class="col">
+                                                                <!-- Hidden Title Field (since it's in header) -->
+                                                                <div class="d-none">
+                                                                    {{ form.title }}
+                                                                </div>
+                                                                <div class="text-muted small">
+                                                                    {{ form.instance.description|linebreaksbr }}
+                                                                </div>
+                                                            </div>
                                                         </div>
 
-                                                        <!-- Thumbnails Display -->
-                                                        {% if form.instance.images.exists %}
-                                                            <div class="d-flex flex-wrap gap-2 mt-2" id="images-container-{{ form.instance.id }}">
-                                                                {% for img in form.instance.images.all %}
-                                                                    <div class="position-relative" style="width: 50px; height: 50px;" id="img-wrapper-{{ img.id }}">
-                                                                        <a href="{{ img.image.url }}" target="_blank" class="d-block border rounded w-100 h-100 overflow-hidden">
-                                                                            <img src="{{ img.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
+                                                        <div class="mb-3">
+                                                            <label class="form-label small text-muted mb-1 fw-bold">Descrição da Tarefa (Editável)</label>
+                                                            {{ form.description }}
+                                                        </div>
+                                                    
+                                                        <div class="row">
+                                                            <div class="col-md-7">
+                                                                <label class="form-label small text-muted mb-1">Observações Adicionais</label>
+                                                                {{ form.observation }}
+                                                            </div>
+                                                            <div class="col-md-5">
+                                                                <label class="form-label small text-muted mb-1">Fotos Comprobatórias</label>
+                                                                
+                                                                <!-- File Input -->
+                                                                <div class="mb-2">
+                                                                    {{ form.new_images }}
+                                                                    <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Selecione uma ou várias imagens (Ctrl+Click)</small>
+                                                                </div>
+
+                                                                <!-- Thumbnails Display -->
+                                                                {% if form.instance.images.exists %}
+                                                                    <div class="d-flex flex-wrap gap-2 mt-2" id="images-container-{{ form.instance.id }}">
+                                                                        {% for img in form.instance.images.all %}
+                                                                            <div class="position-relative" style="width: 50px; height: 50px;" id="img-wrapper-{{ img.id }}">
+                                                                                <a href="{{ img.image.url }}" class="open-gallery-btn d-block border rounded w-100 h-100 overflow-hidden" data-image-url="{{ img.image.url }}" data-image-desc="Imagem da tarefa: {{ form.instance.title }}">
+                                                                                    <img src="{{ img.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
+                                                                                </a>
+                                                                                <button type="button" 
+                                                                                        class="btn btn-sm p-0 position-absolute top-0 end-0 star-btn {% if img.is_report_image %}text-warning{% else %}text-white{% endif %}" 
+                                                                                        style="z-index: 10; text-shadow: 0 0 3px rgba(0,0,0,0.8); right: 2px; top: 0;"
+                                                                                        onclick="toggleReportImage({{ img.id }}, {{ form.instance.id }})"
+                                                                                        title="Definir como foto do relatório">
+                                                                                    <i class="fas fa-star"></i>
+                                                                                </button>
+                                                                            </div>
+                                                                        {% endfor %}
+                                                                    </div>
+                                                                {% elif form.instance.image %}
+                                                                    <!-- Legacy single image fallback -->
+                                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                                        <a href="{{ form.instance.image.url }}" class="open-gallery-btn d-block border rounded position-relative" style="width: 50px; height: 50px; overflow: hidden;" data-image-url="{{ form.instance.image.url }}">
+                                                                            <img src="{{ form.instance.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
                                                                         </a>
-                                                                        <button type="button" 
-                                                                                class="btn btn-sm p-0 position-absolute top-0 end-0 star-btn {% if img.is_report_image %}text-warning{% else %}text-white{% endif %}" 
-                                                                                style="z-index: 10; text-shadow: 0 0 3px rgba(0,0,0,0.8); right: 2px; top: 0;"
-                                                                                onclick="toggleReportImage({{ img.id }}, {{ form.instance.id }})"
-                                                                                title="Definir como foto do relatório">
-                                                                            <i class="fas fa-star"></i>
+                                                                    </div>
+                                                                {% endif %}
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Sub-items Section -->
+                                                        <div class="mt-3 pt-3 border-top">
+                                                            <h6 class="card-title small fw-bold text-uppercase text-muted mb-3">
+                                                                <i class="fas fa-list-ul me-1"></i> Detalhes / Sub-itens
+                                                            </h6>
+                                                            
+                                                            <!-- List of existing details -->
+                                                            <div id="details-list-{{ form.instance.id }}" class="mb-3">
+                                                                {% for detail in form.instance.details.all %}
+                                                                    <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{{ detail.id }}">
+                                                                        <div>
+                                                                            <small class="text-muted d-block">{{ detail.created_at|date:"H:i" }} 
+                                                                            {% if detail.client %}- <strong>{{ detail.client.name }}</strong>{% endif %}
+                                                                            {% if detail.hub %} / {{ detail.hub.name }}{% endif %}
+                                                                            </small>
+                                                                            <span>{{ detail.description }}</span>
+                                                                            {% if detail.ticket %}
+                                                                                <span class="badge bg-info text-white ms-2" title="OS Vinculada">OS #{{ detail.ticket.id }}</span>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                        <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({{ detail.id }})">
+                                                                            <i class="fas fa-trash-alt"></i>
                                                                         </button>
                                                                     </div>
                                                                 {% endfor %}
                                                             </div>
-                                                        {% elif form.instance.image %}
-                                                            <!-- Legacy single image fallback -->
-                                                            <div class="d-flex flex-wrap gap-2 mt-2">
-                                                                <a href="{{ form.instance.image.url }}" target="_blank" class="d-block border rounded position-relative" style="width: 50px; height: 50px; overflow: hidden;">
-                                                                    <img src="{{ form.instance.image.url }}" class="w-100 h-100" style="object-fit: cover;" title="Ver imagem">
-                                                                </a>
-                                                            </div>
-                                                        {% endif %}
-                                                    </div>
-                                                </div>
 
-                                                <!-- Sub-items Section -->
-                                                <div class="row ps-4 mt-3">
-                                                    <div class="col-12">
-                                                        <div class="card bg-light border-0">
-                                                            <div class="card-body p-3">
-                                                                <h6 class="card-title small fw-bold text-uppercase text-muted mb-3">
-                                                                    <i class="fas fa-list-ul me-1"></i> Detalhes / Sub-itens
-                                                                </h6>
-                                                                
-                                                                <!-- List of existing details -->
-                                                                <div id="details-list-{{ form.instance.id }}" class="mb-3">
-                                                                    {% for detail in form.instance.details.all %}
-                                                                        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{{ detail.id }}">
-                                                                            <div>
-                                                                                <small class="text-muted d-block">{{ detail.created_at|date:"H:i" }} 
-                                                                                {% if detail.client %}- <strong>{{ detail.client.name }}</strong>{% endif %}
-                                                                                {% if detail.hub %} / {{ detail.hub.name }}{% endif %}
-                                                                                </small>
-                                                                                <span>{{ detail.description }}</span>
-                                                                                {% if detail.ticket %}
-                                                                                    <span class="badge bg-info text-white ms-2" title="OS Vinculada">OS #{{ detail.ticket.id }}</span>
-                                                                                {% endif %}
-                                                                            </div>
-                                                                            <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({{ detail.id }})">
-                                                                                <i class="fas fa-trash-alt"></i>
-                                                                            </button>
-                                                                        </div>
-                                                                    {% endfor %}
+                                                            <!-- Add new detail form -->
+                                                            <div class="row g-2 align-items-end">
+                                                                <div class="col-md-3">
+                                                                    <label class="form-label small mb-1">Cliente</label>
+                                                                    <select class="form-select form-select-sm client-select" data-item-id="{{ form.instance.id }}" id="client-{{ form.instance.id }}">
+                                                                        <option value="">Selecione...</option>
+                                                                        {% for client in clients_for_details %}
+                                                                            <option value="{{ client.id }}" {% if form.instance.template_item.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
                                                                 </div>
-
-                                                                <!-- Add new detail form -->
-                                                                <div class="row g-2 align-items-end">
-                                                                    <div class="col-md-3">
-                                                                        <label class="form-label small mb-1">Cliente</label>
-                                                                        <select class="form-select form-select-sm client-select" data-item-id="{{ form.instance.id }}" id="client-{{ form.instance.id }}">
-                                                                            <option value="">Selecione...</option>
-                                                                            {% for client in clients_for_details %}
-                                                                                <option value="{{ client.id }}" {% if form.instance.template_item.client_id == client.id %}selected{% endif %}>{{ client.name }}</option>
-                                                                            {% endfor %}
-                                                                        </select>
-                                                                    </div>
-                                                                    <div class="col-md-3">
-                                                                        <label class="form-label small mb-1">Hub/Loja</label>
-                                                                        <select class="form-select form-select-sm hub-select" id="hub-{{ form.instance.id }}" disabled>
-                                                                            <option value="">Selecione Cliente...</option>
-                                                                        </select>
-                                                                    </div>
-                                                                    <div class="col-md-5">
-                                                                        <label class="form-label small mb-1">Descrição</label>
-                                                                        <div class="input-group input-group-sm">
-                                                                            <input type="text" class="form-control" id="desc-{{ form.instance.id }}" placeholder="Descreva o detalhe...">
-                                                                            <button class="btn btn-outline-secondary" type="button" onclick="detectOS({{ form.instance.id }})" title="Detectar OS do dia">
-                                                                                <i class="fas fa-magic"></i>
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-md-1">
-                                                                        <button type="button" class="btn btn-sm btn-primary w-100" onclick="addDetail({{ form.instance.id }})">
-                                                                            <i class="fas fa-plus"></i>
+                                                                <div class="col-md-3">
+                                                                    <label class="form-label small mb-1">Hub/Loja</label>
+                                                                    <select class="form-select form-select-sm hub-select" id="hub-{{ form.instance.id }}" disabled>
+                                                                        <option value="">Selecione Cliente...</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="col-md-5">
+                                                                    <label class="form-label small mb-1">Descrição</label>
+                                                                    <div class="input-group input-group-sm">
+                                                                        <input type="text" class="form-control" id="desc-{{ form.instance.id }}" placeholder="Descreva o detalhe...">
+                                                                        <button class="btn btn-outline-secondary" type="button" onclick="detectOS({{ form.instance.id }})" title="Detectar OS do dia">
+                                                                            <i class="fas fa-magic"></i>
                                                                         </button>
                                                                     </div>
+                                                                </div>
+                                                                <div class="col-md-1">
+                                                                    <button type="button" class="btn btn-sm btn-success w-100" onclick="addDetail({{ form.instance.id }})">
+                                                                        <i class="fas fa-plus"></i>
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                
-                                                {% if form.errors %}
-                                                    <div class="alert alert-danger mt-2 ms-4">
-                                                        {{ form.errors }}
-                                                    </div>
-                                                {% endif %}
                                             </div>
                                         {% endfor %}
                                     </div>
@@ -656,5 +756,72 @@
         })
         .catch(error => console.error('Error:', error));
     }
+    // Auto-expand collapse if hash is present
+    document.addEventListener("DOMContentLoaded", function() {
+        if (window.location.hash) {
+            const targetId = window.location.hash.substring(1); // e.g. "item-123"
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                // Find the collapse element within this item
+                const collapseElement = targetElement.querySelector('.collapse');
+                if (collapseElement) {
+                    // Use Bootstrap API to show it
+                    const bsCollapse = new bootstrap.Collapse(collapseElement, {
+                        show: true
+                    });
+                    
+                    // Update toggle button state
+                    const toggle = targetElement.querySelector('[data-bs-toggle="collapse"]');
+                    if (toggle) {
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                    
+                    // Scroll into view
+                    setTimeout(() => {
+                        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        // Add a highlight effect (optional, assuming bg-light is distinct enough or add a temporary style)
+                        targetElement.style.transition = "background-color 0.5s";
+                        const originalBg = targetElement.style.backgroundColor;
+                        targetElement.style.backgroundColor = "#fff3cd"; // Light yellow highlight
+                        setTimeout(() => {
+                            targetElement.style.backgroundColor = originalBg;
+                        }, 2000);
+                    }, 500);
+                }
+            }
+        }
+    });
+
 </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-expand task if URL has hash (e.g. from sidebar link)
+            if (window.location.hash) {
+                const targetId = window.location.hash.substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement && targetElement.classList.contains('checklist-item-card')) {
+                    const collapseElement = targetElement.querySelector('.collapse');
+                    if (collapseElement) {
+                        // Initialize and show
+                        const bsCollapse = new bootstrap.Collapse(collapseElement, {
+                            toggle: false
+                        });
+                        bsCollapse.show();
+                        
+                        // Scroll with a bit of offset for the fixed header
+                        setTimeout(() => {
+                            const headerOffset = 80; // Approximate header height
+                            const elementPosition = targetElement.getBoundingClientRect().top;
+                            const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+                            
+                            window.scrollTo({
+                                top: offsetPosition,
+                                behavior: "smooth"
+                            });
+                        }, 100);
+                    }
+                }
+            }
+        });
+    </script>
 {% endblock %}

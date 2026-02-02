@@ -430,6 +430,14 @@
                 font-size: 0.8rem;
                 transition: transform 0.3s;
             }
+
+            /* Sidebar Collapse chevron rotation */
+            .sidebar-menu [data-bs-toggle="collapse"][aria-expanded="true"] .fa-chevron-down {
+                transform: rotate(180deg);
+            }
+            .sidebar-menu .fa-chevron-down {
+                transition: transform 0.3s ease;
+            }
         </style>
     </head>
     <body>
@@ -529,24 +537,9 @@
 
                 <!-- Checklist -->
                 <li>
-                    <a href="#checklistSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'checklist' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Checklist">
+                    <a href="{% url 'checklist_daily' %}" class="{% if request.resolver_match and 'checklist' in request.resolver_match.url_name %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Checklist">
                         <i class="fas fa-clipboard-check"></i> Checklist
                     </a>
-                    <ul class="collapse sidebar-submenu {% if 'checklist' in request.resolver_match.url_name %}show{% endif %}" id="checklistSubmenu">
-                        {% for template in sidebar_checklist_templates %}
-                        <li>
-                            <a href="{% url 'checklist_daily' %}?template_id={{ template.id }}">
-                                <i class="fas fa-check-square"></i> {{ template.name }}
-                            </a>
-                        </li>
-                        {% empty %}
-                        <li>
-                            <a href="{% url 'checklist_daily' %}">
-                                <i class="fas fa-list"></i> Ver Checklist
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
                 </li>
 
                 <!-- Notifications -->
@@ -562,13 +555,13 @@
                 <li class="sidebar-header-sm text-uppercase text-white small fw-bold px-4 mt-3 mb-1" style="font-size: 0.75rem;">Sistema</li>
                 {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
                 <li>
-                    <a href="{% url 'notification_monitor' %}" class="{% if 'monitor' in request.resolver_match.url_name %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Monitorar Mensagens">
+                    <a href="{% url 'notification_monitor' %}" class="{% if request.resolver_match and 'monitor' in request.resolver_match.url_name %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Monitorar Mensagens">
                         <i class="fas fa-mail-bulk"></i> Monitorar Mensagens
                     </a>
                 </li>
                 {% endif %}
                 <li>
-                    <a href="{% url 'settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Configurações">
+                    <a href="{% url 'settings' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'settings' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Configurações">
                         <i class="fas fa-cogs"></i> Configurações
                     </a>
                 </li>

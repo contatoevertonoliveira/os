@@ -1,5 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 import os
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView, View
 from django.contrib.messages.views import SuccessMessageMixin
 from django.contrib import messages
@@ -252,24 +254,36 @@ class TokenLoginView(LoginView):
     redirect_authenticated_user = True
     
     def form_valid(self, form):
-        # Garante que o usuário está ativo
-        user = form.get_user()
-        if not user.is_active:
-            if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({'success': False, 'errors': {'token': ['Usuário inativo.']}}, status=400)
-            return self.form_invalid(form)
+        try:
+            # Garante que o usuário está ativo
+            user = form.get_user()
+            if not user.is_active:
+                if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': {'token': ['Usuário inativo.']}}, status=400)
+                return self.form_invalid(form)
             
-        # Realiza o login (chama auth_login internamente)
-        response = super().form_valid(form)
-        
-        # Se for AJAX, retorna JSON em vez de redirecionar
-        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'redirect_url': self.get_success_url()})
+            # Realiza o login (chama auth_login internamente)
+            response = super().form_valid(form)
             
-        return response
+            # Se for AJAX, retorna JSON em vez de redirecionar
+            # Check for both standard header and custom Django header
+            if self.request.headers.get('x-requested-with') == 'XMLHttpRequest' or \
+               self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'redirect_url': str(self.get_success_url())})
+            
+            return response
+        except Exception as e:
+            # Em caso de erro inesperado, retorna JSON se for AJAX para evitar "Erro de conexão" genérico no frontend
+            if self.request.headers.get('x-requested-with') == 'XMLHttpRequest' or \
+               self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+                import traceback
+                traceback.print_exc() # Loga o erro no console do servidor
+                return JsonResponse({'success': False, 'errors': {'__all__': [f"Erro interno no servidor: {str(e)}"]}}, status=500)
+            raise e
 
     def form_invalid(self, form):
-        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest' or \
+           self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             return JsonResponse({'success': False, 'errors': form.errors}, status=400)
         return super().form_invalid(form)
 
@@ -277,6 +291,7 @@ class TokenLoginView(LoginView):
         url = self.get_redirect_url()
         return url or reverse_lazy('dashboard')
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class ServicesHubView(TemplateView):
     template_name = 'services_hub.html'
 
@@ -1966,22 +1981,23 @@ class ChecklistItemDetailAddView(LoginRequiredMixin, View):
 
         # Return HTML fragment for the new detail row
         html = f"""
-        <tr id="detail-{detail.id}">
-            <td>
-                <span class="badge bg-light text-dark border">{detail.hub.name if detail.hub else '-'}</span>
-            </td>
-            <td>
-                {detail.description}
-            </td>
-            <td class="text-end" style="width: 100px;">
-                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editDetail({detail.id}, '{detail.hub.id if detail.hub else ''}', '{detail.description}')" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteDetail({detail.id})" title="Excluir">
+        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{detail.id}">
+            <div>
+                <small class="text-muted d-block">
+                    {detail.created_at.strftime('%H:%M')} 
+                    {f'- <strong>{detail.client.name}</strong>' if detail.client else ''}
+                    {f'/ {detail.hub.name}' if detail.hub else ''}
+                </small>
+                <span>{detail.description}</span>
+                {f'<span class="badge bg-info text-white ms-2" title="OS Vinculada">OS #{detail.ticket.id}</span>' if detail.ticket else ''}
+            </div>
+            <div class="d-flex">
+                 <!-- Edit not fully implemented in frontend for div structure yet, keeping delete -->
+                <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({detail.id})">
                     <i class="fas fa-trash-alt"></i>
                 </button>
-            </td>
-        </tr>
+            </div>
+        </div>
         """
 
         return JsonResponse({'status': 'success', 'html': html})
@@ -2009,20 +2025,23 @@ class ChecklistItemDetailUpdateView(LoginRequiredMixin, View):
 
         # Return updated HTML fragment for the row
         html = f"""
-            <td>
-                <span class="badge bg-light text-dark border">{detail.hub.name if detail.hub else '-'}</span>
-            </td>
-            <td>
-                {detail.description}
-            </td>
-            <td class="text-end" style="width: 100px;">
-                <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="editDetail({detail.id}, '{detail.hub.id if detail.hub else ''}', '{detail.description}')" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteDetail({detail.id})" title="Excluir">
+        <div class="d-flex justify-content-between align-items-start border-bottom py-2" id="detail-{detail.id}">
+            <div>
+                <small class="text-muted d-block">
+                    {detail.created_at.strftime('%H:%M')} 
+                    {f'- <strong>{detail.client.name}</strong>' if detail.client else ''}
+                    {f'/ {detail.hub.name}' if detail.hub else ''}
+                </small>
+                <span>{detail.description}</span>
+                {f'<span class="badge bg-info text-white ms-2" title="OS Vinculada">OS #{detail.ticket.id}</span>' if detail.ticket else ''}
+            </div>
+            <div class="d-flex">
+                 <!-- Edit not fully implemented in frontend for div structure yet, keeping delete -->
+                <button type="button" class="btn btn-link text-danger p-0 ms-2" onclick="deleteDetail({detail.id})">
                     <i class="fas fa-trash-alt"></i>
                 </button>
-            </td>
+            </div>
+        </div>
         """
 
         return JsonResponse({'status': 'success', 'html': html, 'id': detail.id})

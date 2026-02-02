@@ -19,6 +19,9 @@ def system_settings(request):
         context['unread_notifications_count'] = unread.count()
         
         # Add checklist templates for sidebar
-        context['sidebar_checklist_templates'] = ChecklistTemplate.objects.all().order_by('department', 'name')
+        try:
+            context['sidebar_checklist_templates'] = ChecklistTemplate.objects.prefetch_related('items').all().order_by('department', 'name')
+        except Exception:
+            context['sidebar_checklist_templates'] = []
         
     return context

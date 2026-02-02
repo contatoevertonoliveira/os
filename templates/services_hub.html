@@ -230,7 +230,29 @@
                 },
                 body: formData
             })
-            .then(response => response.json())
+            .then(async response => {
+                // If we were redirected to a page (e.g. dashboard), it means login was successful
+                // but the server returned HTML instead of JSON.
+                if (response.redirected) {
+                     return { success: true, redirect_url: response.url };
+                }
+
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    return response.json();
+                } else {
+                    // Non-JSON response (e.g. 403, 500 HTML page)
+                    const text = await response.text();
+                    
+                    // If status is 200 but not JSON and not redirected, it might be the dashboard or another page rendered directly
+                    if (response.status === 200) {
+                        // Assuming success if we got a 200 OK page that isn't an error
+                         return { success: true, redirect_url: '/dashboard/' };
+                    }
+                    
+                    throw new Error(`Erro do Servidor (${response.status}). Por favor, recarregue a página.`);
+                }
+            })
             .then(data => {
                 if (data.success) {
                     window.location.href = data.redirect_url;
@@ -263,7 +285,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert.textContent = 'Erro de conexão. Tente novamente.';
+                alert.textContent = error.message || 'Erro de conexão. Tente novamente.';
                 alert.classList.remove('d-none');
                 
                 // Reset button

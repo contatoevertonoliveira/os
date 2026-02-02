@@ -13,6 +13,12 @@ class TokenBackend(ModelBackend):
                 return profile.user
         except UserProfile.DoesNotExist:
             return None
+        except UserProfile.MultipleObjectsReturned:
+            # Caso existam múltiplos usuários com o mesmo token (não deveria acontecer), pega o primeiro
+            profile = UserProfile.objects.select_related('user').filter(token=token).first()
+            if profile and profile.user.is_active:
+                return profile.user
+            return None
             
     def get_user(self, user_id):
         try:
