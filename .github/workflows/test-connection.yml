@@ -5,15 +5,47 @@ jobs:
   test-ssh:
     runs-on: ubuntu-latest
     steps:
-      - name: Check SSH Connection
+      - name: Check SSH Connection & Diagnostics
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             echo "✅ Conexão SSH estabelecida com sucesso!"
             echo "Usuário: $(whoami)"
             echo "Diretório atual: $(pwd)"
             echo "Espaço em disco:"
             df -h /
+
+            echo ""
+            echo "=== NGINX: includes e vhosts carregados ==="
+            nginx -T 2>&1 | head -n 80
+
+            echo ""
+            echo "=== NGINX: onde aparece 'osjumperfour.felixsystems.com.br' ==="
+            nginx -T 2>&1 | grep -n "osjumperfour.felixsystems.com.br" || true
+
+            echo ""
+            echo "=== NGINX: onde aparece 'imob.felixsystems.com.br' ==="
+            nginx -T 2>&1 | grep -n "imob.felixsystems.com.br" || true
+
+            echo ""
+            echo "=== NGINX: sites-enabled (se existir) ==="
+            ls -la /etc/nginx/sites-enabled || true
+
+            echo ""
+            echo "=== Portas (80/443/8000/8001/8002) ==="
+            ss -lntp | egrep ":(80|443|8000|8001|8002)\\b" || true
+
+            echo ""
+            echo "=== systemd status (nginx, gunicorn, os_gunicorn) ==="
+            systemctl --no-pager -l status nginx || true
+            systemctl --no-pager -l status gunicorn || true
+            systemctl --no-pager -l status os_gunicorn || true
+
+            echo ""
+            echo "=== curl local (bypass DNS/CDN) ==="
+            curl -sS -D - -o /dev/null -H "Host: osjumperfour.felixsystems.com.br" http://127.0.0.1/ || true
+            curl -sS -D - -o /dev/null http://127.0.0.1:8002/ || true
