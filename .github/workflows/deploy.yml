@@ -44,35 +44,6 @@ jobs:
             systemctl stop gunicorn || true
             systemctl disable gunicorn || true
  
-            # Atualiza configuração do Nginx de forma direta
-            # Copia a nova configuração
-            cp deploy/nginx.conf /etc/nginx/sites-available/os_jumperfour
-            
-            # Cria o link simbólico
-            ln -sf /etc/nginx/sites-available/os_jumperfour /etc/nginx/sites-enabled/os_jumperfour
-            
-            # Remove link antigo incorreto se existir
-            rm -f /etc/nginx/sites-enabled/os
-            
-            # Remove arquivo default se existir para evitar conflitos
-            rm -f /etc/nginx/sites-enabled/default
-            
-            # Testa a configuração antes de recarregar
-            nginx -t
- 
             # Reinicia o serviço específico do OS
             systemctl enable os_gunicorn
             systemctl restart os_gunicorn
-            
-            # Reinicia o Nginx completamente para garantir que a nova porta seja usada
-            service nginx restart
-            
-            # Re-aplica configuração SSL via Certbot (corrige o arquivo nginx que foi sobrescrito)
-            # Se o certbot falhar (não instalado?), não quebra o deploy, mas avisa
-            if command -v certbot > /dev/null; then
-              certbot --nginx -d osjumperfour.felixsystems.com.br --non-interactive --redirect --keep-until-expiring || true
-            else
-              echo "Certbot não encontrado, pulando configuração SSL automática"
-            fi
-            
-            service nginx reload
