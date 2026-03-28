@@ -32,20 +32,9 @@ jobs:
             source .venv/bin/activate
             pip install -r requirements.txt
             
-            # Carrega variáveis de ambiente do arquivo .env para garantir que o manage.py use as configurações corretas (ex: MySQL)
-            if [ -f .env ]; then
-              export $(grep -v '^#' .env | xargs)
-            fi
-
             # Aplica migrações de banco de dados e coleta estáticos
             python manage.py migrate
             python manage.py collectstatic --noinput
-            
-            # Importa dados de clientes do Excel (se existir)
-            if [ -f data/clientes.xlsx ]; then
-              echo "Importing clients from Excel..."
-              python manage.py import_clients_excel
-            fi
             
             # Atualiza o arquivo de serviço do Gunicorn (agora com nome específico para evitar conflitos)
             cp deploy/os_gunicorn.service /etc/systemd/system/os_gunicorn.service
@@ -86,5 +75,4 @@ jobs:
               echo "Certbot não encontrado, pulando configuração SSL automática"
             fi
             
-            service nginx reload
             service nginx reload
