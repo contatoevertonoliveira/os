@@ -18,7 +18,8 @@ from .views import (
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
     TicketUpdateEditView, TicketUpdateDeleteView,
     ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
-    ChecklistImageToggleReportView, ServicesHubView, WelcomeView
+    ChecklistImageToggleReportView, ServicesHubView, WelcomeView,
+    LocalView, LocalAgendaAPIView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -49,6 +50,8 @@ urlpatterns = [
 
     # Dashboard Hubs
     path('dashboard/hubs/', HubDashboardView.as_view(), name='hub_dashboard'),
+    path('local/', LocalView.as_view(), name='local'),
+    path('local/agenda/<int:technician_id>/', LocalAgendaAPIView.as_view(), name='local_agenda_api'),
 
     path('profile/', ProfileView.as_view(), name='profile'),
     path('settings/', SettingsView.as_view(), name='settings'),

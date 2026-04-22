@@ -5,6 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JumperFour - OS Tickets</title>
+    <script>
+        (function() {
+            try {
+                const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                if (isCollapsed) {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome -->
@@ -14,9 +24,12 @@
     
     <style>
         :root {
-            --primary-color: #26923B;
-            --secondary-color: #26C45B;
-            --tertiary-color: #1E2E40;
+            --primary-color: #009542;
+            --secondary-color: #1cd362;
+            --warning-color: #f1e900;
+            --muted-color: #777;
+            --sidebar-bg: #262626;
+            --tertiary-color: #262626;
             --light-bg: #f4f6f9;
             --sidebar-width: 260px;
         }
@@ -34,7 +47,7 @@
             position: fixed;
             top: 0;
             left: 0;
-            background-color: var(--tertiary-color);
+            background-color: var(--sidebar-bg);
             color: #fff;
             transition: all 0.3s;
             z-index: 1000;
@@ -44,7 +57,7 @@
         }
         
         .sidebar-header {
-            padding: 30px 20px;
+            padding: 18px 16px;
             background-color: rgba(0,0,0,0.1);
             border-bottom: 1px solid rgba(255,255,255,0.05);
             text-align: center;
@@ -62,8 +75,11 @@
         }
 
         .sidebar-brand img {
-            max-height: 80px; /* Bigger logo */
+            max-height: 52px;
+            max-width: 100%;
             width: auto;
+            height: auto;
+            object-fit: contain;
             /* White glow shadow */
             filter: none;
             transition: transform 0.3s;
@@ -71,6 +87,11 @@
 
         .sidebar-brand:hover img {
             transform: scale(1.05);
+        }
+
+        .sidebar-brand .brand-logo-collapsed {
+            display: none;
+            max-height: 34px;
         }
         
         /* Removed redundant text span style */
@@ -85,7 +106,7 @@
             display: flex;
             align-items: center;
             padding: 12px 25px;
-            color: #bdc3c7;
+            color: var(--muted-color);
             text-decoration: none;
             transition: 0.2s;
             font-size: 0.95rem;
@@ -98,9 +119,9 @@
         }
 
         .sidebar-menu li a.active {
-            background-color: #FFC107; /* Amarelo Ouro */
+            background-color: var(--warning-color);
             color: #000000; /* Letra Preta */
-            border-left: 4px solid #fff; /* Detalhe branco ou outra cor para destaque */
+            border-left: 4px solid var(--secondary-color);
             font-weight: 600;
         }
 
@@ -261,7 +282,7 @@
             .logout-btn {
                 background: none;
                 border: none;
-                color: #bdc3c7;
+                color: var(--muted-color);
                 cursor: pointer;
                 padding: 8px;
                 transition: 0.2s;
@@ -302,60 +323,91 @@
             }
             /* Desktop Sidebar Collapse */
             @media (min-width: 992px) {
-                .sidebar.collapsed {
+                .sidebar.collapsed,
+                .sidebar-collapsed .sidebar {
                     width: 80px;
                 }
+                .sidebar.collapsed .sidebar-header,
+                .sidebar-collapsed .sidebar-header {
+                    padding: 18px 10px;
+                }
+
                 .sidebar.collapsed .sidebar-brand,
-                .sidebar.collapsed .sidebar-brand img {
+                .sidebar-collapsed .sidebar-brand {
+                    gap: 0;
+                }
+                .sidebar.collapsed .sidebar-header-sm,
+                .sidebar-collapsed .sidebar-header-sm {
                     display: none;
                 }
-                .sidebar.collapsed .sidebar-header {
+
+                .sidebar.collapsed .sidebar-brand .brand-logo-full,
+                .sidebar-collapsed .sidebar-brand .brand-logo-full {
                     display: none;
                 }
-                .sidebar.collapsed .sidebar-header-sm {
-                    display: none;
+                .sidebar.collapsed .sidebar-brand .brand-logo-collapsed,
+                .sidebar-collapsed .sidebar-brand .brand-logo-collapsed {
+                    display: inline-block;
                 }
-                .sidebar.collapsed .sidebar-menu li a {
-                    justify-content: center;
-                    padding: 15px 0;
+                .sidebar.collapsed .sidebar-menu li a,
+                .sidebar-collapsed .sidebar-menu li a {
+                    justify-content: center !important;
+                    padding: 15px 0 !important;
                     font-size: 0; /* Hide text */
+                    position: relative;
                 }
-                .sidebar.collapsed .sidebar-menu li a i {
+                .sidebar.collapsed .sidebar-menu li a i,
+                .sidebar-collapsed .sidebar-menu li a i {
                     font-size: 1.2rem;
                     margin-right: 0;
                 }
+                .sidebar.collapsed .sidebar-menu li a .badge,
+                .sidebar-collapsed .sidebar-menu li a .badge {
+                    position: absolute;
+                    top: 6px;
+                    right: 10px;
+                    font-size: 0.65rem !important;
+                    line-height: 1;
+                    display: inline-block;
+                    z-index: 2;
+                }
                 
                 /* Submenu handling in collapsed state */
-                .sidebar.collapsed .sidebar-menu > li {
+                .sidebar.collapsed .sidebar-menu > li,
+                .sidebar-collapsed .sidebar-menu > li {
                     position: relative;
                 }
 
-                .sidebar.collapsed .sidebar-submenu {
+                .sidebar.collapsed .sidebar-submenu,
+                .sidebar-collapsed .sidebar-submenu {
                     display: none !important; /* Hidden by default */
                     position: absolute;
-                    left: 80px; /* Width of collapsed sidebar */
+                    left: 100%;
                     top: 0;
                     width: 220px;
-                    background-color: var(--tertiary-color);
+                    background-color: var(--sidebar-bg);
                     padding: 5px 0;
                     border-radius: 0 8px 8px 0;
                     box-shadow: 5px 5px 15px rgba(0,0,0,0.2);
                     z-index: 1100;
                 }
 
-                .sidebar.collapsed .sidebar-menu > li:hover > .sidebar-submenu {
+                .sidebar.collapsed .sidebar-menu > li:hover > .sidebar-submenu,
+                .sidebar-collapsed .sidebar-menu > li:hover > .sidebar-submenu {
                     display: block !important; /* Show on hover */
                 }
 
                 /* Fix styles for floating submenu items */
-                .sidebar.collapsed .sidebar-submenu li a {
+                .sidebar.collapsed .sidebar-submenu li a,
+                .sidebar-collapsed .sidebar-submenu li a {
                     font-size: 0.9rem !important; /* Restore font size */
                     padding: 10px 20px;
                     justify-content: flex-start; /* Align left */
                     text-align: left;
                 }
 
-                .sidebar.collapsed .sidebar-submenu li a i {
+                .sidebar.collapsed .sidebar-submenu li a i,
+                .sidebar-collapsed .sidebar-submenu li a i {
                     margin-right: 10px;
                     font-size: 1rem;
                     width: 20px;
@@ -363,40 +415,48 @@
                 }
                 
                 /* Footer handling in collapsed state */
-                .sidebar.collapsed .user-profile-footer {
+                .sidebar.collapsed .user-profile-footer,
+                .sidebar-collapsed .user-profile-footer {
                     padding: 15px 0;
                     flex-direction: column;
                     gap: 15px;
                     justify-content: center;
                 }
                 
-                .sidebar.collapsed .user-details {
+                .sidebar.collapsed .user-details,
+                .sidebar-collapsed .user-details {
                     display: none;
                 }
                 
-                .sidebar.collapsed .user-info {
+                .sidebar.collapsed .user-info,
+                .sidebar-collapsed .user-info {
                     justify-content: center;
                 }
                 
-                .sidebar.collapsed .logout-btn {
+                .sidebar.collapsed .logout-btn,
+                .sidebar-collapsed .logout-btn {
                     width: 100%;
                     text-align: center;
                 }
                 
-                .sidebar.collapsed .logout-btn i {
+                .sidebar.collapsed .logout-btn i,
+                .sidebar-collapsed .logout-btn i {
                     margin: 0;
                     font-size: 1.2rem;
                 }
                 
-                .sidebar.collapsed .sidebar-toggle-btn {
+                .sidebar.collapsed .sidebar-toggle-btn,
+                .sidebar-collapsed .sidebar-toggle-btn {
                     justify-content: center;
                 }
                 
-                .sidebar.collapsed .toggle-icon {
+                .sidebar.collapsed .toggle-icon,
+                .sidebar-collapsed .toggle-icon {
                     transform: rotate(180deg);
                 }
 
-                .main-content.expanded {
+                .main-content.expanded,
+                .sidebar-collapsed .main-content {
                     margin-left: 80px;
                 }
             }
@@ -450,7 +510,8 @@
     <nav class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <a href="{% url 'dashboard' %}" class="sidebar-brand">
-                    <img src="{% static 'images/logo_jumper2.svg' %}" alt="JumperFour">
+                    <img class="brand-logo-full" src="{% get_media_prefix %}images/logo_jumper.png" alt="JumperFour">
+                    <img class="brand-logo-collapsed" src="{% get_media_prefix %}images/logo_seta.png" alt="JumperFour">
                 </a>
             </div>
             <ul class="sidebar-menu">
@@ -462,6 +523,11 @@
                 <li>
                     <a href="{% url 'hub_dashboard' %}" class="{% if request.resolver_match.url_name == 'hub_dashboard' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Hubs Dashboard">
                         <i class="fas fa-network-wired"></i> Hubs Dashboard
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'local' %}" class="{% if request.resolver_match.url_name == 'local' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Local">
+                        <i class="fas fa-location-dot"></i> Local
                     </a>
                 </li>
                 
@@ -838,6 +904,7 @@
             // Save state
             const isCollapsed = sidebar.classList.contains('collapsed');
             localStorage.setItem('sidebarCollapsed', isCollapsed);
+            document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
             
             updateSidebarTooltips(isCollapsed);
         }
@@ -850,6 +917,7 @@
                 document.getElementById('sidebar').classList.add('collapsed');
                 document.querySelector('.main-content').classList.add('expanded');
             }
+            document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
 
             // Toasts
             var toastElList = [].slice.call(document.querySelectorAll('.toast'));

@@ -1,0 +1,472 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <style>
+        .local-tech-card {
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .local-tech-card.local-active {
+            background: #ffc107;
+            box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.35), 0 0 2rem rgba(255, 193, 7, 0.25);
+            position: relative;
+        }
+        .local-tech-card.local-active::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 52%);
+            opacity: 0.7;
+            pointer-events: none;
+            border-radius: 1rem;
+        }
+        .local-tech-card.local-active .card-body {
+            position: relative;
+            z-index: 1;
+        }
+        .local-tech-card.local-active:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 0 0.3rem rgba(255, 193, 7, 0.42), 0 0 2.4rem rgba(255, 193, 7, 0.32);
+        }
+        .local-deck {
+            position: relative;
+            width: 100%;
+        }
+        .local-deck-item {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(0,0,0,0.10);
+            border-radius: 0.85rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.10);
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            overflow: hidden;
+            --deck-dim: 0;
+        }
+        .local-deck-item::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, var(--deck-dim));
+            pointer-events: none;
+            z-index: 0;
+        }
+        .local-deck-item:not(:last-child) {
+            box-shadow: 0 12px 34px rgba(0,0,0,0.12);
+        }
+        .local-deck-item:last-child {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.10);
+        }
+        .local-deck-item:hover {
+            box-shadow: 0 14px 40px rgba(0,0,0,0.14);
+        }
+        .local-deck-item .local-mini-body {
+            padding: 12px 14px;
+            position: relative;
+            z-index: 1;
+        }
+        .local-deck-item .local-mini-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .local-deck-item .local-mini-sub {
+            margin-top: 6px;
+            color: rgba(0,0,0,0.65);
+            font-size: 0.875rem;
+        }
+        .local-deck-item .local-mini-footer {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+    </style>
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <div>
+            <h1 class="h2 mb-0">Local</h1>
+            <div class="text-muted">Localizador e programação dos técnicos</div>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="width: 320px;">
+                <span class="input-group-text"><i class="fas fa-magnifying-glass"></i></span>
+                <input type="text" class="form-control" id="localTechSearch" placeholder="Buscar técnico..." autocomplete="off">
+            </div>
+            <div class="text-muted small">Data base:</div>
+            <input type="date" class="form-control form-control-sm" id="localGlobalDate" value="{{ today }}" style="width: 160px;">
+        </div>
+    </div>
+
+    <div class="row g-4" id="localCards">
+        {% for tech in technicians %}
+        <div class="col-12 col-md-6 col-xl-4 local-tech-col" data-tech-name="{{ tech.name|lower }}">
+            <div class="card shadow-sm border-0 h-100 local-tech-card" data-tech-id="{{ tech.id }}" data-date="{{ today }}" style="border-radius: 1rem;">
+                <div class="card-body">
+                    <div class="d-flex gap-3 align-items-center">
+                        <div style="width: 92px; height: 92px; flex: 0 0 92px;">
+                            {% if tech.photo %}
+                                <img src="{{ tech.photo }}" alt="{{ tech.name }}" class="w-100 h-100 object-fit-cover rounded-4 border" style="border-color: rgba(0,0,0,0.08) !important;">
+                            {% else %}
+                                <div class="w-100 h-100 rounded-4 d-flex align-items-center justify-content-center text-white fw-bold" style="background: linear-gradient(135deg, #009542, #1cd362); font-size: 2rem;">
+                                    {{ tech.initial }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex-grow-1">
+                            <div class="fw-bold fs-5">{{ tech.name }}</div>
+                            <div class="text-muted small">
+                                {% if tech.job_title %}{{ tech.job_title }}{% else %}Técnico{% endif %}
+                                {% if tech.station %} · {{ tech.station }}{% endif %}
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                {% if tech.technician_type %}
+                                    <span class="badge rounded-pill text-bg-secondary">{{ tech.technician_type }}</span>
+                                {% endif %}
+                                {% if tech.fixed_client %}
+                                    <span class="badge rounded-pill text-bg-light border text-dark">
+                                        Fixo: {{ tech.fixed_client }}{% if tech.fixed_hub %} - {{ tech.fixed_hub }}{% endif %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="fw-semibold">Programação</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary local-date-prev" title="Dia anterior">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary local-date-today" title="Hoje">
+                                    Hoje
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary local-date-next" title="Próximo dia">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-2 d-flex flex-wrap gap-2 align-items-center">
+                            <div class="text-muted small">
+                                <span class="local-date-label">--/--/----</span>
+                            </div>
+                            <div class="ms-auto">
+                                <input type="date" class="form-control form-control-sm local-date-picker" value="{{ today }}" style="width: 160px;">
+                            </div>
+                        </div>
+
+                        <div class="mt-3 p-3 rounded-3 border bg-light-subtle">
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <div class="text-muted small">Local:</div>
+                                <div class="fw-semibold local-primary-location">--</div>
+                                <div class="ms-auto text-muted small">
+                                    Previsto: <span class="fw-semibold local-total-estimated">--:--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <div class="local-items text-muted small">Carregando...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-warning">Nenhum técnico encontrado.</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let localReorderTimer = null;
+    const localDefaultDeckResetMs = 10000;
+
+    function localScheduleReorder() {
+        if (localReorderTimer) {
+            clearTimeout(localReorderTimer);
+        }
+        localReorderTimer = setTimeout(() => {
+            const container = document.getElementById('localCards');
+            if (!container) return;
+            const cols = Array.from(container.querySelectorAll('.local-tech-col'));
+            cols.sort((a, b) => {
+                const aActive = (a.getAttribute('data-active') === '1') ? 1 : 0;
+                const bActive = (b.getAttribute('data-active') === '1') ? 1 : 0;
+                if (aActive !== bActive) return bActive - aActive;
+                const aName = (a.getAttribute('data-tech-name') || '');
+                const bName = (b.getAttribute('data-tech-name') || '');
+                return aName.localeCompare(bName, 'pt-BR');
+            });
+            cols.forEach(col => container.appendChild(col));
+        }, 50);
+    }
+
+    function localDeckApplyLayout(deckEl) {
+        const cards = Array.from(deckEl.querySelectorAll('.local-deck-item'));
+        const total = cards.length;
+        cards.forEach((el, idx) => {
+            const orderFromFront = total - 1 - idx;
+            const clamped = Math.min(orderFromFront, 7);
+            const x = clamped * 6;
+            const y = clamped * 6;
+            el.style.transform = `translate(${x}px, ${y}px)`;
+            el.style.zIndex = String(idx + 1);
+            const dim = Math.min(clamped * 0.03, 0.18);
+            el.style.setProperty('--deck-dim', String(dim));
+        });
+        const base = 132;
+        const extra = Math.min(Math.max(cards.length - 1, 0), 7) * 6;
+        deckEl.style.height = `${base + extra}px`;
+    }
+
+    function localDeckRestoreDefault(deckEl) {
+        const cards = Array.from(deckEl.querySelectorAll('.local-deck-item'));
+        cards.sort((a, b) => {
+            const ao = Number(a.getAttribute('data-default-order') || 0);
+            const bo = Number(b.getAttribute('data-default-order') || 0);
+            return ao - bo;
+        });
+        cards.forEach(el => deckEl.appendChild(el));
+        localDeckApplyLayout(deckEl);
+    }
+
+    function localDeckArmAutoReset(deckEl) {
+        if (deckEl._localResetTimer) {
+            clearTimeout(deckEl._localResetTimer);
+        }
+        deckEl._localResetTimer = setTimeout(() => {
+            localDeckRestoreDefault(deckEl);
+        }, localDefaultDeckResetMs);
+    }
+
+    function localInitDeck(deckEl) {
+        if (!deckEl) return;
+        localDeckApplyLayout(deckEl);
+        localDeckArmAutoReset(deckEl);
+
+        deckEl.addEventListener('click', function(e) {
+            const itemEl = e.target.closest('.local-deck-item');
+            if (!itemEl) return;
+            deckEl.appendChild(itemEl);
+            localDeckApplyLayout(deckEl);
+            localDeckArmAutoReset(deckEl);
+        });
+
+        deckEl.addEventListener('mousemove', function() {
+            localDeckArmAutoReset(deckEl);
+        });
+    }
+
+    function localParseDate(value) {
+        if (!value) return null;
+        const parts = value.split('-');
+        if (parts.length !== 3) return null;
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+    }
+
+    function localFormatISODate(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function localShiftDate(isoDate, deltaDays) {
+        const d = localParseDate(isoDate);
+        if (!d) return isoDate;
+        d.setDate(d.getDate() + deltaDays);
+        return localFormatISODate(d);
+    }
+
+    function localRenderItems(container, payload) {
+        const items = payload.items || [];
+        if (items.length === 0) {
+            container.innerHTML = '<div class="text-muted small">Sem itens para este dia.</div>';
+            return;
+        }
+
+        const maxVisible = 8;
+        const visibleItems = items.slice(0, maxVisible);
+        const hiddenCount = Math.max(items.length - visibleItems.length, 0);
+
+        const rows = visibleItems.map((item, index) => {
+            if (item.kind === 'os') {
+                const time = item.estimated_time ? ` · ${item.estimated_time}h` : '';
+                const hub = item.hub ? ` - ${item.hub}` : '';
+                const badgeClass = item.status_code === 'open' ? 'text-bg-primary'
+                                  : item.status_code === 'in_progress' ? 'text-bg-warning'
+                                  : item.status_code === 'pending' ? 'text-bg-info'
+                                  : item.status_code === 'finished' ? 'text-bg-success'
+                                  : item.status_code === 'canceled' ? 'text-bg-danger'
+                                  : 'text-bg-secondary';
+
+                return `
+                    <div class="local-deck-item" data-default-order="${index}">
+                        <div class="local-mini-body">
+                            <div class="local-mini-title">
+                                <div class="fw-semibold">
+                                    <span class="badge ${badgeClass} me-2">${item.status || ''}</span>
+                                    OS ${item.label || ''}
+                                </div>
+                                <a class="btn btn-sm btn-outline-primary" href="${item.url}">Abrir</a>
+                            </div>
+                            <div class="local-mini-sub">${item.client || ''}${hub}${time}</div>
+                            ${item.description ? `<div class="text-muted small mt-1">${item.description}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (item.kind === 'agendamento') {
+                const hub = item.hub ? ` - ${item.hub}` : '';
+                const system = item.system ? ` · ${item.system}` : '';
+                const so = item.service_order ? ` · OS ${item.service_order}` : '';
+                const when = item.scheduled_at ? ` · ${item.scheduled_at}` : '';
+                return `
+                    <div class="local-deck-item" data-default-order="${index}">
+                        <div class="local-mini-body">
+                            <div class="local-mini-title">
+                                <div class="fw-semibold">Agendamento</div>
+                                <a class="btn btn-sm btn-outline-primary" href="${item.url}">Abrir</a>
+                            </div>
+                            <div class="local-mini-sub">${item.client || ''}${hub}${system}${so}${when}</div>
+                            ${item.travel && item.travel.locator ? `<div class="text-muted small mt-1">Localizador: <span class="fw-semibold">${item.travel.locator}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return '';
+        }).join('');
+
+        container.innerHTML = `
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="text-muted small">Itens do dia: <span class="fw-semibold">${items.length}</span></div>
+                ${hiddenCount > 0 ? `<div class="badge rounded-pill text-bg-secondary">+${hiddenCount}</div>` : ''}
+            </div>
+            <div class="local-deck">${rows}</div>
+        `;
+
+        localInitDeck(container.querySelector('.local-deck'));
+    }
+
+    async function localLoadAgenda(cardEl) {
+        const technicianId = cardEl.getAttribute('data-tech-id');
+        const date = cardEl.getAttribute('data-date');
+        const colEl = cardEl.closest('.local-tech-col');
+        const dateLabelEl = cardEl.querySelector('.local-date-label');
+        const primaryEl = cardEl.querySelector('.local-primary-location');
+        const totalEl = cardEl.querySelector('.local-total-estimated');
+        const itemsEl = cardEl.querySelector('.local-items');
+        const datePickerEl = cardEl.querySelector('.local-date-picker');
+
+        itemsEl.textContent = 'Carregando...';
+
+        try {
+            const url = `{% url 'local_agenda_api' technician_id=0 %}`.replace('/0/', `/${technicianId}/`) + `?date=${encodeURIComponent(date)}`;
+            const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await resp.json();
+
+            dateLabelEl.textContent = data.date_label || '--/--/----';
+            primaryEl.textContent = (data.summary && data.summary.primary_location) ? data.summary.primary_location : '--';
+            totalEl.textContent = (data.summary && data.summary.total_estimated_time) ? data.summary.total_estimated_time : '--:--';
+            datePickerEl.value = data.date || date;
+            cardEl.setAttribute('data-date', data.date || date);
+
+            localRenderItems(itemsEl, data);
+
+            const hasActivity = !!(data.summary && Number(data.summary.items_count || 0) > 0);
+            cardEl.classList.toggle('local-active', hasActivity);
+            if (colEl) {
+                colEl.setAttribute('data-active', hasActivity ? '1' : '0');
+            }
+            localScheduleReorder();
+        } catch (e) {
+            itemsEl.innerHTML = '<div class="text-danger small">Erro ao carregar a agenda.</div>';
+            cardEl.classList.remove('local-active');
+            if (colEl) {
+                colEl.setAttribute('data-active', '0');
+            }
+            localScheduleReorder();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const cards = document.querySelectorAll('.local-tech-card');
+        cards.forEach(cardEl => localLoadAgenda(cardEl));
+
+        const searchInput = document.getElementById('localTechSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const query = (e.target.value || '').trim().toLowerCase();
+                const cols = document.querySelectorAll('.local-tech-col');
+                cols.forEach(col => {
+                    const name = (col.getAttribute('data-tech-name') || '').toLowerCase();
+                    const visible = query.length === 0 || name.includes(query);
+                    col.classList.toggle('d-none', !visible);
+                });
+                localScheduleReorder();
+            });
+        }
+
+        document.getElementById('localGlobalDate')?.addEventListener('change', function(e) {
+            const value = e.target.value;
+            cards.forEach(cardEl => {
+                cardEl.setAttribute('data-date', value);
+                const picker = cardEl.querySelector('.local-date-picker');
+                if (picker) picker.value = value;
+                localLoadAgenda(cardEl);
+            });
+        });
+
+        document.addEventListener('click', function(e) {
+            const cardEl = e.target.closest('.local-tech-card');
+            if (!cardEl) return;
+
+            if (e.target.closest('.local-date-prev')) {
+                const current = cardEl.getAttribute('data-date');
+                cardEl.setAttribute('data-date', localShiftDate(current, -1));
+                localLoadAgenda(cardEl);
+            }
+
+            if (e.target.closest('.local-date-next')) {
+                const current = cardEl.getAttribute('data-date');
+                cardEl.setAttribute('data-date', localShiftDate(current, 1));
+                localLoadAgenda(cardEl);
+            }
+
+            if (e.target.closest('.local-date-today')) {
+                const today = '{{ today }}';
+                cardEl.setAttribute('data-date', today);
+                const picker = cardEl.querySelector('.local-date-picker');
+                if (picker) picker.value = today;
+                localLoadAgenda(cardEl);
+            }
+        });
+
+        document.addEventListener('change', function(e) {
+            if (!e.target.classList.contains('local-date-picker')) return;
+            const cardEl = e.target.closest('.local-tech-card');
+            if (!cardEl) return;
+            cardEl.setAttribute('data-date', e.target.value);
+            localLoadAgenda(cardEl);
+        });
+    });
+</script>
+{% endblock %}

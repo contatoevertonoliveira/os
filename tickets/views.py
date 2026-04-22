@@ -1708,7 +1708,46 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             # No checklist yet OR orphan checklist (no template), provide templates for selection
             # Only show templates if we are on today (cannot create checklists for past days via this flow)
             if context['is_today']:
-                context['available_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+                user_department = getattr(getattr(user, 'profile', None), 'department', None)
+                dept_templates_qs = ChecklistTemplate.objects.all()
+                if user_department:
+                    dept_templates_qs = dept_templates_qs.filter(department__iexact=user_department)
+
+                dept_templates_qs = dept_templates_qs.annotate(item_count=Count('items'))
+
+                if dept_templates_qs.count() == 1:
+                    template = dept_templates_qs.first()
+                    if checklist:
+                        checklist.template = template
+                        checklist.save()
+                        checklist.items.all().delete()
+                    else:
+                        checklist = DailyChecklist.objects.create(
+                            user=user,
+                            date=target_date,
+                            template=template
+                        )
+
+                    for item in template.items.all():
+                        DailyChecklistItem.objects.create(
+                            daily_checklist=checklist,
+                            template_item=item,
+                            title=item.title,
+                            description=item.description
+                        )
+
+                    if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
+                        formset = DailyChecklistItemFormSet(self.request.POST, self.request.FILES, instance=checklist, prefix='items')
+                    else:
+                        formset = DailyChecklistItemFormSet(instance=checklist, prefix='items')
+
+                    context['checklist'] = checklist
+                    context['formset'] = formset
+                    context['available_templates'] = []
+                    context['existing_orphan_checklist'] = None
+                    return context
+
+                context['available_templates'] = dept_templates_qs
             else:
                 context['available_templates'] = []
                 
@@ -2102,4 +2141,186 @@ class ChecklistImageToggleReportView(LoginRequiredMixin, View):
             'is_report_image': image.is_report_image,
             'item_id': image.item.id
         })
+
+class LocalView(LoginRequiredMixin, TemplateView):
+    template_name = 'tickets/local.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        technicians = (
+            User.objects.filter(is_active=True, profile__role__in=['technician', 'standard'])
+            .select_related('profile')
+            .order_by('first_name', 'username')
+        )
+
+        technician_cards = []
+        for tech in technicians:
+            profile = getattr(tech, 'profile', None)
+            photo_url = profile.photo.url if profile and profile.photo else None
+            job_title = profile.job_title if profile and profile.job_title else None
+            station = profile.station if profile and profile.station else None
+            technician_type = profile.get_technician_type_display() if profile else None
+            fixed_client = profile.fixed_client.name if profile and profile.fixed_client else None
+            fixed_hub = profile.fixed_hub.name if profile and profile.fixed_hub else None
+
+            technician_cards.append({
+                'id': tech.id,
+                'name': tech.get_full_name() or tech.username,
+                'initial': (tech.first_name or tech.username or '?')[:1].upper(),
+                'photo': photo_url,
+                'job_title': job_title,
+                'station': station,
+                'technician_type': technician_type,
+                'fixed_client': fixed_client,
+                'fixed_hub': fixed_hub,
+            })
+
+        context['technicians'] = technician_cards
+        context['today'] = timezone.localdate().strftime('%Y-%m-%d')
+        return context
+
+
+class LocalAgendaAPIView(LoginRequiredMixin, View):
+    def get(self, request, technician_id):
+        tech = get_object_or_404(User, pk=technician_id, is_active=True)
+        profile = getattr(tech, 'profile', None)
+
+        date_str = request.GET.get('date')
+        target_date = timezone.localdate()
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                target_date = timezone.localdate()
+
+        tz = timezone.get_current_timezone()
+        day_start = timezone.make_aware(datetime.combine(target_date, datetime.min.time()), tz)
+        day_end = timezone.make_aware(datetime.combine(target_date, datetime.max.time()), tz)
+
+        tickets_qs = Ticket.objects.filter(technicians=tech).exclude(status='canceled')
+        tickets_for_day = (
+            tickets_qs.filter(
+                (Q(start_date__isnull=False) & Q(start_date__lte=day_end) & (Q(deadline__gte=day_start) | Q(deadline__isnull=True))) |
+                (Q(start_date__isnull=True) & Q(deadline__range=(day_start, day_end)))
+            )
+            .select_related('client', 'hub', 'ticket_type')
+            .prefetch_related('systems')
+            .order_by('created_at')
+        )
+
+        travels_for_day = (
+            TechnicianTravel.objects.filter(technician=tech, scheduled_date__range=(day_start, day_end))
+            .select_related('client', 'hub', 'system', 'service_order')
+            .prefetch_related('segments')
+            .order_by('scheduled_date')
+        )
+
+        def fmt_dt(value, with_time=False):
+            if not value:
+                return None
+            if with_time:
+                return timezone.localtime(value).strftime('%d/%m/%Y %H:%M')
+            return timezone.localtime(value).strftime('%d/%m/%Y')
+
+        def fmt_time(value):
+            if not value:
+                return None
+            return timezone.localtime(value).strftime('%H:%M')
+
+        def fmt_duration(value):
+            if not value:
+                return None
+            total_minutes = int(value.total_seconds() // 60)
+            hours = total_minutes // 60
+            minutes = total_minutes % 60
+            return f"{hours}:{minutes:02d}"
+
+        items = []
+        location_counts = defaultdict(int)
+        total_estimated_minutes = 0
+
+        for t in tickets_for_day:
+            hub_name = t.hub.name if t.hub else None
+            location_label = f"{t.client.name} - {hub_name}" if hub_name else t.client.name
+            location_counts[location_label] += 1
+
+            estimated = fmt_duration(t.estimated_time) or t.calculated_hours
+            if t.estimated_time:
+                total_estimated_minutes += int(t.estimated_time.total_seconds() // 60)
+
+            systems_names = ", ".join(system.name for system in t.systems.all()) or "-"
+
+            items.append({
+                'kind': 'os',
+                'id': t.id,
+                'label': t.leankeep_id or t.formatted_id,
+                'status': t.get_status_display(),
+                'status_code': t.status,
+                'client': t.client.name,
+                'hub': hub_name,
+                'location': location_label,
+                'systems': systems_names,
+                'estimated_time': estimated,
+                'start_time': fmt_time(t.start_date),
+                'deadline_time': fmt_time(t.deadline),
+                'url': reverse('ticket_detail', args=[t.id]),
+                'description': (t.description or '')[:160],
+                'created_at': timezone.localtime(t.created_at).isoformat(),
+            })
+
+        for tr in travels_for_day:
+            hub_name = tr.hub.name if tr.hub else None
+            location_label = f"{tr.client.name} - {hub_name}" if hub_name else tr.client.name
+            location_counts[location_label] += 1
+
+            segment = tr.segments.all().first()
+            travel_payload = {
+                'segment_exists': bool(segment),
+                'transport_type': segment.get_transport_type_display() if segment else None,
+                'carrier': segment.carrier if segment else None,
+                'transport_number': segment.transport_number if segment else None,
+                'locator': segment.locator if segment else None,
+                'departure': fmt_dt(segment.departure_time, with_time=True) if segment else fmt_dt(tr.departure_time, with_time=True),
+                'arrival': fmt_dt(segment.arrival_time, with_time=True) if segment else fmt_dt(tr.arrival_time, with_time=True),
+            }
+
+            items.append({
+                'kind': 'agendamento',
+                'id': tr.id,
+                'client': tr.client.name,
+                'hub': hub_name,
+                'location': location_label,
+                'status': tr.get_status_display(),
+                'status_code': tr.status,
+                'scheduled_at': fmt_dt(tr.scheduled_date, with_time=True),
+                'system': tr.system.name if tr.system else None,
+                'service_order': tr.service_order.leankeep_id if tr.service_order and tr.service_order.leankeep_id else (tr.service_order.formatted_id if tr.service_order else None),
+                'travel': travel_payload,
+                'url': reverse('travel_detail', args=[tr.id]),
+            })
+
+        primary_location = None
+        if location_counts:
+            primary_location = sorted(location_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+        elif profile and profile.technician_type == 'fixo' and profile.fixed_client:
+            primary_location = f"{profile.fixed_client.name} - {profile.fixed_hub.name}" if profile.fixed_hub else profile.fixed_client.name
+
+        total_estimated = None
+        if total_estimated_minutes > 0:
+            total_estimated = f"{total_estimated_minutes // 60}:{total_estimated_minutes % 60:02d}"
+
+        return JsonResponse({
+            'technician': {
+                'id': tech.id,
+                'name': tech.get_full_name() or tech.username,
+            },
+            'date': target_date.strftime('%Y-%m-%d'),
+            'date_label': target_date.strftime('%d/%m/%Y'),
+            'summary': {
+                'primary_location': primary_location,
+                'total_estimated_time': total_estimated,
+                'items_count': len(items),
+            },
+            'items': items,
+        }, safe=False)
 
