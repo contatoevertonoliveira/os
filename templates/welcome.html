@@ -54,11 +54,12 @@
         }
 
         .login-logo-img {
-            max-width: 100%;
-            max-height: 90%;
+            max-width: 82%;
+            max-height: 120px;
             margin-bottom: 1rem;
             filter: none;
-            transform: scale(1.1);
+            height: auto;
+            object-fit: contain;
         }
 
         .login-subtitle {
@@ -131,7 +132,7 @@
 <body>
     <div class="login-card">
         <div class="login-logo-side">
-            <img src="{% static 'images/logo_jumper2.svg' %}" alt="JumperFour Logo" class="login-logo-img">
+            <img src="{% get_media_prefix %}images/logo_jumper.png" alt="JumperFour" class="login-logo-img">
             <h2 class="login-subtitle">Hub de Serviços</h2>
         </div>
         <div class="login-form-side">

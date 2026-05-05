@@ -15,6 +15,9 @@ from django.template.loader import get_template
 from xhtml2pdf import pisa
 from django.contrib.staticfiles import finders
 from django.conf import settings
+from django.db import transaction
+from django.utils.text import slugify
+from django.db.utils import OperationalError, ProgrammingError
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
@@ -1092,6 +1095,120 @@ class UserDeleteView(AdminRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('user_list')
         return context
+
+
+class PermissionsView(AdminRequiredMixin, TemplateView):
+    template_name = 'tickets/permissions.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Permissões"
+
+        try:
+            roles = RoleLevel.objects.filter(is_active=True).order_by('name')
+            pages = AppPage.objects.all().order_by('group', 'order', 'name')
+        except (OperationalError, ProgrammingError):
+            context['db_missing'] = True
+            context['roles'] = []
+            context['groups'] = []
+            return context
+
+        perms = RolePagePermission.objects.filter(role__in=roles, page__in=pages)
+        perm_map = {}
+        for p in perms:
+            perm_map[(p.role_id, p.page_id)] = p.allowed
+
+        groups = []
+        by_group = {}
+        for page in pages:
+            group_name = page.group or "Geral"
+            by_group.setdefault(group_name, []).append(page)
+
+        for group_name, group_pages in by_group.items():
+            group_rows = []
+            for page in group_pages:
+                allowed_by_role = []
+                for role in roles:
+                    allowed_by_role.append({
+                        'role': role,
+                        'allowed': perm_map.get((role.id, page.id), True),
+                    })
+                group_rows.append({
+                    'page': page,
+                    'allowed_by_role': allowed_by_role,
+                })
+            groups.append({
+                'name': group_name,
+                'rows': group_rows,
+            })
+
+        context['roles'] = roles
+        context['groups'] = groups
+        return context
+
+    def post(self, request, *args, **kwargs):
+        try:
+            RoleLevel.objects.exists()
+        except (OperationalError, ProgrammingError):
+            messages.error(request, "Permissões ainda não foram inicializadas no banco. Rode: python manage.py migrate")
+            return redirect('settings')
+
+        action = request.POST.get('action')
+
+        if action == 'create_role':
+            name = (request.POST.get('role_name') or '').strip()
+            code = (request.POST.get('role_code') or '').strip()
+            if not code and name:
+                code = slugify(name)
+
+            if name and code:
+                RoleLevel.objects.update_or_create(
+                    code=code,
+                    defaults={'name': name, 'is_system': False, 'is_active': True},
+                )
+            return redirect('permissions')
+
+        if action == 'create_page':
+            name = (request.POST.get('page_name') or '').strip()
+            url_name = (request.POST.get('page_url_name') or '').strip()
+            code = (request.POST.get('page_code') or '').strip()
+            group = (request.POST.get('page_group') or '').strip() or None
+
+            if not code and name:
+                code = slugify(name)
+
+            if name and url_name and code:
+                AppPage.objects.update_or_create(
+                    url_name=url_name,
+                    defaults={
+                        'code': code,
+                        'name': name,
+                        'group': group,
+                        'is_enabled': True,
+                    },
+                )
+            return redirect('permissions')
+
+        roles = list(RoleLevel.objects.filter(is_active=True).order_by('name'))
+        pages = list(AppPage.objects.all().order_by('group', 'order', 'name'))
+
+        with transaction.atomic():
+            for page in pages:
+                enabled = request.POST.get(f'page_enabled_{page.id}') == 'on'
+                if page.is_enabled != enabled:
+                    page.is_enabled = enabled
+                    page.save(update_fields=['is_enabled'])
+
+            for role in roles:
+                for page in pages:
+                    allowed = request.POST.get(f'perm_{role.id}_{page.id}') == 'on'
+                    RolePagePermission.objects.update_or_create(
+                        role=role,
+                        page=page,
+                        defaults={'allowed': allowed},
+                    )
+
+        return redirect('permissions')
 
 # Notification Views
 class NotificationListView(LoginRequiredMixin, ListView):

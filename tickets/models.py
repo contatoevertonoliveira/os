@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db.utils import OperationalError, ProgrammingError
 import uuid
 
 class UserProfile(models.Model):
@@ -37,8 +38,69 @@ class UserProfile(models.Model):
     fixed_client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Empresa (Fixo)", related_name='fixed_technicians')
     fixed_hub = models.ForeignKey('ClientHub', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja (Fixo)", related_name='fixed_technicians')
 
+    def get_role_display(self):
+        role = (self.role or '').strip()
+        if not role:
+            return ""
+        try:
+            role_obj = RoleLevel.objects.filter(code=role).first()
+            if role_obj:
+                return role_obj.name
+        except (OperationalError, ProgrammingError):
+            pass
+        return dict(self.ROLE_CHOICES).get(role, role)
+
     def __str__(self):
         return f"{self.user.username} - {self.role}"
+
+
+class RoleLevel(models.Model):
+    code = models.SlugField(max_length=50, unique=True, verbose_name="Código do Nível")
+    name = models.CharField(max_length=100, verbose_name="Nome do Nível")
+    is_system = models.BooleanField(default=False, verbose_name="Nível do Sistema")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Nível de Usuário"
+        verbose_name_plural = "Níveis de Usuário"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class AppPage(models.Model):
+    code = models.SlugField(max_length=80, unique=True, verbose_name="Código da Página")
+    name = models.CharField(max_length=120, verbose_name="Nome da Página")
+    url_name = models.CharField(max_length=120, unique=True, verbose_name="URL Name (Django)")
+    group = models.CharField(max_length=80, blank=True, null=True, verbose_name="Grupo")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    is_enabled = models.BooleanField(default=True, verbose_name="Habilitada")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Página"
+        verbose_name_plural = "Páginas"
+        ordering = ['group', 'order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class RolePagePermission(models.Model):
+    role = models.ForeignKey(RoleLevel, on_delete=models.CASCADE, related_name='page_permissions', verbose_name="Nível")
+    page = models.ForeignKey(AppPage, on_delete=models.CASCADE, related_name='role_permissions', verbose_name="Página")
+    allowed = models.BooleanField(default=True, verbose_name="Permitida")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Permissão por Página"
+        verbose_name_plural = "Permissões por Página"
+        unique_together = ('role', 'page')
+
+    def __str__(self):
+        return f"{self.role.code} -> {self.page.url_name}: {'ok' if self.allowed else 'bloq'}"
 
 class Client(models.Model):
     name = models.CharField(max_length=200, verbose_name="Nome do Cliente")

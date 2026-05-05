@@ -19,7 +19,8 @@ from .views import (
     TicketUpdateEditView, TicketUpdateDeleteView,
     ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
     ChecklistImageToggleReportView, ServicesHubView, WelcomeView,
-    LocalView, LocalAgendaAPIView
+    LocalView, LocalAgendaAPIView,
+    PermissionsView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -55,6 +56,7 @@ urlpatterns = [
 
     path('profile/', ProfileView.as_view(), name='profile'),
     path('settings/', SettingsView.as_view(), name='settings'),
+    path('permissions/', PermissionsView.as_view(), name='permissions'),
     path('login/', TokenLoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(next_page='home'), name='logout'),
     

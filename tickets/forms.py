@@ -484,6 +484,12 @@ class UserManagementForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        try:
+            role_levels = RoleLevel.objects.filter(is_active=True).order_by('name')
+            if role_levels.exists():
+                self.fields['role'].choices = [(r.code, r.name) for r in role_levels]
+        except Exception:
+            pass
         if self.instance and self.instance.pk:
             if hasattr(self.instance, 'profile'):
                 self.fields['role'].initial = self.instance.profile.role

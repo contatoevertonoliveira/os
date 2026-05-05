@@ -631,6 +631,13 @@
                         <i class="fas fa-cogs"></i> Configurações
                     </a>
                 </li>
+                {% if can_access_permissions %}
+                <li>
+                    <a href="{% url 'permissions' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'permissions' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Permissões">
+                        <i class="fas fa-user-shield"></i> Permissões
+                    </a>
+                </li>
+                {% endif %}
             </ul>
             
             <div class="user-profile-footer">

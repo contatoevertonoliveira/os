@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">{{ title }}</h1>
+        <a href="{% url 'settings' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
+
+    {% if db_missing %}
+        <div class="alert alert-danger">
+            <div class="fw-bold mb-1">Banco não atualizado</div>
+            <div>As tabelas de permissões ainda não existem no banco. Rode a migration:</div>
+            <div class="mt-2">
+                <code>python manage.py migrate</code>
+            </div>
+        </div>
+    {% else %}
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm" style="border-radius: 1rem;">
+                <div class="card-body">
+                    <div class="fw-bold mb-3">Níveis de Usuário</div>
+
+                    <form method="post" class="mb-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_role">
+                        <div class="mb-2">
+                            <label class="form-label small text-muted fw-semibold mb-1">Nome do nível</label>
+                            <input class="form-control" name="role_name" placeholder="Ex: Coordenador">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted fw-semibold mb-1">Código (opcional)</label>
+                            <input class="form-control" name="role_code" placeholder="Ex: coordenador">
+                            <div class="text-muted small mt-1">Se vazio, será gerado automaticamente.</div>
+                        </div>
+                        <button class="btn btn-primary-custom w-100" type="submit">
+                            <i class="fas fa-plus me-1"></i> Criar nível
+                        </button>
+                    </form>
+
+                    <div class="fw-bold mb-2">Níveis ativos</div>
+                    <div class="list-group">
+                        {% for r in roles %}
+                            <div class="list-group-item d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="fw-semibold">{{ r.name }}</div>
+                                    <div class="text-muted small">{{ r.code }}</div>
+                                </div>
+                                {% if r.is_system %}
+                                    <span class="badge text-bg-secondary">Sistema</span>
+                                {% endif %}
+                            </div>
+                        {% empty %}
+                            <div class="list-group-item text-muted">Nenhum nível cadastrado.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mt-4" style="border-radius: 1rem;">
+                <div class="card-body">
+                    <div class="fw-bold mb-3">Adicionar Página</div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create_page">
+                        <div class="mb-2">
+                            <label class="form-label small text-muted fw-semibold mb-1">Nome</label>
+                            <input class="form-control" name="page_name" placeholder="Ex: Relatórios">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-muted fw-semibold mb-1">URL Name</label>
+                            <input class="form-control" name="page_url_name" placeholder="Ex: reports">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small text-muted fw-semibold mb-1">Código (opcional)</label>
+                            <input class="form-control" name="page_code" placeholder="Ex: reports">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted fw-semibold mb-1">Grupo (opcional)</label>
+                            <input class="form-control" name="page_group" placeholder="Ex: Admin">
+                        </div>
+                        <button class="btn btn-outline-primary w-100" type="submit">
+                            <i class="fas fa-plus me-1"></i> Adicionar página
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm" style="border-radius: 1rem;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                        <div class="fw-bold">Acesso por Página</div>
+                        <div class="text-muted small">Marque/desmarque e clique em Salvar.</div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="min-width: 220px;">Página</th>
+                                        <th class="text-center" style="min-width: 110px;">Habilitada</th>
+                                        {% for r in roles %}
+                                            <th class="text-center" style="min-width: 140px;">{{ r.name }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for group in groups %}
+                                        <tr class="table-secondary">
+                                            <td colspan="{{ roles|length|add:2 }}" class="fw-bold">{{ group.name }}</td>
+                                        </tr>
+                                        {% for row in group.rows %}
+                                            {% with p=row.page %}
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-semibold">{{ p.name }}</div>
+                                                    <div class="text-muted small">{{ p.url_name }}</div>
+                                                </td>
+                                                <td class="text-center">
+                                                    <input class="form-check-input" type="checkbox" name="page_enabled_{{ p.id }}" {% if p.is_enabled %}checked{% endif %}>
+                                                </td>
+                                                {% for perm in row.allowed_by_role %}
+                                                    <td class="text-center">
+                                                        <input class="form-check-input" type="checkbox" name="perm_{{ perm.role.id }}_{{ p.id }}" {% if perm.allowed %}checked{% endif %}>
+                                                    </td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endwith %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-primary-custom px-4" type="submit">
+                                <i class="fas fa-save me-1"></i> Salvar permissões
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="alert alert-warning mt-3">
+                Páginas desabilitadas ficam inacessíveis para todos, exceto Admin/Super Admin.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

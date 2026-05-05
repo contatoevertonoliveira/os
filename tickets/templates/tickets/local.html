@@ -4,8 +4,41 @@
 {% block content %}
 <div class="container-fluid">
     <style>
+        .local-cards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+        @media (min-width: 992px) {
+            .local-tech-col {
+                width: 500.33px;
+                flex: 0 0 500.33px;
+            }
+            .local-tech-card {
+                width: 500.33px;
+                height: 313.75px;
+            }
+        }
+        @media (max-width: 991.98px) {
+            .local-tech-col {
+                width: 100%;
+                flex: 1 1 100%;
+            }
+            .local-tech-card {
+                width: 100%;
+                height: auto;
+            }
+        }
+        @media (max-width: 575.98px) {
+            .local-cards-grid {
+                gap: 1rem;
+            }
+        }
         .local-tech-card {
             transition: box-shadow 0.2s ease, transform 0.2s ease;
+            overflow: hidden;
+            border-radius: 1rem;
         }
         .local-tech-card-inner {
             display: flex;
@@ -39,6 +72,28 @@
             flex: 1 1 auto;
             min-width: 0;
             padding: 16px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .local-tech-name {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .local-tech-schedule {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .local-items {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
         }
         @media (max-width: 575.98px) {
             .local-tech-card-inner {
@@ -90,6 +145,7 @@
             transition: transform 0.15s ease, box-shadow 0.15s ease;
             overflow: hidden;
             --deck-dim: 0;
+            max-width: 100%;
         }
         .local-deck-item::after {
             content: '';
@@ -147,10 +203,10 @@
         </div>
     </div>
 
-    <div class="row g-4" id="localCards">
+    <div class="local-cards-grid" id="localCards">
         {% for tech in technicians %}
-        <div class="col-12 col-md-6 col-xl-4 local-tech-col" data-tech-name="{{ tech.name|lower }}">
-            <div class="card shadow-sm border-0 h-100 local-tech-card" data-tech-id="{{ tech.id }}" data-date="{{ today }}" style="border-radius: 1rem;">
+        <div class="local-tech-col" data-tech-name="{{ tech.name|lower }}">
+            <div class="card shadow-sm border-0 local-tech-card" data-tech-id="{{ tech.id }}" data-date="{{ today }}" data-tech-name-display="{{ tech.name }}" data-tech-photo="{{ tech.photo|default:'' }}" data-tech-job-title="{{ tech.job_title|default_if_none:'' }}" data-tech-station="{{ tech.station|default_if_none:'' }}" data-tech-initial="{{ tech.initial }}">
                 <div class="local-tech-card-inner">
                     <div class="local-tech-photo">
                         {% if tech.photo %}
@@ -161,7 +217,7 @@
                     </div>
                     <div class="local-tech-content">
                         <div>
-                            <div class="fw-bold fs-4 lh-sm">{{ tech.name }}</div>
+                            <div class="fw-bold fs-4 lh-sm local-tech-name">{{ tech.name }}</div>
                             <div class="text-muted small">
                                 {% if tech.job_title %}{{ tech.job_title }}{% else %}Técnico{% endif %}
                                 {% if tech.station %} · {{ tech.station }}{% endif %}
@@ -178,7 +234,7 @@
                             </div>
                         </div>
 
-                        <div class="mt-4">
+                        <div class="mt-4 local-tech-schedule">
                         <div class="d-flex align-items-center justify-content-between gap-2">
                             <div class="fw-semibold">Programação</div>
                             <div class="d-flex align-items-center gap-2">
@@ -222,10 +278,68 @@
             </div>
         </div>
         {% empty %}
-        <div class="col-12">
+        <div class="w-100">
             <div class="alert alert-warning">Nenhum técnico encontrado.</div>
         </div>
         {% endfor %}
+    </div>
+
+    <div class="modal fade" id="localPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 1rem;">
+                <div class="modal-header bg-white border-bottom">
+                    <div>
+                        <div class="fw-bold fs-5" id="localPreviewName">Técnico</div>
+                        <div class="text-muted small" id="localPreviewSub">--</div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body bg-light p-4">
+                    <div class="row g-4">
+                        <div class="col-lg-4">
+                            <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 1rem;">
+                                <div class="bg-dark" style="height: 420px;">
+                                    <img id="localPreviewPhoto" alt="Foto" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                                    <div id="localPreviewPhotoFallback" class="w-100 h-100 d-flex align-items-center justify-content-center text-white fw-bold" style="font-size: 5rem; background: linear-gradient(135deg, #009542, #1cd362);">
+                                        ?
+                                    </div>
+                                </div>
+                                <div class="card-body bg-white">
+                                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                                        <span class="badge rounded-pill text-bg-secondary" id="localPreviewJobTitle">--</span>
+                                        <span class="badge rounded-pill text-bg-light border text-dark" id="localPreviewStation">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-8">
+                            <div class="card border-0 shadow-sm" style="border-radius: 1rem;">
+                                <div class="card-body bg-white">
+                                    <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                                        <div>
+                                            <div class="text-muted small">Data</div>
+                                            <div class="fw-semibold" id="localPreviewDate">--</div>
+                                        </div>
+                                        <div>
+                                            <div class="text-muted small">Local</div>
+                                            <div class="fw-semibold" id="localPreviewLocation">--</div>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="text-muted small">Previsto</div>
+                                            <div class="fw-semibold" id="localPreviewEstimated">--:--</div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4">
+                                        <div class="fw-bold mb-2">Programação do dia</div>
+                                        <div id="localPreviewItems" class="text-muted small">Carregando...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -234,6 +348,8 @@
 <script>
     let localReorderTimer = null;
     const localDefaultDeckResetMs = 10000;
+    const localAgendaCache = new Map();
+    let localPreviewModalInstance = null;
 
     function localScheduleReorder() {
         if (localReorderTimer) {
@@ -268,7 +384,7 @@
             const dim = Math.min(clamped * 0.03, 0.18);
             el.style.setProperty('--deck-dim', String(dim));
         });
-        const base = 132;
+        const base = 118;
         const extra = Math.min(Math.max(cards.length - 1, 0), 7) * 6;
         deckEl.style.height = `${base + extra}px`;
     }
@@ -431,6 +547,9 @@
             cardEl.setAttribute('data-date', data.date || date);
 
             localRenderItems(itemsEl, data);
+            cardEl._agendaData = data;
+            const cacheKey = `${technicianId}|${data.date || date}`;
+            localAgendaCache.set(cacheKey, data);
 
             const hasActivity = !!(data.summary && Number(data.summary.items_count || 0) > 0);
             cardEl.classList.toggle('local-active', hasActivity);
@@ -446,6 +565,144 @@
             }
             localScheduleReorder();
         }
+    }
+
+    function localBadgeClass(statusCode) {
+        if (statusCode === 'open') return 'text-bg-primary';
+        if (statusCode === 'in_progress') return 'text-bg-warning';
+        if (statusCode === 'pending') return 'text-bg-info';
+        if (statusCode === 'finished') return 'text-bg-success';
+        if (statusCode === 'canceled') return 'text-bg-danger';
+        return 'text-bg-secondary';
+    }
+
+    function localRenderPreviewItems(items) {
+        if (!items || items.length === 0) {
+            return '<div class="text-muted small">Sem itens para este dia.</div>';
+        }
+
+        const osItems = items.filter(i => i.kind === 'os');
+        const agItems = items.filter(i => i.kind === 'agendamento');
+
+        const osHtml = osItems.map(item => {
+            const hub = item.hub ? ` - ${item.hub}` : '';
+            const time = item.estimated_time ? ` · ${item.estimated_time}h` : '';
+            const systems = item.systems ? `<div class="text-muted small mt-1">Sistemas: <span class="fw-semibold">${item.systems}</span></div>` : '';
+            const desc = item.description ? `<div class="text-muted small mt-1">${item.description}</div>` : '';
+            const start = item.start_time ? `Início: ${item.start_time}` : '';
+            const end = item.deadline_time ? ` · Limite: ${item.deadline_time}` : '';
+            const timing = (start || end) ? `<div class="text-muted small mt-1">${start}${end}</div>` : '';
+            return `
+                <div class="list-group-item">
+                    <div class="d-flex align-items-start justify-content-between gap-3">
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold">
+                                <span class="badge ${localBadgeClass(item.status_code)} me-2">${item.status || ''}</span>
+                                OS ${item.label || ''}
+                            </div>
+                            <div class="text-muted small">${item.client || ''}${hub}${time}</div>
+                            ${timing}
+                            ${systems}
+                            ${desc}
+                        </div>
+                        <div class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="${item.url}">Abrir</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        const agHtml = agItems.map(item => {
+            const hub = item.hub ? ` - ${item.hub}` : '';
+            const system = item.system ? ` · ${item.system}` : '';
+            const so = item.service_order ? ` · OS ${item.service_order}` : '';
+            const when = item.scheduled_at ? ` · ${item.scheduled_at}` : '';
+            const locator = item.travel && item.travel.locator ? `<div class="text-muted small mt-1">Localizador: <span class="fw-semibold">${item.travel.locator}</span></div>` : '';
+            const transport = item.travel && item.travel.transport_type ? `<div class="text-muted small mt-1">${item.travel.transport_type}${item.travel.carrier ? ` · ${item.travel.carrier}` : ''}${item.travel.transport_number ? ` · ${item.travel.transport_number}` : ''}</div>` : '';
+            return `
+                <div class="list-group-item">
+                    <div class="d-flex align-items-start justify-content-between gap-3">
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold">Agendamento</div>
+                            <div class="text-muted small">${item.client || ''}${hub}${system}${so}${when}</div>
+                            ${transport}
+                            ${locator}
+                        </div>
+                        <div class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" href="${item.url}">Abrir</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            ${osItems.length ? `<div class="text-muted small mb-2">OS (${osItems.length})</div><div class="list-group mb-3">${osHtml}</div>` : ''}
+            ${agItems.length ? `<div class="text-muted small mb-2">Agendamentos (${agItems.length})</div><div class="list-group">${agHtml}</div>` : ''}
+        `;
+    }
+
+    async function localOpenPreview(cardEl) {
+        if (!window.bootstrap || !window.bootstrap.Modal) return;
+        if (!localPreviewModalInstance) {
+            const modalEl = document.getElementById('localPreviewModal');
+            if (!modalEl) return;
+            localPreviewModalInstance = new bootstrap.Modal(modalEl);
+        }
+
+        const techName = cardEl.getAttribute('data-tech-name-display') || 'Técnico';
+        const techPhoto = cardEl.getAttribute('data-tech-photo') || '';
+        const techJobTitle = cardEl.getAttribute('data-tech-job-title') || 'Técnico';
+        const techStation = cardEl.getAttribute('data-tech-station') || '-';
+        const techInitial = cardEl.getAttribute('data-tech-initial') || '?';
+
+        document.getElementById('localPreviewName').textContent = techName;
+        document.getElementById('localPreviewJobTitle').textContent = techJobTitle || 'Técnico';
+        document.getElementById('localPreviewStation').textContent = techStation || '-';
+        document.getElementById('localPreviewSub').textContent = techJobTitle ? techJobTitle : 'Técnico';
+
+        const photoEl = document.getElementById('localPreviewPhoto');
+        const photoFallbackEl = document.getElementById('localPreviewPhotoFallback');
+        if (techPhoto) {
+            photoEl.src = techPhoto;
+            photoEl.style.display = 'block';
+            photoFallbackEl.style.display = 'none';
+        } else {
+            photoEl.removeAttribute('src');
+            photoEl.style.display = 'none';
+            photoFallbackEl.textContent = techInitial;
+            photoFallbackEl.style.display = 'flex';
+        }
+
+        const itemsEl = document.getElementById('localPreviewItems');
+        itemsEl.textContent = 'Carregando...';
+
+        localPreviewModalInstance.show();
+
+        const technicianId = cardEl.getAttribute('data-tech-id');
+        const date = cardEl.getAttribute('data-date');
+        const cacheKey = `${technicianId}|${date}`;
+
+        let payload = null;
+        if (cardEl._agendaData && (cardEl._agendaData.date === date)) {
+            payload = cardEl._agendaData;
+        } else if (localAgendaCache.has(cacheKey)) {
+            payload = localAgendaCache.get(cacheKey);
+        } else {
+            await localLoadAgenda(cardEl);
+            payload = cardEl._agendaData || null;
+        }
+
+        if (!payload) {
+            itemsEl.innerHTML = '<div class="text-danger small">Não foi possível carregar a programação.</div>';
+            return;
+        }
+
+        document.getElementById('localPreviewDate').textContent = payload.date_label || '--';
+        document.getElementById('localPreviewLocation').textContent = (payload.summary && payload.summary.primary_location) ? payload.summary.primary_location : '--';
+        document.getElementById('localPreviewEstimated').textContent = (payload.summary && payload.summary.total_estimated_time) ? payload.summary.total_estimated_time : '--:--';
+        itemsEl.innerHTML = localRenderPreviewItems(payload.items || []);
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -484,12 +741,14 @@
                 const current = cardEl.getAttribute('data-date');
                 cardEl.setAttribute('data-date', localShiftDate(current, -1));
                 localLoadAgenda(cardEl);
+                return;
             }
 
             if (e.target.closest('.local-date-next')) {
                 const current = cardEl.getAttribute('data-date');
                 cardEl.setAttribute('data-date', localShiftDate(current, 1));
                 localLoadAgenda(cardEl);
+                return;
             }
 
             if (e.target.closest('.local-date-today')) {
@@ -498,7 +757,13 @@
                 const picker = cardEl.querySelector('.local-date-picker');
                 if (picker) picker.value = today;
                 localLoadAgenda(cardEl);
+                return;
             }
+
+            if (e.target.closest('.local-deck') || e.target.closest('.local-deck-item')) return;
+            if (e.target.closest('a') || e.target.closest('button') || e.target.closest('input')) return;
+
+            localOpenPreview(cardEl);
         });
 
         document.addEventListener('change', function(e) {
