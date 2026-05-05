@@ -7,6 +7,50 @@
         .local-tech-card {
             transition: box-shadow 0.2s ease, transform 0.2s ease;
         }
+        .local-tech-card-inner {
+            display: flex;
+            height: 100%;
+        }
+        .local-tech-photo {
+            width: 160px;
+            flex: 0 0 160px;
+            overflow: hidden;
+            border-radius: 1rem 0 0 1rem;
+            background: linear-gradient(135deg, #009542, #1cd362);
+        }
+        .local-tech-photo img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover;
+        }
+        .local-tech-photo-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 800;
+            font-size: 3rem;
+            letter-spacing: 0.02em;
+        }
+        .local-tech-content {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding: 16px;
+        }
+        @media (max-width: 575.98px) {
+            .local-tech-card-inner {
+                flex-direction: column;
+            }
+            .local-tech-photo {
+                width: 100%;
+                flex: 0 0 auto;
+                height: 220px;
+                border-radius: 1rem 1rem 0 0;
+            }
+        }
         .local-tech-card.local-active {
             background: #ffc107;
             box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.35), 0 0 2rem rgba(255, 193, 7, 0.25);
@@ -107,20 +151,17 @@
         {% for tech in technicians %}
         <div class="col-12 col-md-6 col-xl-4 local-tech-col" data-tech-name="{{ tech.name|lower }}">
             <div class="card shadow-sm border-0 h-100 local-tech-card" data-tech-id="{{ tech.id }}" data-date="{{ today }}" style="border-radius: 1rem;">
-                <div class="card-body">
-                    <div class="d-flex gap-3 align-items-center">
-                        <div style="width: 92px; height: 92px; flex: 0 0 92px;">
-                            {% if tech.photo %}
-                                <img src="{{ tech.photo }}" alt="{{ tech.name }}" class="w-100 h-100 object-fit-cover rounded-4 border" style="border-color: rgba(0,0,0,0.08) !important;">
-                            {% else %}
-                                <div class="w-100 h-100 rounded-4 d-flex align-items-center justify-content-center text-white fw-bold" style="background: linear-gradient(135deg, #009542, #1cd362); font-size: 2rem;">
-                                    {{ tech.initial }}
-                                </div>
-                            {% endif %}
-                        </div>
-
-                        <div class="flex-grow-1">
-                            <div class="fw-bold fs-5">{{ tech.name }}</div>
+                <div class="local-tech-card-inner">
+                    <div class="local-tech-photo">
+                        {% if tech.photo %}
+                            <img src="{{ tech.photo }}" alt="{{ tech.name }}">
+                        {% else %}
+                            <div class="local-tech-photo-fallback">{{ tech.initial }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="local-tech-content">
+                        <div>
+                            <div class="fw-bold fs-4 lh-sm">{{ tech.name }}</div>
                             <div class="text-muted small">
                                 {% if tech.job_title %}{{ tech.job_title }}{% else %}Técnico{% endif %}
                                 {% if tech.station %} · {{ tech.station }}{% endif %}
@@ -136,9 +177,8 @@
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
 
-                    <div class="mt-4">
+                        <div class="mt-4">
                         <div class="d-flex align-items-center justify-content-between gap-2">
                             <div class="fw-semibold">Programação</div>
                             <div class="d-flex align-items-center gap-2">
@@ -175,6 +215,7 @@
 
                         <div class="mt-3">
                             <div class="local-items text-muted small">Carregando...</div>
+                        </div>
                         </div>
                     </div>
                 </div>

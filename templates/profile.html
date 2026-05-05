@@ -13,6 +13,7 @@
         <div class="col-md-4 mb-4">
             <div class="card card-custom border-0 shadow-sm text-center h-100">
                 <div class="card-body p-4">
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
                     <div class="mb-3 position-relative d-inline-block" style="cursor: pointer;" onclick="document.getElementById('profilePhotoInput').click()">
                         {% render_field form.photo class="d-none" id="profilePhotoInput" accept="image/*" %}
                         
@@ -31,6 +32,42 @@
                         </div>
                     </div>
                     <div class="small text-muted mb-2">Clique na foto para alterar</div>
+                    <div class="d-flex justify-content-center gap-2 mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary {% if not user.profile.photo %}d-none{% endif %}" id="profilePhotoEditCurrent">
+                            <i class="fas fa-crop-simple me-1"></i>Ajustar/Recortar
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger d-none" id="profilePhotoClear">
+                            <i class="fas fa-trash me-1"></i>Limpar
+                        </button>
+                    </div>
+
+                    <div class="d-none text-start" id="profilePhotoCropperSection">
+                        <div class="border rounded-3 bg-light overflow-hidden" style="height: 260px;">
+                            <img id="profilePhotoCropperImage" alt="Prévia da foto" style="width: 100%; height: 100%; object-fit: contain; display: block;">
+                        </div>
+                        <div class="text-muted small mt-3 mb-2">Prévia</div>
+                        <div class="border rounded-3 bg-white overflow-hidden profile-photo-cropper-preview" style="width: 100%; aspect-ratio: 3 / 4;"></div>
+                        <div class="d-flex flex-wrap gap-2 mt-3 justify-content-center">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="profilePhotoZoomIn">
+                                <i class="fas fa-magnifying-glass-plus me-1"></i>Zoom
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="profilePhotoZoomOut">
+                                <i class="fas fa-magnifying-glass-minus me-1"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="profilePhotoRotateLeft">
+                                <i class="fas fa-rotate-left me-1"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="profilePhotoRotateRight">
+                                <i class="fas fa-rotate-right me-1"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="profilePhotoReset">
+                                <i class="fas fa-rotate me-1"></i>Reset
+                            </button>
+                        </div>
+                        <div class="text-muted small mt-3">
+                            Arraste para posicionar e use os botões para encaixar. Ao salvar, a imagem será recortada e aplicada.
+                        </div>
+                    </div>
                     
                     <h5 class="card-title fw-bold mb-1">{{ user.get_full_name|default:user.username }}</h5>
                     <p class="text-muted small mb-3">{{ user.profile.job_title|default:"Cargo não definido" }}</p>
@@ -96,6 +133,13 @@
                                 {% render_field form.company_phone class="form-control" placeholder="Ramal ou Corporativo" %}
                             </div>
                             <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Cargo</label>
+                                {% render_field form.job_title class="form-control" %}
+                                {% if form.job_title.field.disabled %}
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> Definido pelo administrador</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label small fw-bold text-muted mb-1">Posto de Alocação</label>
                                 {% render_field form.station class="form-control" %}
                                 {% if form.station.field.disabled %}
@@ -140,26 +184,184 @@
         navigator.clipboard.writeText(copyText.value);
         alert("Token copiado para a área de transferência!");
     }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const formEl = document.querySelector('form[enctype="multipart/form-data"]');
+        const inputEl = document.getElementById('profilePhotoInput');
+        const previewEl = document.getElementById('profilePhotoPreview');
+        const placeholderEl = document.getElementById('profilePhotoPlaceholder');
 
-    // Photo Preview Logic
-    document.getElementById('profilePhotoInput').addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const preview = document.getElementById('profilePhotoPreview');
-                const placeholder = document.getElementById('profilePhotoPlaceholder');
-                
-                if (preview) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('d-none');
-                }
-                if (placeholder) {
-                    placeholder.classList.add('d-none');
-                }
-            };
-            reader.readAsDataURL(file);
+        const cropperSection = document.getElementById('profilePhotoCropperSection');
+        const imgEl = document.getElementById('profilePhotoCropperImage');
+        const editCurrentBtn = document.getElementById('profilePhotoEditCurrent');
+        const clearBtn = document.getElementById('profilePhotoClear');
+
+        const zoomInBtn = document.getElementById('profilePhotoZoomIn');
+        const zoomOutBtn = document.getElementById('profilePhotoZoomOut');
+        const rotateLeftBtn = document.getElementById('profilePhotoRotateLeft');
+        const rotateRightBtn = document.getElementById('profilePhotoRotateRight');
+        const resetBtn = document.getElementById('profilePhotoReset');
+
+        if (!formEl || !inputEl || !imgEl || typeof Cropper === 'undefined') return;
+
+        let cropper = null;
+        let hasCropper = false;
+        let selectedObjectUrl = null;
+        let isSubmitting = false;
+        const originalSrc = previewEl && !previewEl.classList.contains('d-none') ? previewEl.src : null;
+
+        function showCropperUI(show) {
+            cropperSection?.classList.toggle('d-none', !show);
+            clearBtn?.classList.toggle('d-none', !show);
         }
+
+        function destroyCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            hasCropper = false;
+        }
+
+        function initCropper() {
+            destroyCropper();
+            cropper = new Cropper(imgEl, {
+                viewMode: 1,
+                dragMode: 'move',
+                aspectRatio: 3 / 4,
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                movable: true,
+                zoomable: true,
+                rotatable: true,
+                scalable: false,
+                toggleDragModeOnDblclick: false,
+                preview: '.profile-photo-cropper-preview'
+            });
+            hasCropper = true;
+        }
+
+        function setPreviewToSrc(src) {
+            if (!previewEl) return;
+            previewEl.src = src;
+            previewEl.classList.remove('d-none');
+            placeholderEl?.classList.add('d-none');
+            editCurrentBtn?.classList.remove('d-none');
+        }
+
+        function restorePreviewDefault() {
+            if (originalSrc) {
+                setPreviewToSrc(originalSrc);
+                return;
+            }
+            previewEl?.classList.add('d-none');
+            placeholderEl?.classList.remove('d-none');
+            editCurrentBtn?.classList.add('d-none');
+        }
+
+        function loadCropperImage(src) {
+            if (!src) return;
+            showCropperUI(true);
+
+            imgEl.onload = function() {
+                initCropper();
+            };
+
+            const needsCacheBust = !src.startsWith('blob:') && !src.startsWith('data:');
+            const finalSrc = needsCacheBust
+                ? (src + (src.includes('?') ? '&' : '?') + 'v=' + Date.now())
+                : src;
+
+            imgEl.src = '';
+            requestAnimationFrame(() => {
+                imgEl.src = finalSrc;
+                if (imgEl.complete && imgEl.naturalWidth > 0) {
+                    initCropper();
+                }
+            });
+        }
+
+        function setImageFromFile(file) {
+            if (!file) return;
+            if (selectedObjectUrl) URL.revokeObjectURL(selectedObjectUrl);
+            selectedObjectUrl = URL.createObjectURL(file);
+            setPreviewToSrc(selectedObjectUrl);
+            loadCropperImage(selectedObjectUrl);
+        }
+
+        function setImageFromUrl(url) {
+            if (!url) return;
+            setPreviewToSrc(url);
+            loadCropperImage(url);
+        }
+
+        inputEl.addEventListener('change', function(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            setImageFromFile(file);
+        });
+
+        editCurrentBtn?.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (!previewEl || previewEl.classList.contains('d-none') || !previewEl.src) return;
+            setImageFromUrl(previewEl.src);
+        });
+
+        clearBtn?.addEventListener('click', function(e) {
+            e.preventDefault();
+            destroyCropper();
+            showCropperUI(false);
+            inputEl.value = '';
+            if (selectedObjectUrl) {
+                URL.revokeObjectURL(selectedObjectUrl);
+                selectedObjectUrl = null;
+            }
+            restorePreviewDefault();
+        });
+
+        zoomInBtn?.addEventListener('click', function(e) { e.preventDefault(); cropper?.zoom(0.1); });
+        zoomOutBtn?.addEventListener('click', function(e) { e.preventDefault(); cropper?.zoom(-0.1); });
+        rotateLeftBtn?.addEventListener('click', function(e) { e.preventDefault(); cropper?.rotate(-90); });
+        rotateRightBtn?.addEventListener('click', function(e) { e.preventDefault(); cropper?.rotate(90); });
+        resetBtn?.addEventListener('click', function(e) { e.preventDefault(); cropper?.reset(); });
+
+        formEl.addEventListener('submit', function(e) {
+            if (isSubmitting) return;
+            if (!hasCropper || !cropper) return;
+
+            e.preventDefault();
+            isSubmitting = true;
+
+            const canvas = cropper.getCroppedCanvas({
+                width: 600,
+                height: 800,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    isSubmitting = false;
+                    formEl.submit();
+                    return;
+                }
+
+                const file = new File([blob], 'profile.jpg', { type: blob.type || 'image/jpeg' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                inputEl.files = dt.files;
+
+                if (selectedObjectUrl) {
+                    URL.revokeObjectURL(selectedObjectUrl);
+                    selectedObjectUrl = null;
+                }
+                destroyCropper();
+                formEl.submit();
+            }, 'image/jpeg', 0.92);
+        });
     });
 </script>
 {% endblock %}

@@ -334,13 +334,15 @@ class TicketEvolutionForm(forms.ModelForm):
 class UserProfileForm(forms.ModelForm):
     first_name = forms.CharField(label="Nome Completo", max_length=150, required=True)
     email = forms.EmailField(label="Email", required=True)
+    job_title = forms.CharField(label="Cargo", max_length=100, required=False)
     
     class Meta:
         model = UserProfile
-        fields = ['photo', 'personal_phone', 'company_phone', 'station', 'role']
+        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
+            'job_title': forms.TextInput(attrs={'class': 'form-control'}),
             'personal_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 00000-0000'}),
             'company_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
         }
@@ -353,6 +355,7 @@ class UserProfileForm(forms.ModelForm):
         if self.instance and self.instance.pk and hasattr(self.instance, 'user'):
             self.fields['first_name'].initial = self.instance.user.first_name
             self.fields['email'].initial = self.instance.user.email
+            self.fields['job_title'].initial = self.instance.job_title
 
         # Role restriction logic
         is_admin = self.user and hasattr(self.user, 'profile') and self.user.profile.role in ['admin', 'super_admin']
@@ -361,6 +364,7 @@ class UserProfileForm(forms.ModelForm):
             # Hide/Disable restricted fields for non-admins
             self.fields['role'].disabled = True
             self.fields['station'].disabled = True # Assuming station is assigned by admin
+            self.fields['job_title'].disabled = True
         
     def save(self, commit=True):
         profile = super().save(commit=False)

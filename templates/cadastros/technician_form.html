@@ -28,6 +28,7 @@
 </style>
 
 <div class="container-fluid px-4">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
     <div class="row justify-content-center">
         <div class="col-xl-8 col-lg-9 col-md-10">
             <div class="card shadow-sm border-0 rounded-3 mt-4">
@@ -44,6 +45,69 @@
                 <div class="card-body px-4 py-4">
                     <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
+                            <div class="row g-4">
+                                <div class="col-lg-4">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                                <div class="rounded-circle border bg-light overflow-hidden d-flex align-items-center justify-content-center" id="photoAvatar" style="width: 132px; height: 132px;">
+                                                    {% if form.instance.profile.photo %}
+                                                        <img id="photoCurrentImg" src="{{ form.instance.profile.photo.url }}" alt="Foto de Perfil" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                                                    {% else %}
+                                                        <div id="photoAvatarInitial" class="text-white fw-bold d-flex align-items-center justify-content-center" style="width: 100%; height: 100%; background: linear-gradient(135deg, #009542, #1cd362); font-size: 2.8rem;">
+                                                            {{ form.instance.first_name|default:"?"|first|upper }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="flex-grow-1">
+                                                    <div class="small text-muted fw-semibold">Foto do Perfil</div>
+                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                        <button type="button" class="btn btn-sm btn-outline-primary" id="photoSelectBtn">
+                                                            <i class="fas fa-upload me-1"></i>Enviar foto
+                                                        </button>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary {% if not form.instance.profile.photo %}d-none{% endif %}" id="photoEditCurrent">
+                                                            <i class="fas fa-crop-simple me-1"></i>Ajustar
+                                                        </button>
+                                                    </div>
+                                                    <div class="text-danger small mt-2">{{ form.photo.errors }}</div>
+                                                    {% render_field form.photo class="form-control d-none" accept="image/*" %}
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-3 d-none" id="photoCropperSection">
+                                                <div class="border rounded-3 bg-light overflow-hidden" style="height: 300px;">
+                                                    <img id="photoCropperImage" alt="Prévia da foto" style="width: 100%; height: 100%; object-fit: contain; display: block;">
+                                                </div>
+                                                <div class="text-muted small mt-3 mb-2">Prévia</div>
+                                                <div class="border rounded-3 bg-white overflow-hidden photo-cropper-preview" style="width: 100%; aspect-ratio: 3 / 4;"></div>
+                                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="photoZoomIn">
+                                                        <i class="fas fa-magnifying-glass-plus me-1"></i>Zoom
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="photoZoomOut">
+                                                        <i class="fas fa-magnifying-glass-minus me-1"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="photoRotateLeft">
+                                                        <i class="fas fa-rotate-left me-1"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="photoRotateRight">
+                                                        <i class="fas fa-rotate-right me-1"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="photoReset">
+                                                        <i class="fas fa-rotate me-1"></i>Reset
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" id="photoClear">
+                                                        <i class="fas fa-trash me-1"></i>Limpar
+                                                    </button>
+                                                </div>
+                                                <div class="text-muted small mt-3">
+                                                    Arraste para posicionar e use os botões para encaixar. Ao salvar, a imagem será recortada e aplicada.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-8">
                         
                         <h6 class="text-secondary text-uppercase fw-bold small mb-3">
                             <i class="fas fa-id-card me-2"></i>Informações Pessoais
@@ -132,17 +196,6 @@
                                 <div class="text-muted small">{{ form.access_token.help_text }}</div>
                                 <div class="text-danger small">{{ form.access_token.errors }}</div>
                             </div>
-                            <div class="col-12">
-                                <label for="{{ form.photo.id_for_label }}" class="form-label small fw-bold mb-1">Foto de Perfil</label>
-                                {% render_field form.photo class="form-control" %}
-                                <div class="text-danger small">{{ form.photo.errors }}</div>
-                                {% if form.instance.profile.photo %}
-                                <div class="mt-2">
-                                    <img src="{{ form.instance.profile.photo.url }}" alt="Foto atual" class="img-thumbnail" style="height: 100px;">
-                                    <p class="small text-muted">Foto atual</p>
-                                </div>
-                                {% endif %}
-                            </div>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
@@ -151,6 +204,8 @@
                                 <i class="fas fa-save me-2"></i>Salvar
                             </button>
                         </div>
+                                </div>
+                            </div>
                     </form>
                 </div>
             </div>
@@ -160,6 +215,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const radios = document.querySelectorAll('input[name="technician_type"]');
@@ -248,6 +304,226 @@
                 hubSelect.value = initialHubId;
             }
         }
+    });
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const formEl = document.querySelector('form[enctype="multipart/form-data"]');
+        const inputEl = document.getElementById('{{ form.photo.id_for_label }}');
+        const cropperSection = document.getElementById('photoCropperSection');
+        const imgEl = document.getElementById('photoCropperImage');
+        const selectBtn = document.getElementById('photoSelectBtn');
+        const avatarEl = document.getElementById('photoAvatar');
+        const avatarInitialEl = document.getElementById('photoAvatarInitial');
+        const avatarImgEl = document.getElementById('photoCurrentImg');
+
+        const zoomInBtn = document.getElementById('photoZoomIn');
+        const zoomOutBtn = document.getElementById('photoZoomOut');
+        const rotateLeftBtn = document.getElementById('photoRotateLeft');
+        const rotateRightBtn = document.getElementById('photoRotateRight');
+        const resetBtn = document.getElementById('photoReset');
+        const clearBtn = document.getElementById('photoClear');
+        const editCurrentBtn = document.getElementById('photoEditCurrent');
+
+        if (!formEl || !inputEl || !imgEl || typeof Cropper === 'undefined') return;
+
+        let cropper = null;
+        let selectedObjectUrl = null;
+        let hasCropper = false;
+        let isSubmitting = false;
+        const originalAvatarSrc = avatarImgEl ? avatarImgEl.src : null;
+
+        function destroyCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            hasCropper = false;
+        }
+
+        function showCropperUI(show) {
+            if (cropperSection) cropperSection.classList.toggle('d-none', !show);
+        }
+
+        function setAvatarToSrc(src) {
+            if (!avatarEl) return;
+            let img = document.getElementById('photoCurrentImg');
+            if (!img) {
+                img = document.createElement('img');
+                img.id = 'photoCurrentImg';
+                img.alt = 'Foto de Perfil';
+                img.style.width = '100%';
+                img.style.height = '100%';
+                img.style.objectFit = 'cover';
+                img.style.display = 'block';
+                avatarEl.appendChild(img);
+            }
+            img.src = src;
+            if (avatarInitialEl) {
+                avatarInitialEl.classList.add('d-none');
+            }
+            const editBtn = document.getElementById('photoEditCurrent');
+            if (editBtn) {
+                editBtn.classList.remove('d-none');
+            }
+        }
+
+        function restoreAvatarDefault() {
+            const img = document.getElementById('photoCurrentImg');
+            if (originalAvatarSrc) {
+                setAvatarToSrc(originalAvatarSrc);
+                return;
+            }
+            if (img) {
+                img.remove();
+            }
+            if (avatarInitialEl) {
+                avatarInitialEl.classList.remove('d-none');
+            }
+            const editBtn = document.getElementById('photoEditCurrent');
+            if (editBtn) {
+                editBtn.classList.add('d-none');
+            }
+        }
+
+        function initCropper() {
+            destroyCropper();
+            cropper = new Cropper(imgEl, {
+                viewMode: 1,
+                dragMode: 'move',
+                aspectRatio: 3 / 4,
+                autoCropArea: 1,
+                responsive: true,
+                background: false,
+                movable: true,
+                zoomable: true,
+                rotatable: true,
+                scalable: false,
+                toggleDragModeOnDblclick: false,
+                preview: '.photo-cropper-preview'
+            });
+            hasCropper = true;
+        }
+
+        function loadCropperImage(src) {
+            if (!src) return;
+            showCropperUI(true);
+
+            imgEl.onload = function() {
+                initCropper();
+            };
+
+            const needsCacheBust = !src.startsWith('blob:') && !src.startsWith('data:');
+            const finalSrc = needsCacheBust
+                ? (src + (src.includes('?') ? '&' : '?') + 'v=' + Date.now())
+                : src;
+
+            imgEl.src = '';
+            requestAnimationFrame(() => {
+                imgEl.src = finalSrc;
+                if (imgEl.complete && imgEl.naturalWidth > 0) {
+                    initCropper();
+                }
+            });
+        }
+
+        function setImageSrcFromFile(file) {
+            if (!file) return;
+            if (selectedObjectUrl) URL.revokeObjectURL(selectedObjectUrl);
+            selectedObjectUrl = URL.createObjectURL(file);
+            setAvatarToSrc(selectedObjectUrl);
+            loadCropperImage(selectedObjectUrl);
+        }
+
+        async function setImageSrcFromUrl(url) {
+            if (!url) return;
+            setAvatarToSrc(url);
+            loadCropperImage(url);
+        }
+
+        selectBtn?.addEventListener('click', function() {
+            inputEl.click();
+        });
+
+        inputEl.addEventListener('change', function(e) {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            setImageSrcFromFile(file);
+        });
+
+        if (editCurrentBtn) {
+            editCurrentBtn.addEventListener('click', function() {
+                const currentImg = document.getElementById('photoCurrentImg');
+                if (!currentImg || !currentImg.src) return;
+                setImageSrcFromUrl(currentImg.src);
+            });
+        }
+
+        zoomInBtn?.addEventListener('click', function() {
+            if (!cropper) return;
+            cropper.zoom(0.1);
+        });
+        zoomOutBtn?.addEventListener('click', function() {
+            if (!cropper) return;
+            cropper.zoom(-0.1);
+        });
+        rotateLeftBtn?.addEventListener('click', function() {
+            if (!cropper) return;
+            cropper.rotate(-90);
+        });
+        rotateRightBtn?.addEventListener('click', function() {
+            if (!cropper) return;
+            cropper.rotate(90);
+        });
+        resetBtn?.addEventListener('click', function() {
+            if (!cropper) return;
+            cropper.reset();
+        });
+        clearBtn?.addEventListener('click', function() {
+            destroyCropper();
+            showCropperUI(false);
+            inputEl.value = '';
+            if (selectedObjectUrl) {
+                URL.revokeObjectURL(selectedObjectUrl);
+                selectedObjectUrl = null;
+            }
+            restoreAvatarDefault();
+        });
+
+        formEl.addEventListener('submit', async function(e) {
+            if (isSubmitting) return;
+            if (!hasCropper || !cropper) return;
+
+            e.preventDefault();
+            isSubmitting = true;
+
+            const canvas = cropper.getCroppedCanvas({
+                width: 600,
+                height: 800,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+
+            canvas.toBlob(function(blob) {
+                if (!blob) {
+                    isSubmitting = false;
+                    formEl.submit();
+                    return;
+                }
+
+                const file = new File([blob], 'profile.jpg', { type: blob.type || 'image/jpeg' });
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                inputEl.files = dt.files;
+
+                if (selectedObjectUrl) {
+                    URL.revokeObjectURL(selectedObjectUrl);
+                    selectedObjectUrl = null;
+                }
+                destroyCropper();
+                formEl.submit();
+            }, 'image/jpeg', 0.92);
+        });
     });
 </script>
 {% endblock %}

@@ -644,7 +644,7 @@
                     {% endif %}
                     <div class="user-details">
                         <span class="user-name">{{ user.first_name|default:user.username }}</span>
-                        <span class="user-role">{{ user.profile.get_role_display|default:"Usuário" }}</span>
+                        <span class="user-role">{{ user.profile.job_title|default:user.profile.get_role_display|default:"Usuário" }}</span>
                     </div>
                 </a>
                 <form action="{% url 'logout' %}" method="post" class="d-inline">
