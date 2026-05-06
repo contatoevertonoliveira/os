@@ -12,6 +12,12 @@
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
+                            <div class="mb-3">
+                                <label class="form-label">Item Pai (Opcional)</label>
+                                {% render_field form.parent class="form-select" %}
+                                <div class="form-text text-muted">Use para criar tarefas dentro de tarefas (sub-itens).</div>
+                            </div>
+
                         <div class="mb-3">
                             <label class="form-label">Título da Atividade</label>
                             {% render_field form.title class="form-control" placeholder="Ex: Backup Noturno" %}
@@ -28,6 +34,26 @@
                             <label class="form-label">Descrição da Atividade</label>
                             {% render_field form.description class="form-control" placeholder="Ex: Verificar se o backup foi concluído com sucesso e sem erros." %}
                             <div class="form-text text-muted">Instruções detalhadas da tarefa.</div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Tipo</label>
+                                {% render_field form.field_type class="form-select" %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Obrigatório</label>
+                                <div class="form-check mt-2">
+                                    {% render_field form.is_required class="form-check-input" %}
+                                    <label class="form-check-label">Exigir preenchimento/conclusão</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 mt-3">
+                            <label class="form-label">Opções do Select</label>
+                            {% render_field form.select_options class="form-control" %}
+                            <div class="form-text text-muted">Somente para tipo Select. Uma opção por linha.</div>
                         </div>
                         
                         <div class="mb-3">

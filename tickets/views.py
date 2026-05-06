@@ -1721,6 +1721,58 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 pass
         return timezone.now().date()
 
+    def _populate_items_from_template(self, checklist, template):
+        template_items = list(template.items.all().order_by('parent_id', 'order', 'id'))
+        if not template_items:
+            return
+
+        with transaction.atomic():
+            checklist.items.all().delete()
+            daily_by_template_id = {}
+            for template_item in template_items:
+                daily_item = DailyChecklistItem.objects.create(
+                    daily_checklist=checklist,
+                    template_item=template_item,
+                    title=template_item.title,
+                    description=template_item.description,
+                    order=template_item.order,
+                    field_type=template_item.field_type,
+                    is_required=template_item.is_required,
+                    select_options=template_item.select_options,
+                )
+                daily_by_template_id[template_item.id] = daily_item
+
+            for template_item in template_items:
+                if not template_item.parent_id:
+                    continue
+                daily_item = daily_by_template_id.get(template_item.id)
+                parent_daily = daily_by_template_id.get(template_item.parent_id)
+                if daily_item and parent_daily:
+                    daily_item.parent_id = parent_daily.id
+                    daily_item.save(update_fields=['parent'])
+
+    def _required_item_is_completed(self, item):
+        field_type = getattr(item, 'field_type', None) or 'switch'
+        if field_type == 'group':
+            return True
+        if field_type in ('checkbox', 'switch'):
+            return bool(item.is_checked)
+        value = (item.value_text or '').strip()
+        if field_type == 'select':
+            return value != ''
+        if field_type == 'text':
+            return value != ''
+        return bool(item.is_checked) or value != ''
+
+    def _get_pending_required_items(self, checklist):
+        pending = []
+        for item in checklist.items.all():
+            if not getattr(item, 'is_required', True):
+                continue
+            if not self._required_item_is_completed(item):
+                pending.append(item)
+        return pending
+
     def get(self, request, *args, **kwargs):
         # Handle template selection via GET param (e.g. from sidebar)
         if 'template_id' in request.GET:
@@ -1738,13 +1790,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     existing_checklist.save()
                     
                     # Populate items
-                    for item in template.items.all():
-                        DailyChecklistItem.objects.create(
-                            daily_checklist=existing_checklist,
-                            template_item=item,
-                            title=item.title,
-                            description=item.description
-                        )
+                    self._populate_items_from_template(existing_checklist, template)
                     
                     messages.success(request, f"Checklist iniciado: {template.name}")
                     return redirect('checklist_daily')
@@ -1770,13 +1816,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 )
                 
                 # Populate items
-                for item in template.items.all():
-                    DailyChecklistItem.objects.create(
-                        daily_checklist=checklist,
-                        template_item=item,
-                        title=item.title,
-                        description=item.description
-                    )
+                self._populate_items_from_template(checklist, template)
                 
                 messages.success(request, f"Checklist iniciado: {template.name}")
                 return redirect('checklist_daily')
@@ -1790,6 +1830,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         
         context['target_date'] = target_date
         context['is_today'] = (target_date == timezone.now().date())
+        context['is_admin_user'] = bool(getattr(getattr(user, 'profile', None), 'role', None) in ['admin', 'super_admin'])
         
         # Get System Settings
         context['system_settings'] = SystemSettings.objects.first()
@@ -1805,13 +1846,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         if checklist and checklist.template:
             # If checklist exists, check if items need population (e.g. created but empty)
             if not checklist.items.exists():
-                for item in checklist.template.items.all():
-                    DailyChecklistItem.objects.create(
-                        daily_checklist=checklist,
-                        template_item=item,
-                        title=item.title,
-                        description=item.description
-                    )
+                self._populate_items_from_template(checklist, checklist.template)
             
             # Formset for existing checklist
             if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
@@ -1821,14 +1856,33 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             
             context['checklist'] = checklist
             context['formset'] = formset
+
+            top_level = []
+            children = {}
+            new_forms = []
+            for f in formset.forms:
+                if not getattr(f.instance, 'id', None):
+                    new_forms.append(f)
+                    continue
+                if f.instance.parent_id:
+                    children.setdefault(f.instance.parent_id, []).append(f)
+                else:
+                    top_level.append(f)
+            context['top_level_forms'] = top_level
+            context['children_forms_map'] = children
+            context['new_forms'] = new_forms
+            context['top_level_nodes'] = [{'form': f, 'children': children.get(f.instance.id, [])} for f in top_level]
         else:
             # No checklist yet OR orphan checklist (no template), provide templates for selection
             # Only show templates if we are on today (cannot create checklists for past days via this flow)
             if context['is_today']:
                 user_department = getattr(getattr(user, 'profile', None), 'department', None)
+                user_fixed_client_id = getattr(getattr(user, 'profile', None), 'fixed_client_id', None)
                 dept_templates_qs = ChecklistTemplate.objects.all()
                 if user_department:
                     dept_templates_qs = dept_templates_qs.filter(department__iexact=user_department)
+                if user_fixed_client_id:
+                    dept_templates_qs = dept_templates_qs.filter(Q(client__isnull=True) | Q(client_id=user_fixed_client_id))
 
                 dept_templates_qs = dept_templates_qs.annotate(item_count=Count('items'))
 
@@ -1845,13 +1899,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                             template=template
                         )
 
-                    for item in template.items.all():
-                        DailyChecklistItem.objects.create(
-                            daily_checklist=checklist,
-                            template_item=item,
-                            title=item.title,
-                            description=item.description
-                        )
+                    self._populate_items_from_template(checklist, template)
 
                     if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
                         formset = DailyChecklistItemFormSet(self.request.POST, self.request.FILES, instance=checklist, prefix='items')
@@ -1929,16 +1977,28 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 
                 # Process images similar to normal save
                 for i, form in enumerate(formset.forms):
-                    if not form.cleaned_data.get('id'): continue
+                    if form.cleaned_data.get('DELETE'):
+                        continue
+                    if not form.cleaned_data.get('id'):
+                        continue
                     instance = form.instance
                     files = request.FILES.getlist(f'items-{i}-new_images')
                     for f in files:
                         DailyChecklistItemImage.objects.create(item=instance, image=f)
+            else:
+                messages.error(request, "Erro ao finalizar checklist. Verifique os campos.")
+                if target_date != timezone.now().date():
+                    return redirect(f"{reverse('checklist_daily')}?date={target_date}")
+                return redirect('checklist_daily')
 
             if checklist:
-                checklist.status = 'completed'
-                checklist.save()
-                messages.success(request, "Checklist finalizado com sucesso! Agora você pode gerar o relatório PDF.")
+                pending = self._get_pending_required_items(checklist)
+                if pending:
+                    messages.error(request, f"Não é possível finalizar: {len(pending)} item(ns) obrigatório(s) pendente(s).")
+                else:
+                    checklist.status = 'completed'
+                    checklist.save()
+                    messages.success(request, "Checklist finalizado com sucesso! Agora você pode gerar o relatório PDF.")
             
             # Redirect preserving date if it's not today
             if target_date != timezone.now().date():
@@ -1958,8 +2018,6 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 # Update existing
                 checklist.template = template
                 checklist.save()
-                # Clear any old items if they exist (though orphan shouldn't have valid items usually)
-                checklist.items.all().delete()
             else:
                 # Create new
                 checklist = DailyChecklist.objects.create(
@@ -1969,13 +2027,7 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                 )
             
             # Populate items
-            for item in template.items.all():
-                DailyChecklistItem.objects.create(
-                    daily_checklist=checklist,
-                    template_item=item,
-                    title=item.title,
-                    description=item.description
-                )
+            self._populate_items_from_template(checklist, template)
                 
             messages.success(request, f"Checklist iniciado com o modelo: {template.name}")
             return redirect('checklist_daily')
@@ -1990,8 +2042,10 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             # Process multiple images manually
             # We iterate over the formset forms to find the corresponding instance and files
             for i, form in enumerate(formset.forms):
-                if not form.cleaned_data.get('id'): # skip if empty/deleted (though can_delete=False)
-                     continue
+                if form.cleaned_data.get('DELETE'):
+                    continue
+                if not form.cleaned_data.get('id'):
+                    continue
                 
                 instance = form.instance
                 # Look for files in request.FILES with key 'items-N-new_images'
@@ -2044,9 +2098,21 @@ class ChecklistPDFView(LoginRequiredMixin, View):
             updated_at__range=(date_start, date_end)
         ).distinct()
 
-        total_items = checklist.items.count()
-        checked_items = checklist.items.filter(is_checked=True).count()
-        pending_items = total_items - checked_items
+        def item_completed(item):
+            field_type = getattr(item, 'field_type', None) or 'switch'
+            if field_type == 'group':
+                return True
+            if field_type in ('checkbox', 'switch'):
+                return bool(item.is_checked)
+            value = (getattr(item, 'value_text', None) or '').strip()
+            if field_type in ('select', 'text'):
+                return value != ''
+            return bool(item.is_checked) or value != ''
+
+        required_items = [i for i in checklist.items.all() if getattr(i, 'is_required', True)]
+        total_items = len([i for i in required_items if (getattr(i, 'field_type', None) or 'switch') != 'group'])
+        checked_items = len([i for i in required_items if (getattr(i, 'field_type', None) or 'switch') != 'group' and item_completed(i)])
+        pending_items = max(total_items - checked_items, 0)
         activities_count = tickets_activities.count()
 
         context = {

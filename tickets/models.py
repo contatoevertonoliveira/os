@@ -525,6 +525,7 @@ class Notification(models.Model):
 class ChecklistTemplate(models.Model):
     name = models.CharField(max_length=200, verbose_name="Nome do Checklist")
     department = models.CharField(max_length=100, verbose_name="Departamento/Área", help_text="Ex: CSO, TI, Manutenção")
+    client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Empresa/Cliente", help_text="Se selecionado, este modelo aparece como opção somente para este cliente.")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -535,10 +536,22 @@ class ChecklistTemplate(models.Model):
         verbose_name_plural = "Modelos de Checklist"
 
 class ChecklistTemplateItem(models.Model):
+    FIELD_TYPE_CHOICES = (
+        ('group', 'Grupo'),
+        ('checkbox', 'Checkbox'),
+        ('switch', 'Switch'),
+        ('select', 'Select'),
+        ('text', 'Texto'),
+    )
+
     template = models.ForeignKey(ChecklistTemplate, on_delete=models.CASCADE, related_name='items')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name="Item Pai")
     title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
     description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
     order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default='switch', verbose_name="Tipo do Campo")
+    is_required = models.BooleanField(default=True, verbose_name="Obrigatório")
+    select_options = models.TextField(blank=True, null=True, verbose_name="Opções do Select", help_text="Uma opção por linha (somente para tipo Select).")
     
     # New field to link to a client
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente Vinculado", help_text="Se selecionado, esta tarefa será vinculada a este cliente específico.")
@@ -547,7 +560,7 @@ class ChecklistTemplateItem(models.Model):
         return self.description
     
     class Meta:
-        ordering = ['order']
+        ordering = ['parent_id', 'order', 'id']
         verbose_name = "Item do Modelo"
         verbose_name_plural = "Itens do Modelo"
 
@@ -584,12 +597,20 @@ class DailyChecklist(models.Model):
         verbose_name_plural = "Checklists Diários"
 
 class DailyChecklistItem(models.Model):
+    FIELD_TYPE_CHOICES = ChecklistTemplateItem.FIELD_TYPE_CHOICES
+
     daily_checklist = models.ForeignKey(DailyChecklist, on_delete=models.CASCADE, related_name='items')
     # Link back to the template item to access configuration like client
     template_item = models.ForeignKey(ChecklistTemplateItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_items')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name="Item Pai")
     
     title = models.CharField(max_length=200, verbose_name="Título da Atividade", default="Atividade")
     description = models.CharField(max_length=500, verbose_name="Descrição da Atividade")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default='switch', verbose_name="Tipo do Campo")
+    is_required = models.BooleanField(default=True, verbose_name="Obrigatório")
+    select_options = models.TextField(blank=True, null=True, verbose_name="Opções do Select")
+    value_text = models.TextField(blank=True, null=True, verbose_name="Valor")
     is_checked = models.BooleanField(default=False, verbose_name="Realizado")
     image = models.ImageField(upload_to='checklist_photos/', null=True, blank=True, verbose_name="Foto Comprobatória")
     observation = models.TextField(blank=True, null=True, verbose_name="Observação")
@@ -609,6 +630,7 @@ class DailyChecklistItem(models.Model):
         return self.images.first()
 
     class Meta:
+        ordering = ['parent_id', 'order', 'id']
         verbose_name = "Item do Checklist Diário"
         verbose_name_plural = "Itens do Checklist Diário"
 

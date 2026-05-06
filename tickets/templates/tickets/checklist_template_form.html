@@ -30,6 +30,10 @@
                             <label class="form-label">Departamento</label>
                             {% render_field form.department class="form-control" %}
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">Empresa/Cliente (Opcional)</label>
+                            {% render_field form.client class="form-select" %}
+                        </div>
                         <div class="d-grid">
                             <button type="submit" class="btn btn-primary">{% if object %}Salvar Alterações{% else %}Criar Modelo{% endif %}</button>
                         </div>
@@ -52,19 +56,25 @@
                 <div class="card-body p-0">
                     {% if object %}
                     <div class="list-group list-group-flush">
-                        {% for item in items %}
+                        {% for node in top_items_with_children %}
+                        {% with item=node.item %}
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center">
                                 <span class="badge bg-light text-dark border me-3">#{{ item.order }}</span>
                                 <div>
-                                    <span class="fw-medium d-block">{{ item.description }}</span>
+                                    <span class="fw-medium d-block">{{ item.title }}{% if item.is_required %}<span class="badge bg-danger ms-2">Obrigatório</span>{% endif %}</span>
+                                    <small class="text-muted d-block">{{ item.get_field_type_display }}</small>
+                                    <span class="text-muted small d-block">{{ item.description }}</span>
                                     {% if item.client %}
-                                        <small class="text-muted"><i class="fas fa-building me-1"></i>{{ item.client.name }}</small>
+                                        <small class="text-muted d-block"><i class="fas fa-building me-1"></i>{{ item.client.name }}</small>
                                     {% endif %}
                                 </div>
                             </div>
                             <div>
                                 <div class="btn-group">
+                                    <a href="{% url 'checklist_item_add' object.id %}?parent={{ item.id }}" class="btn btn-sm btn-outline-success" title="Adicionar Sub-item">
+                                        <i class="fas fa-plus"></i>
+                                    </a>
                                     <a href="{% url 'checklist_item_edit' item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
                                         <i class="fas fa-edit"></i>
                                     </a>
@@ -77,6 +87,36 @@
                                 </div>
                             </div>
                         </div>
+
+                        {% for child in node.children %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" style="padding-left: 2.5rem;">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-light text-dark border me-3">#{{ child.order }}</span>
+                                <div>
+                                    <span class="fw-medium d-block">{{ child.title }}{% if child.is_required %}<span class="badge bg-danger ms-2">Obrigatório</span>{% endif %}</span>
+                                    <small class="text-muted d-block">{{ child.get_field_type_display }}</small>
+                                    <span class="text-muted small d-block">{{ child.description }}</span>
+                                    {% if child.client %}
+                                        <small class="text-muted d-block"><i class="fas fa-building me-1"></i>{{ child.client.name }}</small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <div class="btn-group">
+                                    <a href="{% url 'checklist_item_edit' child.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <form action="{% url 'checklist_item_delete' child.id %}" method="post" class="d-inline" onsubmit="return confirm('Tem certeza que deseja remover este item?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Remover">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% endwith %}
                         {% empty %}
                         <div class="text-center py-5 text-muted">
                             <i class="fas fa-list-ul fa-3x mb-3"></i>

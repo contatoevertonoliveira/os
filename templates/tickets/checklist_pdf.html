@@ -69,17 +69,34 @@
                 {% for item in checklist.items.all %}
                 <tr>
                     <td align="center">
-                        {% if item.is_checked %}
-                            <span class="checked">Realizado</span>
+                        {% if item.field_type == 'group' %}
+                            <span class="muted">Grupo</span>
+                        {% elif item.field_type == 'select' or item.field_type == 'text' %}
+                            {% if item.value_text %}
+                                <span class="checked">Realizado</span>
+                            {% else %}
+                                <span class="unchecked">Pendente</span>
+                            {% endif %}
                         {% else %}
-                            <span class="unchecked">Pendente</span>
+                            {% if item.is_checked %}
+                                <span class="checked">Realizado</span>
+                            {% else %}
+                                <span class="unchecked">Pendente</span>
+                            {% endif %}
                         {% endif %}
                     </td>
                     <td>
-                        <strong>{{ item.title }}</strong><br>
+                        <strong>{% if item.parent_id %}&nbsp;&nbsp;&nbsp;↳ {% endif %}{{ item.title }}</strong><br>
                         <span style="color: #666; font-size: 11px;">{{ item.description }}</span>
                     </td>
-                    <td>{{ item.observation|default:"-" }}</td>
+                    <td>
+                        {% if item.field_type == 'select' or item.field_type == 'text' %}
+                            {{ item.value_text|default:"-" }}
+                            {% if item.observation %}<br><span class="muted">{{ item.observation }}</span>{% endif %}
+                        {% else %}
+                            {{ item.observation|default:"-" }}
+                        {% endif %}
+                    </td>
                     <td align="center">
                         {% if item.images.exists %}
                             <div style="text-align: center;">

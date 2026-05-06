@@ -5,6 +5,7 @@ from django.urls import reverse_lazy, reverse
 from django.shortcuts import get_object_or_404
 from django.db.models import Count
 from .models import ChecklistTemplate, ChecklistTemplateItem
+from .forms import ChecklistTemplateForm, ChecklistTemplateItemForm
 
 class ChecklistConfigView(LoginRequiredMixin, TemplateView):
     template_name = 'tickets/checklist_config.html'
@@ -24,7 +25,7 @@ class ChecklistConfigView(LoginRequiredMixin, TemplateView):
 
 class ChecklistTemplateCreateView(LoginRequiredMixin, CreateView):
     model = ChecklistTemplate
-    fields = ['name', 'department']
+    form_class = ChecklistTemplateForm
     template_name = 'tickets/checklist_template_form.html'
     success_url = reverse_lazy('checklist_daily')
 
@@ -38,7 +39,7 @@ class ChecklistTemplateCreateView(LoginRequiredMixin, CreateView):
 
 class ChecklistTemplateUpdateView(LoginRequiredMixin, UpdateView):
     model = ChecklistTemplate
-    fields = ['name', 'department']
+    form_class = ChecklistTemplateForm
     template_name = 'tickets/checklist_template_form.html'
     success_url = reverse_lazy('checklist_daily')
 
@@ -52,12 +53,19 @@ class ChecklistTemplateUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['items'] = self.object.items.all().order_by('order')
+        items = self.object.items.all().order_by('parent_id', 'order', 'id')
+        context['items'] = items
+        top_items = [i for i in items if i.parent_id is None]
+        children_map = {}
+        for i in items:
+            if i.parent_id is not None:
+                children_map.setdefault(i.parent_id, []).append(i)
+        context['top_items_with_children'] = [{'item': i, 'children': children_map.get(i.id, [])} for i in top_items]
         return context
 
 class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
     model = ChecklistTemplateItem
-    fields = ['title', 'description', 'order', 'client']
+    form_class = ChecklistTemplateItemForm
     template_name = 'tickets/checklist_item_form.html'
 
     def dispatch(self, request, *args, **kwargs):
@@ -73,12 +81,29 @@ class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
         form.instance.template = template
         return super().form_valid(form)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        template = get_object_or_404(ChecklistTemplate, pk=self.kwargs['pk'])
+        kwargs['template'] = template
+        return kwargs
+
+    def get_initial(self):
+        initial = super().get_initial()
+        parent_id = self.request.GET.get('parent')
+        if parent_id:
+            try:
+                parent = ChecklistTemplateItem.objects.get(pk=int(parent_id), template_id=self.kwargs['pk'])
+                initial['parent'] = parent
+            except Exception:
+                pass
+        return initial
+
     def get_success_url(self):
         return reverse('checklist_template_edit', args=[self.kwargs['pk']])
 
 class ChecklistItemUpdateView(LoginRequiredMixin, UpdateView):
     model = ChecklistTemplateItem
-    fields = ['title', 'description', 'order', 'client']
+    form_class = ChecklistTemplateItemForm
     template_name = 'tickets/checklist_item_form.html'
 
     def dispatch(self, request, *args, **kwargs):
@@ -88,6 +113,11 @@ class ChecklistItemUpdateView(LoginRequiredMixin, UpdateView):
              from django.core.exceptions import PermissionDenied
              raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['template'] = self.object.template
+        return kwargs
 
     def get_success_url(self):
         return reverse('checklist_template_edit', args=[self.object.template.id])
