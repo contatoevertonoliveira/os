@@ -18,6 +18,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils.text import slugify
 from django.db.utils import OperationalError, ProgrammingError
+from django.forms import inlineformset_factory
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
@@ -1712,6 +1713,41 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
 class ChecklistDailyView(LoginRequiredMixin, TemplateView):
     template_name = 'tickets/daily_checklist.html'
 
+    def _is_admin_user(self):
+        user = self.request.user
+        return bool(getattr(getattr(user, 'profile', None), 'role', None) in ['admin', 'super_admin'])
+
+    def _get_item_formset_class(self, checklist):
+        if self._is_admin_user():
+            return inlineformset_factory(
+                DailyChecklist,
+                DailyChecklistItem,
+                form=DailyChecklistItemAdminForm,
+                formset=BaseDailyChecklistItemFormSet,
+                fields=['title', 'description', 'field_type', 'select_options', 'value_text', 'is_checked', 'observation', 'order', 'is_required', 'parent'],
+                extra=0,
+                can_delete=True
+            )
+
+        max_num = checklist.items.count() if checklist else 0
+        return inlineformset_factory(
+            DailyChecklist,
+            DailyChecklistItem,
+            form=DailyChecklistItemUserForm,
+            formset=BaseDailyChecklistItemFormSet,
+            fields=['is_checked', 'value_text', 'observation'],
+            extra=0,
+            can_delete=False,
+            max_num=max_num,
+            validate_max=True
+        )
+
+    def _build_item_formset(self, checklist, data=None, files=None):
+        FormSet = self._get_item_formset_class(checklist)
+        if data is not None:
+            return FormSet(data, files, instance=checklist, prefix='items')
+        return FormSet(instance=checklist, prefix='items')
+
     def get_target_date(self):
         date_str = self.request.GET.get('date')
         if date_str:
@@ -1722,12 +1758,11 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         return timezone.now().date()
 
     def _populate_items_from_template(self, checklist, template):
-        template_items = list(template.items.all().order_by('parent_id', 'order', 'id'))
-        if not template_items:
-            return
-
+        template_items = list(template.items.all().prefetch_related('options').order_by('parent_id', 'order', 'id'))
         with transaction.atomic():
             checklist.items.all().delete()
+            if not template_items:
+                return
             daily_by_template_id = {}
             for template_item in template_items:
                 daily_item = DailyChecklistItem.objects.create(
@@ -1741,6 +1776,12 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     select_options=template_item.select_options,
                 )
                 daily_by_template_id[template_item.id] = daily_item
+                options = list(getattr(template_item, 'options', []).all()) if hasattr(template_item, 'options') else []
+                for opt in options:
+                    DailyChecklistItemOptionValue.objects.create(
+                        daily_item=daily_item,
+                        template_option=opt
+                    )
 
             for template_item in template_items:
                 if not template_item.parent_id:
@@ -1752,10 +1793,29 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     daily_item.save(update_fields=['parent'])
 
     def _required_item_is_completed(self, item):
+        if getattr(item, 'template_item_id', None):
+            template_item = getattr(item, 'template_item', None)
+            if template_item is not None and hasattr(template_item, 'options') and template_item.options.exists():
+                option_values = list(item.option_values.select_related('template_option').all()) if hasattr(item, 'option_values') else []
+                by_opt_id = {ov.template_option_id: ov for ov in option_values if ov.template_option_id}
+                for opt in template_item.options.all():
+                    if not opt.is_required:
+                        continue
+                    ov = by_opt_id.get(opt.id)
+                    if opt.field_type in ('checkbox', 'switch', 'button'):
+                        if not (ov and ov.value_bool):
+                            return False
+                    else:
+                        if not (ov and (ov.value_text or '').strip()):
+                            return False
+                if getattr(item, 'is_required', True) and not bool(item.is_checked):
+                    return False
+                return True
+
         field_type = getattr(item, 'field_type', None) or 'switch'
         if field_type == 'group':
             return True
-        if field_type in ('checkbox', 'switch'):
+        if field_type in ('checkbox', 'switch', 'button'):
             return bool(item.is_checked)
         value = (item.value_text or '').strip()
         if field_type == 'select':
@@ -1763,6 +1823,35 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         if field_type == 'text':
             return value != ''
         return bool(item.is_checked) or value != ''
+
+    def _ensure_option_values(self, checklist):
+        items = checklist.items.select_related('template_item').prefetch_related('template_item__options', 'option_values').all()
+        to_create = []
+        for item in items:
+            template_item = getattr(item, 'template_item', None)
+            if not template_item or not hasattr(template_item, 'options'):
+                continue
+            existing = {ov.template_option_id for ov in item.option_values.all() if ov.template_option_id}
+            for opt in template_item.options.all():
+                if opt.id not in existing:
+                    to_create.append(DailyChecklistItemOptionValue(daily_item=item, template_option=opt))
+        if to_create:
+            DailyChecklistItemOptionValue.objects.bulk_create(to_create, ignore_conflicts=True)
+
+    def _save_option_values(self, request, checklist):
+        values = DailyChecklistItemOptionValue.objects.filter(daily_item__daily_checklist=checklist).select_related('template_option')
+        for v in values:
+            key = f"opt-{v.id}"
+            opt = v.template_option
+            if opt and opt.field_type in ('checkbox', 'switch', 'button'):
+                v.value_bool = key in request.POST
+                v.value_text = None
+            else:
+                raw = request.POST.get(key, '')
+                val = raw.strip()
+                v.value_text = val if val else None
+                v.value_bool = None
+            v.save(update_fields=['value_text', 'value_bool', 'updated_at'])
 
     def _get_pending_required_items(self, checklist):
         pending = []
@@ -1830,16 +1919,12 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
         
         context['target_date'] = target_date
         context['is_today'] = (target_date == timezone.now().date())
-        context['is_admin_user'] = bool(getattr(getattr(user, 'profile', None), 'role', None) in ['admin', 'super_admin'])
+        context['is_admin_user'] = self._is_admin_user()
         
         # Get System Settings
         context['system_settings'] = SystemSettings.objects.first()
         
-        # Try to get existing checklist for target date
-        checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related(
-            'items__images',
-            Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at'))
-        ).first()
+        checklist = DailyChecklist.objects.filter(user=user, date=target_date).first()
         
         # Only consider checklist valid if it has a template associated
         # This handles cases where a checklist was created automatically but no template matched
@@ -1847,12 +1932,27 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             # If checklist exists, check if items need population (e.g. created but empty)
             if not checklist.items.exists():
                 self._populate_items_from_template(checklist, checklist.template)
+
+            self._ensure_option_values(checklist)
+
+            checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related(
+                'items__images',
+                Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at')),
+                Prefetch(
+                    'items__option_values',
+                    queryset=DailyChecklistItemOptionValue.objects.select_related('template_option').order_by('template_option__order', 'id')
+                ),
+                Prefetch(
+                    'items__template_item__options',
+                    queryset=ChecklistTemplateItemOption.objects.order_by('order', 'id')
+                ),
+            ).first()
             
             # Formset for existing checklist
             if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
-                formset = DailyChecklistItemFormSet(self.request.POST, self.request.FILES, instance=checklist, prefix='items')
+                formset = self._build_item_formset(checklist, data=self.request.POST, files=self.request.FILES)
             else:
-                formset = DailyChecklistItemFormSet(instance=checklist, prefix='items')
+                formset = self._build_item_formset(checklist)
             
             context['checklist'] = checklist
             context['formset'] = formset
@@ -1872,6 +1972,8 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
             context['children_forms_map'] = children
             context['new_forms'] = new_forms
             context['top_level_nodes'] = [{'form': f, 'children': children.get(f.instance.id, [])} for f in top_level]
+            if context['is_admin_user']:
+                context['item_empty_form'] = formset.empty_form
         else:
             # No checklist yet OR orphan checklist (no template), provide templates for selection
             # Only show templates if we are on today (cannot create checklists for past days via this flow)
@@ -1902,9 +2004,9 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     self._populate_items_from_template(checklist, template)
 
                     if self.request.POST and 'items-TOTAL_FORMS' in self.request.POST:
-                        formset = DailyChecklistItemFormSet(self.request.POST, self.request.FILES, instance=checklist, prefix='items')
+                        formset = self._build_item_formset(checklist, data=self.request.POST, files=self.request.FILES)
                     else:
-                        formset = DailyChecklistItemFormSet(instance=checklist, prefix='items')
+                        formset = self._build_item_formset(checklist)
 
                     context['checklist'] = checklist
                     context['formset'] = formset
@@ -1985,6 +2087,8 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                     files = request.FILES.getlist(f'items-{i}-new_images')
                     for f in files:
                         DailyChecklistItemImage.objects.create(item=instance, image=f)
+                if checklist:
+                    self._save_option_values(request, checklist)
             else:
                 messages.error(request, "Erro ao finalizar checklist. Verifique os campos.")
                 if target_date != timezone.now().date():
@@ -2056,6 +2160,8 @@ class ChecklistDailyView(LoginRequiredMixin, TemplateView):
                         item=instance,
                         image=f
                     )
+            if context.get('checklist'):
+                self._save_option_values(request, context['checklist'])
 
             messages.success(request, "Checklist atualizado com sucesso!")
             target_date = self.get_target_date()
@@ -2083,7 +2189,15 @@ class ChecklistPDFView(LoginRequiredMixin, View):
         
         checklist = DailyChecklist.objects.filter(user=user, date=target_date).prefetch_related(
             'items__images',
-            Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at'))
+            Prefetch('items__details', queryset=DailyChecklistItemDetail.objects.order_by('hub__name', 'created_at')),
+            Prefetch(
+                'items__option_values',
+                queryset=DailyChecklistItemOptionValue.objects.select_related('template_option').order_by('template_option__order', 'id')
+            ),
+            Prefetch(
+                'items__template_item__options',
+                queryset=ChecklistTemplateItemOption.objects.order_by('order', 'id')
+            ),
         ).first()
         if not checklist:
             messages.warning(request, f"Nenhum checklist encontrado para {target_date.strftime('%d/%m/%Y')}.")
@@ -2099,10 +2213,26 @@ class ChecklistPDFView(LoginRequiredMixin, View):
         ).distinct()
 
         def item_completed(item):
+            template_item = getattr(item, 'template_item', None)
+            if template_item is not None and hasattr(template_item, 'options') and template_item.options.exists():
+                option_values = list(item.option_values.all()) if hasattr(item, 'option_values') else []
+                by_opt_id = {ov.template_option_id: ov for ov in option_values if ov.template_option_id}
+                for opt in template_item.options.all():
+                    if not opt.is_required:
+                        continue
+                    ov = by_opt_id.get(opt.id)
+                    if opt.field_type in ('checkbox', 'switch', 'button'):
+                        if not (ov and ov.value_bool):
+                            return False
+                    else:
+                        if not (ov and (ov.value_text or '').strip()):
+                            return False
+                return bool(item.is_checked) if getattr(item, 'is_required', True) else True
+
             field_type = getattr(item, 'field_type', None) or 'switch'
             if field_type == 'group':
                 return True
-            if field_type in ('checkbox', 'switch'):
+            if field_type in ('checkbox', 'switch', 'button'):
                 return bool(item.is_checked)
             value = (getattr(item, 'value_text', None) or '').strip()
             if field_type in ('select', 'text'):

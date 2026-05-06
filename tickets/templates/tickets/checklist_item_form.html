@@ -4,69 +4,278 @@
 {% block content %}
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-md-6">
+        <div class="col-12 col-xl-10">
             <div class="card shadow-sm">
                 <div class="card-header bg-white">
-                    <h5 class="card-title mb-0">{% if object %}Editar Item{% else %}Adicionar Item ao Checklist{% endif %}</h5>
+                    <h5 class="card-title mb-0">{% if object %}Editar Atividade{% else %}Adicionar Atividade ao Checklist{% endif %}</h5>
                 </div>
                 <div class="card-body">
                     <form method="post">
                         {% csrf_token %}
-                            <div class="mb-3">
-                                <label class="form-label">Item Pai (Opcional)</label>
-                                {% render_field form.parent class="form-select" %}
-                                <div class="form-text text-muted">Use para criar tarefas dentro de tarefas (sub-itens).</div>
-                            </div>
-
                         <div class="mb-3">
                             <label class="form-label">Título da Atividade</label>
                             {% render_field form.title class="form-control" placeholder="Ex: Backup Noturno" %}
                             <div class="form-text text-muted">Nome curto da atividade.</div>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Cliente Vinculado (Opcional)</label>
-                            {% render_field form.client class="form-select" %}
-                            <div class="form-text text-muted">Selecione se esta tarefa for específica para um cliente.</div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Descrição da Atividade</label>
-                            {% render_field form.description class="form-control" placeholder="Ex: Verificar se o backup foi concluído com sucesso e sem erros." %}
-                            <div class="form-text text-muted">Instruções detalhadas da tarefa.</div>
-                        </div>
-
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Tipo</label>
-                                {% render_field form.field_type class="form-select" %}
+                                <label class="form-label">Cliente Vinculado (Opcional)</label>
+                                {% render_field form.client class="form-select" %}
+                                <div class="form-text text-muted">Selecione se esta atividade for específica para um cliente.</div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Obrigatório</label>
-                                <div class="form-check mt-2">
-                                    {% render_field form.is_required class="form-check-input" %}
-                                    <label class="form-check-label">Exigir preenchimento/conclusão</label>
-                                </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Ordem</label>
+                                {% render_field form.order class="form-control" type="number" %}
                             </div>
                         </div>
 
                         <div class="mb-3 mt-3">
-                            <label class="form-label">Opções do Select</label>
-                            {% render_field form.select_options class="form-control" %}
-                            <div class="form-text text-muted">Somente para tipo Select. Uma opção por linha.</div>
+                            <label class="form-label">Descrição da Atividade</label>
+                            {% render_field form.description class="form-control" placeholder="Ex: Verificar se o backup foi concluído com sucesso e sem erros." %}
                         </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Ordem de Exibição</label>
-                            {% render_field form.order class="form-control" type="number" %}
+
+                        <div class="mt-4 pt-3 border-top">
+                            {{ options_formset.management_form }}
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <h6 class="m-0 fw-bold">Opções da Atividade</h6>
+                                    <div class="text-muted small">O colaborador verá somente essas opções para preencher.</div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="add-option-btn">
+                                        <i class="fas fa-plus me-1"></i>Adicionar +Opções
+                                    </button>
+                                    <button type="submit" class="btn btn-sm btn-success">
+                                        <i class="fas fa-save me-1"></i>Salvar
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="options-container" class="d-flex flex-column gap-2">
+                                {% for opt_form in options_formset %}
+                                    <div class="card border-0 shadow-sm option-card">
+                                        <div class="card-body">
+                                            {{ opt_form.id }}
+                                            <div class="row g-2">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small text-muted mb-1 fw-bold">Rótulo</label>
+                                                    {{ opt_form.label }}
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label small text-muted mb-1 fw-bold">Tipo</label>
+                                                    {{ opt_form.field_type }}
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <label class="form-label small text-muted mb-1 fw-bold">Ordem</label>
+                                                    {{ opt_form.order }}
+                                                </div>
+                                                <div class="col-md-3 d-flex align-items-end">
+                                                    <div class="form-check">
+                                                        {{ opt_form.is_required }}
+                                                        <label class="form-check-label">Obrigatório</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 option-options-text">
+                                                    <label class="form-label small text-muted mb-1 fw-bold">Opções (Select/Radio)</label>
+                                                    {{ opt_form.options_text }}
+                                                </div>
+                                            </div>
+                                            <div class="d-none">{{ opt_form.DELETE }}</div>
+                                            <div class="d-flex justify-content-end mt-2">
+                                                <button type="button" class="btn btn-sm btn-outline-danger option-delete-btn">
+                                                    <i class="fas fa-trash me-1"></i>Excluir
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% empty %}
+                                    <div class="text-muted small">Nenhuma opção adicionada ainda.</div>
+                                {% endfor %}
+                            </div>
+
+                            <template id="option-empty-form-template">
+                                <div class="card border-0 shadow-sm option-card">
+                                    <div class="card-body">
+                                        {{ options_formset.empty_form.id }}
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <label class="form-label small text-muted mb-1 fw-bold">Rótulo</label>
+                                                {{ options_formset.empty_form.label }}
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="form-label small text-muted mb-1 fw-bold">Tipo</label>
+                                                {{ options_formset.empty_form.field_type }}
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label small text-muted mb-1 fw-bold">Ordem</label>
+                                                {{ options_formset.empty_form.order }}
+                                            </div>
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <div class="form-check">
+                                                    {{ options_formset.empty_form.is_required }}
+                                                    <label class="form-check-label">Obrigatório</label>
+                                                </div>
+                                            </div>
+                                            <div class="col-12 option-options-text">
+                                                <label class="form-label small text-muted mb-1 fw-bold">Opções (Select/Radio)</label>
+                                                {{ options_formset.empty_form.options_text }}
+                                            </div>
+                                        </div>
+                                        <div class="d-flex justify-content-end mt-2">
+                                            <div class="d-none">{{ options_formset.empty_form.DELETE }}</div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger option-delete-btn">
+                                                <i class="fas fa-trash me-1"></i>Excluir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 pt-3 border-top">
                             <button type="button" class="btn btn-light border" onclick="history.back()">Cancelar</button>
-                            <button type="submit" class="btn btn-success px-4">{% if object %}Salvar Alterações{% else %}Adicionar Item{% endif %}</button>
+                            <button type="submit" class="btn btn-success px-4">{% if object %}Salvar Alterações{% else %}Adicionar Atividade{% endif %}</button>
                         </div>
                     </form>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const addBtn = document.getElementById('add-option-btn');
+        const container = document.getElementById('options-container');
+        const tpl = document.getElementById('option-empty-form-template');
+        const totalFormsInput = document.getElementById('id_opts-TOTAL_FORMS');
+        const initialFormsInput = document.getElementById('id_opts-INITIAL_FORMS');
+        const confirmModalEl = document.getElementById('optionDeleteConfirmModal');
+        const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+        const confirmTitleEl = document.getElementById('optionDeleteConfirmTitle');
+        const confirmBodyEl = document.getElementById('optionDeleteConfirmBody');
+        const confirmBtn = document.getElementById('optionDeleteConfirmBtn');
+        let pendingDeleteCard = null;
+
+        function applyOptionVisibility(cardEl) {
+            const typeSelect = cardEl.querySelector('select[name$="-field_type"]');
+            const optText = cardEl.querySelector('.option-options-text');
+            if (!typeSelect || !optText) return;
+            const t = typeSelect.value;
+            optText.style.display = (t === 'select' || t === 'radio') ? '' : 'none';
+        }
+
+        function getOptionLabel(cardEl) {
+            const labelInput = cardEl.querySelector('input[name$="-label"]');
+            const raw = labelInput ? (labelInput.value || '').trim() : '';
+            return raw || 'esta opção';
+        }
+
+        function renumberOptionForms() {
+            if (!container || !totalFormsInput || !initialFormsInput) return;
+            const baseIndex = parseInt(initialFormsInput.value, 10);
+            const cards = Array.from(container.querySelectorAll('.option-card'));
+            cards.forEach((card, i) => {
+                const newIndex = baseIndex + i;
+                const oldIndexInput = card.querySelector('input[name$="-id"]');
+                let oldIndex = null;
+                if (oldIndexInput && typeof oldIndexInput.name === 'string') {
+                    const m = oldIndexInput.name.match(/^opts-(\d+)-id$/);
+                    if (m) oldIndex = m[1];
+                }
+                if (oldIndex === null) return;
+
+                const attrs = ['name', 'id', 'for'];
+                card.querySelectorAll('*').forEach(el => {
+                    attrs.forEach(a => {
+                        const val = el.getAttribute(a);
+                        if (!val) return;
+                        const replaced = val.replaceAll(`opts-${oldIndex}-`, `opts-${newIndex}-`);
+                        if (replaced !== val) el.setAttribute(a, replaced);
+                    });
+                });
+            });
+            totalFormsInput.value = String(baseIndex + cards.length);
+        }
+
+        function deleteOptionCard(cardEl) {
+            const idInput = cardEl.querySelector('input[name$="-id"]');
+            const deleteInput = cardEl.querySelector('input[name$="-DELETE"]');
+            const hasId = idInput && idInput.value;
+            if (hasId && deleteInput) {
+                deleteInput.checked = true;
+                cardEl.style.display = 'none';
+                return;
+            }
+            cardEl.remove();
+            renumberOptionForms();
+        }
+
+        function attachCardListeners(cardEl) {
+            const typeSelect = cardEl.querySelector('select[name$="-field_type"]');
+            if (typeSelect) {
+                typeSelect.addEventListener('change', function() {
+                    applyOptionVisibility(cardEl);
+                });
+            }
+            const deleteBtn = cardEl.querySelector('.option-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', function() {
+                    if (!confirmModal) {
+                        deleteOptionCard(cardEl);
+                        return;
+                    }
+                    pendingDeleteCard = cardEl;
+                    const label = getOptionLabel(cardEl);
+                    if (confirmTitleEl) confirmTitleEl.textContent = 'Excluir opção';
+                    if (confirmBodyEl) confirmBodyEl.textContent = `Deseja excluir ${label}?`;
+                    confirmModal.show();
+                });
+            }
+            applyOptionVisibility(cardEl);
+        }
+
+        document.querySelectorAll('.option-card').forEach(attachCardListeners);
+
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', function() {
+                if (!pendingDeleteCard) return;
+                deleteOptionCard(pendingDeleteCard);
+                pendingDeleteCard = null;
+                if (confirmModal) confirmModal.hide();
+            });
+        }
+
+        if (addBtn && container && tpl && totalFormsInput) {
+            addBtn.addEventListener('click', function() {
+                const idx = parseInt(totalFormsInput.value, 10);
+                const html = tpl.innerHTML.replaceAll('__prefix__', String(idx));
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = html;
+                const card = wrapper.firstElementChild;
+                if (!card) return;
+                container.appendChild(card);
+                totalFormsInput.value = String(idx + 1);
+                attachCardListeners(card);
+                renumberOptionForms();
+            });
+        }
+    });
+</script>
+
+<div class="modal fade" id="optionDeleteConfirmModal" tabindex="-1" aria-labelledby="optionDeleteConfirmTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="optionDeleteConfirmTitle">Excluir opção</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body" id="optionDeleteConfirmBody">Deseja excluir esta opção?</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Não</button>
+                <button type="button" class="btn btn-danger" id="optionDeleteConfirmBtn">Sim, excluir</button>
             </div>
         </div>
     </div>

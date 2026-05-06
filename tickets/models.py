@@ -540,6 +540,7 @@ class ChecklistTemplateItem(models.Model):
         ('group', 'Grupo'),
         ('checkbox', 'Checkbox'),
         ('switch', 'Switch'),
+        ('button', 'Botão'),
         ('select', 'Select'),
         ('text', 'Texto'),
     )
@@ -563,6 +564,40 @@ class ChecklistTemplateItem(models.Model):
         ordering = ['parent_id', 'order', 'id']
         verbose_name = "Item do Modelo"
         verbose_name_plural = "Itens do Modelo"
+
+
+class ChecklistTemplateItemOption(models.Model):
+    FIELD_TYPE_CHOICES = (
+        ('text', 'Texto (input)'),
+        ('textarea', 'Texto (área)'),
+        ('number', 'Número'),
+        ('date', 'Data'),
+        ('select', 'Select'),
+        ('radio', 'Radio'),
+        ('checkbox', 'Checkbox'),
+        ('switch', 'Switch'),
+        ('button', 'Botão'),
+    )
+
+    item = models.ForeignKey(ChecklistTemplateItem, on_delete=models.CASCADE, related_name='options', verbose_name="Atividade")
+    label = models.CharField(max_length=200, verbose_name="Rótulo")
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPE_CHOICES, default='text', verbose_name="Tipo")
+    is_required = models.BooleanField(default=False, verbose_name="Obrigatório")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    options_text = models.TextField(blank=True, null=True, verbose_name="Opções", help_text="Uma opção por linha (Select/Radio).")
+
+    def __str__(self):
+        return f"{self.item_id} - {self.label}"
+
+    @property
+    def options_list(self):
+        raw = self.options_text or ''
+        return [line.strip() for line in raw.splitlines() if line.strip()]
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = "Opção do Item"
+        verbose_name_plural = "Opções dos Itens"
 
 class DailyChecklist(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Usuário")
@@ -633,6 +668,20 @@ class DailyChecklistItem(models.Model):
         ordering = ['parent_id', 'order', 'id']
         verbose_name = "Item do Checklist Diário"
         verbose_name_plural = "Itens do Checklist Diário"
+
+
+class DailyChecklistItemOptionValue(models.Model):
+    daily_item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='option_values', verbose_name="Item do Checklist")
+    template_option = models.ForeignKey(ChecklistTemplateItemOption, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_values', verbose_name="Opção do Modelo")
+    value_text = models.TextField(blank=True, null=True, verbose_name="Valor (texto)")
+    value_bool = models.BooleanField(null=True, blank=True, verbose_name="Valor (booleano)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('daily_item', 'template_option')
+        verbose_name = "Valor de Opção"
+        verbose_name_plural = "Valores de Opções"
 
 class DailyChecklistItemImage(models.Model):
     item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='images')

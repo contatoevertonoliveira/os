@@ -2,10 +2,11 @@
 from django.views.generic import TemplateView, UpdateView, CreateView, DeleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy, reverse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Count
+from django.db import transaction
 from .models import ChecklistTemplate, ChecklistTemplateItem
-from .forms import ChecklistTemplateForm, ChecklistTemplateItemForm
+from .forms import ChecklistTemplateForm, ChecklistTemplateItemForm, ChecklistTemplateItemOptionFormSet
 
 class ChecklistConfigView(LoginRequiredMixin, TemplateView):
     template_name = 'tickets/checklist_config.html'
@@ -27,7 +28,9 @@ class ChecklistTemplateCreateView(LoginRequiredMixin, CreateView):
     model = ChecklistTemplate
     form_class = ChecklistTemplateForm
     template_name = 'tickets/checklist_template_form.html'
-    success_url = reverse_lazy('checklist_daily')
+
+    def get_success_url(self):
+        return reverse('checklist_template_edit', args=[self.object.id])
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -53,14 +56,7 @@ class ChecklistTemplateUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        items = self.object.items.all().order_by('parent_id', 'order', 'id')
-        context['items'] = items
-        top_items = [i for i in items if i.parent_id is None]
-        children_map = {}
-        for i in items:
-            if i.parent_id is not None:
-                children_map.setdefault(i.parent_id, []).append(i)
-        context['top_items_with_children'] = [{'item': i, 'children': children_map.get(i.id, [])} for i in top_items]
+        context['items'] = self.object.items.all().order_by('order', 'id').annotate(options_count=Count('options'))
         return context
 
 class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
@@ -76,27 +72,29 @@ class ChecklistItemCreateView(LoginRequiredMixin, CreateView):
              raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
 
-    def form_valid(self, form):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
         template = get_object_or_404(ChecklistTemplate, pk=self.kwargs['pk'])
-        form.instance.template = template
-        return super().form_valid(form)
+        context['template'] = template
+        if self.request.POST:
+            context['options_formset'] = ChecklistTemplateItemOptionFormSet(self.request.POST, prefix='opts')
+        else:
+            context['options_formset'] = ChecklistTemplateItemOptionFormSet(prefix='opts')
+        return context
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
+    def post(self, request, *args, **kwargs):
         template = get_object_or_404(ChecklistTemplate, pk=self.kwargs['pk'])
-        kwargs['template'] = template
-        return kwargs
-
-    def get_initial(self):
-        initial = super().get_initial()
-        parent_id = self.request.GET.get('parent')
-        if parent_id:
-            try:
-                parent = ChecklistTemplateItem.objects.get(pk=int(parent_id), template_id=self.kwargs['pk'])
-                initial['parent'] = parent
-            except Exception:
-                pass
-        return initial
+        form = self.get_form()
+        options_formset = ChecklistTemplateItemOptionFormSet(request.POST, prefix='opts')
+        if form.is_valid() and options_formset.is_valid():
+            with transaction.atomic():
+                item = form.save(commit=False)
+                item.template = template
+                item.save()
+                options_formset.instance = item
+                options_formset.save()
+            return redirect('checklist_template_edit', template.id)
+        return self.render_to_response(self.get_context_data(form=form, options_formset=options_formset))
 
     def get_success_url(self):
         return reverse('checklist_template_edit', args=[self.kwargs['pk']])
@@ -114,10 +112,25 @@ class ChecklistItemUpdateView(LoginRequiredMixin, UpdateView):
              raise PermissionDenied
         return super().dispatch(request, *args, **kwargs)
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['template'] = self.object.template
-        return kwargs
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['template'] = self.object.template
+        if self.request.POST:
+            context['options_formset'] = ChecklistTemplateItemOptionFormSet(self.request.POST, instance=self.object, prefix='opts')
+        else:
+            context['options_formset'] = ChecklistTemplateItemOptionFormSet(instance=self.object, prefix='opts')
+        return context
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form = self.get_form()
+        options_formset = ChecklistTemplateItemOptionFormSet(request.POST, instance=self.object, prefix='opts')
+        if form.is_valid() and options_formset.is_valid():
+            with transaction.atomic():
+                self.object = form.save()
+                options_formset.save()
+            return redirect('checklist_template_edit', self.object.template.id)
+        return self.render_to_response(self.get_context_data(form=form, options_formset=options_formset))
 
     def get_success_url(self):
         return reverse('checklist_template_edit', args=[self.object.template.id])

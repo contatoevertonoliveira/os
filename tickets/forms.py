@@ -3,7 +3,7 @@ from django.forms import inlineformset_factory
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -436,7 +436,7 @@ class MultipleFileField(forms.FileField):
              return []
         return data
 
-class DailyChecklistItemForm(forms.ModelForm):
+class BaseDailyChecklistItemForm(forms.ModelForm):
     # Field for multiple images (not bound to model directly)
     new_images = MultipleFileField(
         widget=MultipleFileInput(attrs={'class': 'form-control form-control-sm', 'multiple': True}),
@@ -444,14 +444,35 @@ class DailyChecklistItemForm(forms.ModelForm):
         required=False
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        field_type = getattr(self.instance, 'field_type', None) or 'switch'
+
+        if 'value_text' in self.fields:
+            if field_type == 'select':
+                raw = (getattr(self.instance, 'select_options', None) or '')
+                options = [o.strip() for o in raw.splitlines() if o.strip()]
+                choices = [('', 'Selecione...')] + [(o, o) for o in options]
+                self.fields['value_text'].widget = forms.Select(choices=choices, attrs={'class': 'form-select'})
+            elif field_type == 'text':
+                self.fields['value_text'].widget = forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Digite aqui...'})
+            else:
+                self.fields['value_text'].widget = forms.HiddenInput()
+
+        if 'is_checked' in self.fields and field_type in ('select', 'text', 'group', 'button'):
+            self.fields['is_checked'].widget = forms.HiddenInput()
+
+
+class DailyChecklistItemAdminForm(BaseDailyChecklistItemForm):
     class Meta:
         model = DailyChecklistItem
-        fields = ['title', 'description', 'field_type', 'value_text', 'is_checked', 'observation', 'order', 'is_required', 'parent'] # Removed 'image' from here to use new_images logic
+        fields = ['title', 'description', 'field_type', 'select_options', 'value_text', 'is_checked', 'observation', 'order', 'is_required', 'parent']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control fw-bold', 'placeholder': 'Título da Atividade'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Descrição da Tarefa'}),
             'is_checked': forms.CheckboxInput(attrs={'class': 'form-check-input', 'style': 'width: 2.5em; height: 1.25em;'}),
             'observation': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Observações Adicionais...'}),
+            'select_options': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Uma opção por linha'}),
             'value_text': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Preencha o valor...'}),
             'field_type': forms.Select(attrs={'class': 'form-select form-select-sm'}),
             'order': forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'min': 0}),
@@ -461,8 +482,6 @@ class DailyChecklistItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        field_type = getattr(self.instance, 'field_type', None) or 'switch'
-
         if self.instance and getattr(self.instance, 'daily_checklist_id', None):
             qs = DailyChecklistItem.objects.filter(daily_checklist_id=self.instance.daily_checklist_id).order_by('parent_id', 'order', 'id')
             if self.instance.pk:
@@ -471,32 +490,32 @@ class DailyChecklistItemForm(forms.ModelForm):
         else:
             self.fields['parent'].queryset = DailyChecklistItem.objects.none()
 
-        if field_type == 'select':
-            raw = (getattr(self.instance, 'select_options', None) or '')
-            options = [o.strip() for o in raw.splitlines() if o.strip()]
-            choices = [('', 'Selecione...')] + [(o, o) for o in options]
-            self.fields['value_text'].widget = forms.Select(choices=choices, attrs={'class': 'form-select'})
-        elif field_type == 'text':
-            self.fields['value_text'].widget = forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Digite aqui...'})
-        else:
-            self.fields['value_text'].widget = forms.HiddenInput()
 
-        if field_type in ('select', 'text', 'group'):
-            self.fields['is_checked'].widget = forms.HiddenInput()
+class DailyChecklistItemUserForm(BaseDailyChecklistItemForm):
+    class Meta:
+        model = DailyChecklistItem
+        fields = ['is_checked', 'value_text', 'observation']
+        widgets = {
+            'is_checked': forms.CheckboxInput(attrs={'class': 'form-check-input', 'style': 'width: 2.5em; height: 1.25em;'}),
+            'observation': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Observações Adicionais...'}),
+            'value_text': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Preencha o valor...'}),
+        }
 
 class BaseDailyChecklistItemFormSet(forms.BaseInlineFormSet):
     def get_queryset(self):
         return super().get_queryset().order_by('parent_id', 'order', 'id')
 
-DailyChecklistItemFormSet = forms.inlineformset_factory(
-    DailyChecklist,
-    DailyChecklistItem,
-    form=DailyChecklistItemForm,
-    formset=BaseDailyChecklistItemFormSet,
-    fields=['title', 'description', 'field_type', 'value_text', 'is_checked', 'observation', 'order', 'is_required', 'parent'],
-    extra=5,
-    can_delete=True
-)
+    def add_fields(self, form, index):
+        super().add_fields(form, index)
+        if 'parent' not in form.fields:
+            return
+        if not getattr(self.instance, 'pk', None):
+            form.fields['parent'].queryset = DailyChecklistItem.objects.none()
+            return
+        qs = DailyChecklistItem.objects.filter(daily_checklist_id=self.instance.pk).order_by('parent_id', 'order', 'id')
+        if getattr(form.instance, 'pk', None):
+            qs = qs.exclude(pk=form.instance.pk)
+        form.fields['parent'].queryset = qs
 
 
 class ChecklistTemplateForm(forms.ModelForm):
@@ -513,27 +532,39 @@ class ChecklistTemplateForm(forms.ModelForm):
 class ChecklistTemplateItemForm(forms.ModelForm):
     class Meta:
         model = ChecklistTemplateItem
-        fields = ['parent', 'title', 'client', 'description', 'field_type', 'select_options', 'is_required', 'order']
+        fields = ['title', 'client', 'description', 'order']
         widgets = {
-            'parent': forms.Select(attrs={'class': 'form-select'}),
             'title': forms.TextInput(attrs={'class': 'form-control'}),
             'client': forms.Select(attrs={'class': 'form-select'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'field_type': forms.Select(attrs={'class': 'form-select'}),
-            'select_options': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Uma opção por linha'}),
-            'is_required': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'order': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
         }
 
     def __init__(self, *args, **kwargs):
-        template = kwargs.pop('template', None)
+        kwargs.pop('template', None)
         super().__init__(*args, **kwargs)
-        if template is not None:
-            qs = ChecklistTemplateItem.objects.filter(template=template).order_by('parent_id', 'order', 'id')
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            self.fields['parent'].queryset = qs
-        self.fields['select_options'].required = False
+
+
+class ChecklistTemplateItemOptionForm(forms.ModelForm):
+    class Meta:
+        model = ChecklistTemplateItemOption
+        fields = ['label', 'field_type', 'is_required', 'order', 'options_text']
+        widgets = {
+            'label': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Cliente atendido'}),
+            'field_type': forms.Select(attrs={'class': 'form-select'}),
+            'is_required': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'order': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+            'options_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Uma opção por linha'}),
+        }
+
+
+ChecklistTemplateItemOptionFormSet = forms.inlineformset_factory(
+    ChecklistTemplateItem,
+    ChecklistTemplateItemOption,
+    form=ChecklistTemplateItemOptionForm,
+    extra=0,
+    can_delete=True
+)
 
 class UserManagementForm(forms.ModelForm):
     first_name = forms.CharField(label="Nome Completo", max_length=150, required=True, widget=forms.TextInput(attrs={'class': 'form-control'}))

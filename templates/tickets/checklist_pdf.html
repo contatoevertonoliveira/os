@@ -90,7 +90,21 @@
                         <span style="color: #666; font-size: 11px;">{{ item.description }}</span>
                     </td>
                     <td>
-                        {% if item.field_type == 'select' or item.field_type == 'text' %}
+                        {% if item.option_values.exists %}
+                            <ul style="margin: 0; padding-left: 15px; list-style-type: circle;">
+                                {% for ov in item.option_values.all %}
+                                    <li style="font-size: 11px; color: #444; margin-bottom: 2px;">
+                                        <strong>{{ ov.template_option.label|default:"Opção" }}:</strong>
+                                        {% if ov.template_option.field_type == 'checkbox' or ov.template_option.field_type == 'switch' or ov.template_option.field_type == 'button' %}
+                                            {% if ov.value_bool %}Sim{% else %}Não{% endif %}
+                                        {% else %}
+                                            {{ ov.value_text|default:"-" }}
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                            {% if item.observation %}<span class="muted">{{ item.observation }}</span>{% endif %}
+                        {% elif item.field_type == 'select' or item.field_type == 'text' %}
                             {{ item.value_text|default:"-" }}
                             {% if item.observation %}<br><span class="muted">{{ item.observation }}</span>{% endif %}
                         {% else %}
