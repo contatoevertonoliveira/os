@@ -119,22 +119,6 @@
                         <small class="text-muted" style="font-size: 0.7rem;">Ative para adicionar.</small>
                     </div>
 
-                    <!-- Row 2: Location -->
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Grupo</label>
-                            {% render_field form.area_group class="form-control form-control-sm" placeholder="Ex: Bloco A" %}
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Subgrupo</label>
-                            {% render_field form.area_subgroup class="form-control form-control-sm" placeholder="Ex: 1º Andar" %}
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-muted mb-1">Área</label>
-                            {% render_field form.area class="form-control form-control-sm" placeholder="Ex: Sala 101" %}
-                        </div>
-                    </div>
-
                     <!-- Row 3: Technical Details -->
                     <div class="row g-2 mb-3">
                         <div class="col-md-3">
@@ -169,11 +153,19 @@
                     <div class="row g-2 mb-3">
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
-                            {% render_field form.requester class="form-select form-select-sm" %}
+                            {% render_field form.requester_selection class="form-select form-select-sm" %}
+                            <div id="modal-selected-requesters-container" class="mt-2 d-flex flex-wrap gap-1"></div>
+                            <div class="d-none">
+                                {% render_field form.requesters %}
+                            </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Técnicos</label>
-                            {% render_field form.technicians class="form-select form-select-sm" style="height: auto; min-height: 31px;" %}
+                            <label class="form-label small fw-bold text-muted mb-1">Responsável</label>
+                            {% render_field form.technician_selection class="form-select form-select-sm" %}
+                            <div id="modal-selected-technicians-container" class="mt-2 d-flex flex-wrap gap-1"></div>
+                            <div class="d-none">
+                                {% render_field form.technicians %}
+                            </div>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
@@ -471,6 +463,74 @@
             // Initial load
              updateModalBadges();
          }
+
+         function setupModalBadgeMultiSelect(selectionSelectId, hiddenSelectId, badgesContainerId) {
+             const selectionSelect = document.getElementById('ticketEditForm').querySelector(`#${selectionSelectId}`);
+             const hiddenSelect = document.getElementById('ticketEditForm').querySelector(`#${hiddenSelectId}`);
+             const container = document.getElementById(badgesContainerId);
+
+             if (!selectionSelect || !hiddenSelect || !container) {
+                 return;
+             }
+
+             function update() {
+                 container.innerHTML = '';
+                 const selectedOptions = Array.from(hiddenSelect.options).filter(option => option.selected);
+                 const selectedValues = selectedOptions.map(opt => opt.value);
+
+                 selectedOptions.forEach(option => {
+                     const badge = document.createElement('span');
+                     badge.className = 'badge bg-secondary d-flex align-items-center gap-1 py-1 px-2';
+                     badge.style.fontSize = '0.75rem';
+
+                     const text = document.createElement('span');
+                     text.textContent = option.text;
+
+                     const removeBtn = document.createElement('i');
+                     removeBtn.className = 'fas fa-times';
+                     removeBtn.style.cursor = 'pointer';
+                     removeBtn.style.fontSize = '0.7rem';
+                     removeBtn.onclick = function() {
+                         option.selected = false;
+                         update();
+                     };
+
+                     badge.appendChild(text);
+                     badge.appendChild(removeBtn);
+                     container.appendChild(badge);
+                 });
+
+                 for (let i = 0; i < selectionSelect.options.length; i++) {
+                     const opt = selectionSelect.options[i];
+                     if (opt.value && selectedValues.includes(opt.value)) {
+                         opt.style.display = 'none';
+                         opt.hidden = true;
+                     } else {
+                         opt.style.display = '';
+                         opt.hidden = false;
+                     }
+                 }
+             }
+
+             selectionSelect.addEventListener('change', function() {
+                 const selectedValue = this.value;
+                 if (selectedValue) {
+                     for (let i = 0; i < hiddenSelect.options.length; i++) {
+                         if (hiddenSelect.options[i].value === selectedValue) {
+                             hiddenSelect.options[i].selected = true;
+                             break;
+                         }
+                     }
+                     update();
+                     this.value = '';
+                 }
+             });
+
+             update();
+         }
+
+         setupModalBadgeMultiSelect('id_requester_selection', 'id_requesters', 'modal-selected-requesters-container');
+         setupModalBadgeMultiSelect('id_technician_selection', 'id_technicians', 'modal-selected-technicians-container');
 
          // Evolution Image Paste Logic (Modal)
          const evolutionInput = document.getElementById('id_evolution_image');

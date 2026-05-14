@@ -279,6 +279,7 @@ class Ticket(models.Model):
     hub = models.ForeignKey(ClientHub, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja")
     technicians = models.ManyToManyField(User, verbose_name="Técnicos Responsáveis", blank=True, related_name='assigned_tickets')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante", related_name='requested_tickets')
+    requesters = models.ManyToManyField(User, verbose_name="Solicitantes", blank=True, related_name='requested_tickets_multi')
     
     systems = models.ManyToManyField(System, verbose_name="Sistemas", blank=True, related_name="tickets")
     area_group = models.CharField(max_length=100, verbose_name="Grupo de Áreas", blank=True, null=True)

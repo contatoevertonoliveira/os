@@ -126,7 +126,11 @@
                         <small class="text-muted d-block">Solicitante</small>
                         <div class="d-flex align-items-center">
                             <span>
-                                {% if ticket.requester %}
+                                {% if ticket.requesters.exists %}
+                                    {% for requester in ticket.requesters.all %}
+                                        {{ requester.get_full_name|default:requester.username }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                {% elif ticket.requester %}
                                     {{ ticket.requester.get_full_name|default:ticket.requester.username }}
                                 {% else %}
                                     -
@@ -136,7 +140,7 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <small class="text-muted d-block">Técnico</small>
+                        <small class="text-muted d-block">Responsável</small>
                         <div class="d-flex align-items-center">
                             <span>
                                 {% for tech in ticket.technicians.all %}

@@ -5,11 +5,13 @@
 <div class="container-fluid px-4">
     <div class="row justify-content-center">
         <div class="col-xl-10 col-lg-11">
-            <div class="card shadow-sm border-0 rounded-3 mt-4">
-                <div class="card-header bg-white border-bottom pt-4 px-4 pb-3 d-flex justify-content-between align-items-center">
+            <div class="card border-0 shadow-lg rounded-4 mt-4" style="background: #fff7cc;">
+                <div class="card-header border-0 pt-4 px-4 pb-3 d-flex justify-content-between align-items-center" style="background: #ffcc00;">
                     <div>
-                        <h5 class="mb-0 fw-bold text-primary">{{ title }}</h5>
-                        <p class="text-muted small mb-0">Preencha os dados abaixo para cadastrar o cliente.</p>
+                        <h5 class="mb-0 fw-bold text-dark">
+                            <i class="fas fa-building me-2"></i>{{ title }}
+                        </h5>
+                        <p class="small text-black-50 mb-0">Edição completa do cliente.</p>
                     </div>
                     <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm px-3">
                         <i class="fas fa-arrow-left me-1"></i> Voltar
@@ -28,7 +30,7 @@
                                 </h6>
                                 <div class="form-check form-switch">
                                     {% render_field form.is_preferred class="form-check-input" id="isPreferredSwitch" %}
-                                    <label class="form-check-label small fw-bold text-primary" for="isPreferredSwitch">
+                                    <label class="form-check-label small fw-bold text-dark" for="isPreferredSwitch">
                                         Empresa Preferencial / Padrão
                                     </label>
                                 </div>

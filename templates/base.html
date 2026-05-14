@@ -515,64 +515,85 @@
                 </a>
             </div>
             <ul class="sidebar-menu">
+                {% if 'dashboard' in allowed_url_names %}
                 <li>
                     <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Dashboard">
                         <i class="fas fa-chart-line"></i> Dashboard
                     </a>
                 </li>
+                {% endif %}
+                {% if 'hub_dashboard' in allowed_url_names %}
                 <li>
                     <a href="{% url 'hub_dashboard' %}" class="{% if request.resolver_match.url_name == 'hub_dashboard' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Hubs Dashboard">
                         <i class="fas fa-network-wired"></i> Hubs Dashboard
                     </a>
                 </li>
+                {% endif %}
+                {% if 'local' in allowed_url_names %}
                 <li>
                     <a href="{% url 'local' %}" class="{% if request.resolver_match.url_name == 'local' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Local">
                         <i class="fas fa-location-dot"></i> Local
                     </a>
                 </li>
+                {% endif %}
                 
                 <!-- Cadastros Dropdown -->
+                {% if 'client_list' in allowed_url_names or 'equipment_list' in allowed_url_names or 'ordertype_list' in allowed_url_names or 'problemtype_list' in allowed_url_names or 'technician_list' in allowed_url_names or 'travel_list' in allowed_url_names or 'system_list' in allowed_url_names or 'user_list' in allowed_url_names %}
                 <li>
                     <a href="#cadastrosSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Cadastros">
                         <i class="fas fa-folder-open"></i> Cadastros
                     </a>
                     <ul class="collapse sidebar-submenu {% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}show{% endif %}" id="cadastrosSubmenu">
+                        {% if 'client_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'client_list' %}" class="{% if 'client' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-users"></i> Clientes
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'equipment_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'equipment_list' %}" class="{% if 'equipment' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-tools"></i> Equipamentos
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'ordertype_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'ordertype_list' %}" class="{% if 'ordertype' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-list"></i> Tipos de Chamados
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'problemtype_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'problemtype_list' %}" class="{% if 'problemtype' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-exclamation-circle"></i> Tipos de Problema
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'technician_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'technician_list' %}" class="{% if 'technician' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-user-cog"></i> Técnicos
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'travel_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'travel_list' %}" class="{% if 'travel' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-plane"></i> Viagens
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'system_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'system_list' %}" class="{% if 'system' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-server"></i> Sistemas
                             </a>
                         </li>
-                        {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                        {% endif %}
+                        {% if 'user_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'user_list' %}" class="{% if 'user' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-users-cog"></i> Usuários
@@ -581,34 +602,44 @@
                         {% endif %}
                     </ul>
                 </li>
+                {% endif %}
     
                 <!-- Tasks Dropdown -->
+                {% if 'ticket_list' in allowed_url_names or 'task_list' in allowed_url_names %}
                 <li>
                     <a href="#tasksSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'task' in request.resolver_match.url_name or 'ticket' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Tasks">
                         <i class="fas fa-tasks"></i> Tasks
                     </a>
                     <ul class="collapse sidebar-submenu {% if 'task' in request.resolver_match.url_name or 'ticket' in request.resolver_match.url_name %}show{% endif %}" id="tasksSubmenu">
+                        {% if 'ticket_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'ticket_list' %}" class="{% if 'ticket' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-list-alt"></i> Ordens de Serviço
                             </a>
                         </li>
+                        {% endif %}
+                        {% if 'task_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'task_list' %}" class="{% if 'task' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-th-large"></i> Lista de Tasks
                             </a>
                         </li>
+                        {% endif %}
                     </ul>
                 </li>
+                {% endif %}
 
                 <!-- Checklist -->
+                {% if 'checklist_daily' in allowed_url_names %}
                 <li>
                     <a href="{% url 'checklist_daily' %}" class="{% if request.resolver_match and 'checklist' in request.resolver_match.url_name %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Checklist">
                         <i class="fas fa-clipboard-check"></i> Checklist
                     </a>
                 </li>
+                {% endif %}
 
                 <!-- Notifications -->
+                {% if 'notification_list' in allowed_url_names %}
                 <li>
                     <a href="{% url 'notification_list' %}" class="{% if request.resolver_match.url_name == 'notification_list' %}active{% endif %} sidebar-link-tooltip d-flex justify-content-between align-items-center pe-3" data-bs-toggle="tooltip" data-bs-placement="right" title="Notificações">
                         <span><i class="fas fa-bell"></i> Notificações</span>
@@ -617,21 +648,24 @@
                         {% endif %}
                     </a>
                 </li>
+                {% endif %}
 
                 <li class="sidebar-header-sm text-uppercase text-white small fw-bold px-4 mt-3 mb-1" style="font-size: 0.75rem;">Sistema</li>
-                {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                {% if 'notification_monitor' in allowed_url_names %}
                 <li>
                     <a href="{% url 'notification_monitor' %}" class="{% if request.resolver_match and 'monitor' in request.resolver_match.url_name %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Monitorar Mensagens">
                         <i class="fas fa-mail-bulk"></i> Monitorar Mensagens
                     </a>
                 </li>
                 {% endif %}
+                {% if 'settings' in allowed_url_names %}
                 <li>
                     <a href="{% url 'settings' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'settings' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Configurações">
                         <i class="fas fa-cogs"></i> Configurações
                     </a>
                 </li>
-                {% if can_access_permissions %}
+                {% endif %}
+                {% if can_access_permissions and 'permissions' in allowed_url_names %}
                 <li>
                     <a href="{% url 'permissions' %}" class="{% if request.resolver_match and request.resolver_match.url_name == 'permissions' %}active{% endif %} sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Permissões">
                         <i class="fas fa-user-shield"></i> Permissões

@@ -175,14 +175,29 @@ class TicketForm(forms.ModelForm):
     technicians = TechnicianMultipleChoiceField(
         queryset=User.objects.filter(profile__role__in=['technician', 'standard', 'admin', 'super_admin'], is_active=True).order_by('first_name'),
         required=False,
-        label="Técnicos Responsáveis",
-        widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': '6'})
+        label="Responsável",
+        widget=forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_technicians'})
     )
-    requester = TechnicianChoiceField(
+    technician_selection = TechnicianChoiceField(
+        queryset=User.objects.filter(profile__role__in=['technician', 'standard', 'admin', 'super_admin'], is_active=True).order_by('first_name'),
+        required=False,
+        label="Responsável",
+        empty_label="Selecione um responsável",
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_technician_selection'})
+    )
+
+    requesters = TechnicianMultipleChoiceField(
+        queryset=User.objects.filter(is_active=True).order_by('first_name'),
+        required=False,
+        label="Solicitantes",
+        widget=forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_requesters'})
+    )
+    requester_selection = TechnicianChoiceField(
         queryset=User.objects.filter(is_active=True).order_by('first_name'),
         required=False,
         label="Solicitante",
-        empty_label="Selecione um solicitante"
+        empty_label="Selecione um solicitante",
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_requester_selection'})
     )
 
     equipment_selection = forms.ModelChoiceField(
@@ -203,19 +218,21 @@ class TicketForm(forms.ModelForm):
     class Meta:
         model = Ticket
         fields = [
-            'client', 'hub', 'systems', 'area_group', 'area_subgroup', 'area',
+            'client', 'hub', 'systems',
             'equipments', 'order_type', 'ticket_type', 'problem_type',
-            'requester', 'technicians', 'start_date', 'deadline', 'estimated_time',
+            'requesters', 'technicians', 'start_date', 'deadline', 'estimated_time',
             'leankeep_id', 'description', 'final_description', 'image', 'status'
         ]
         widgets = {
-            'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'systems': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input system-switch'}),
             'hub': forms.Select(attrs={'class': 'form-select'}),
             'ticket_type': forms.Select(attrs={'class': 'form-select'}),
             'final_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Descreva o que foi feito para resolver o problema...'}),
             'equipments': forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_equipments'}),
+            'requesters': forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_requesters'}),
+            'technicians': forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_technicians'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -236,6 +253,9 @@ class TicketForm(forms.ModelForm):
         if self.instance.pk and self.instance.equipment and not self.instance.equipments.exists():
             self.initial['equipments'] = [self.instance.equipment]
 
+        if self.instance.pk and self.instance.requester and not self.instance.requesters.exists():
+            self.initial['requesters'] = [self.instance.requester]
+
         # Dynamic filtering for hubs
         self.fields['hub'].queryset = ClientHub.objects.none()
         self.fields['hub'].empty_label = "Todas as Lojas / Sem Hub Específico"
@@ -248,6 +268,21 @@ class TicketForm(forms.ModelForm):
                 pass  # invalid input from the client; ignore and fallback to empty queryset
         elif self.instance.pk:
             self.fields['hub'].queryset = self.instance.client.hubs.order_by('name')
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        requesters = self.cleaned_data.get('requesters') or []
+        try:
+            primary_requester = requesters[0] if isinstance(requesters, list) else next(iter(requesters), None)
+        except Exception:
+            primary_requester = None
+
+        instance.requester = primary_requester
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
     def clean_estimated_time(self):
         data = self.cleaned_data.get('estimated_time')
@@ -298,8 +333,8 @@ class TicketUpdateForm(TicketForm):
     class Meta(TicketForm.Meta):
         fields = TicketForm.Meta.fields + ['finished_at']
         widgets = {
-            'start_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-            'deadline': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+            'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'deadline': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
             'estimated_time': forms.TextInput(attrs={'placeholder': 'HH:MM:SS ou DD HH:MM:SS'}),
             'finished_at': forms.DateTimeInput(
                 attrs={'type': 'datetime-local'},

@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 import os
+import json
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import TemplateView, ListView, DetailView, CreateView, UpdateView, DeleteView, View
@@ -460,7 +461,7 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'ticket'
 
     def get_queryset(self):
-        return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('technicians', 'equipments', 'systems', 'updates', 'updates__images')
+        return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('requesters', 'technicians', 'equipments', 'systems', 'updates', 'updates__images')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -585,6 +586,71 @@ class ClientListView(LoginRequiredMixin, ListView):
     model = Client
     template_name = 'cadastros/client_list.html'
     context_object_name = 'clients'
+
+    def get_queryset(self):
+        return (
+            Client.objects.all()
+            .select_related('supervisor')
+            .prefetch_related('systems', 'technicians')
+            .order_by('name')
+        )
+
+
+@login_required
+def client_quick_update(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    client = get_object_or_404(Client, pk=pk)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'Dados inválidos.'}, status=400)
+
+    name = (payload.get('name') or '').strip()
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'O nome do cliente é obrigatório.'}, status=400)
+
+    client.name = name
+    client.email = (payload.get('email') or '').strip() or None
+    client.phone = (payload.get('phone') or '').strip() or None
+    client.phone2 = (payload.get('phone2') or '').strip() or None
+    client.address = (payload.get('address') or '').strip() or None
+
+    client.contact1_name = (payload.get('contact1_name') or '').strip() or None
+    client.contact1_phone = (payload.get('contact1_phone') or '').strip() or None
+    client.contact1_email = (payload.get('contact1_email') or '').strip() or None
+
+    client.contact2_name = (payload.get('contact2_name') or '').strip() or None
+    client.contact2_phone = (payload.get('contact2_phone') or '').strip() or None
+    client.contact2_email = (payload.get('contact2_email') or '').strip() or None
+
+    client.is_preferred = bool(payload.get('is_preferred'))
+
+    try:
+        client.save()
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'Não foi possível salvar as alterações.'}, status=500)
+
+    return JsonResponse({
+        'status': 'success',
+        'client': {
+            'id': client.id,
+            'name': client.name,
+            'email': client.email or '',
+            'phone': client.phone or '',
+            'phone2': client.phone2 or '',
+            'address': client.address or '',
+            'contact1_name': client.contact1_name or '',
+            'contact1_phone': client.contact1_phone or '',
+            'contact1_email': client.contact1_email or '',
+            'contact2_name': client.contact2_name or '',
+            'contact2_phone': client.contact2_phone or '',
+            'contact2_email': client.contact2_email or '',
+            'is_preferred': client.is_preferred,
+        }
+    })
 
 class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Client
@@ -1162,11 +1228,23 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
             if not code and name:
                 code = slugify(name)
 
-            if name and code:
-                RoleLevel.objects.update_or_create(
+            if not name or not code:
+                messages.error(request, "Informe o nome e o código do nível de usuário.")
+                return redirect('permissions')
+
+            try:
+                _, created = RoleLevel.objects.update_or_create(
                     code=code,
                     defaults={'name': name, 'is_system': False, 'is_active': True},
                 )
+            except Exception:
+                messages.error(request, "Não foi possível salvar o nível de usuário.")
+                return redirect('permissions')
+
+            if created:
+                messages.success(request, f"Nível criado: {name} ({code}).")
+            else:
+                messages.success(request, f"Nível atualizado: {name} ({code}).")
             return redirect('permissions')
 
         if action == 'create_page':
@@ -1178,8 +1256,12 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
             if not code and name:
                 code = slugify(name)
 
-            if name and url_name and code:
-                AppPage.objects.update_or_create(
+            if not name or not url_name or not code:
+                messages.error(request, "Informe nome, url_name e código da página.")
+                return redirect('permissions')
+
+            try:
+                _, created = AppPage.objects.update_or_create(
                     url_name=url_name,
                     defaults={
                         'code': code,
@@ -1188,26 +1270,57 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
                         'is_enabled': True,
                     },
                 )
+            except Exception:
+                messages.error(request, "Não foi possível salvar a página.")
+                return redirect('permissions')
+
+            if created:
+                messages.success(request, f"Página criada: {name} ({url_name}).")
+            else:
+                messages.success(request, f"Página atualizada: {name} ({url_name}).")
             return redirect('permissions')
 
         roles = list(RoleLevel.objects.filter(is_active=True).order_by('name'))
         pages = list(AppPage.objects.all().order_by('group', 'order', 'name'))
 
-        with transaction.atomic():
-            for page in pages:
-                enabled = request.POST.get(f'page_enabled_{page.id}') == 'on'
-                if page.is_enabled != enabled:
-                    page.is_enabled = enabled
-                    page.save(update_fields=['is_enabled'])
+        existing_perm_map = {}
+        try:
+            for p in RolePagePermission.objects.filter(role__in=roles, page__in=pages):
+                existing_perm_map[(p.role_id, p.page_id)] = p.allowed
+        except (OperationalError, ProgrammingError):
+            existing_perm_map = {}
 
-            for role in roles:
+        changed_pages = 0
+        changed_perms = 0
+
+        try:
+            with transaction.atomic():
                 for page in pages:
-                    allowed = request.POST.get(f'perm_{role.id}_{page.id}') == 'on'
-                    RolePagePermission.objects.update_or_create(
-                        role=role,
-                        page=page,
-                        defaults={'allowed': allowed},
-                    )
+                    enabled = request.POST.get(f'page_enabled_{page.id}') == 'on'
+                    if page.is_enabled != enabled:
+                        page.is_enabled = enabled
+                        page.save(update_fields=['is_enabled'])
+                        changed_pages += 1
+
+                for role in roles:
+                    for page in pages:
+                        allowed = request.POST.get(f'perm_{role.id}_{page.id}') == 'on'
+                        current_allowed = existing_perm_map.get((role.id, page.id), True)
+                        if current_allowed != allowed:
+                            changed_perms += 1
+                        RolePagePermission.objects.update_or_create(
+                            role=role,
+                            page=page,
+                            defaults={'allowed': allowed},
+                        )
+        except Exception:
+            messages.error(request, "Erro ao salvar permissões. Nenhuma alteração foi aplicada.")
+            return redirect('permissions')
+
+        if changed_pages == 0 and changed_perms == 0:
+            messages.info(request, "Nenhuma alteração para salvar.")
+        else:
+            messages.success(request, f"Permissões salvas com sucesso! Páginas: {changed_pages} | Permissões: {changed_perms}.")
 
         return redirect('permissions')
 

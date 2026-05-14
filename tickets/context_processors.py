@@ -48,5 +48,64 @@ def system_settings(request):
                 can_access_permissions = True
 
         context['can_access_permissions'] = can_access_permissions
+
+        sidebar_url_names = {
+            'dashboard',
+            'hub_dashboard',
+            'local',
+            'client_list',
+            'equipment_list',
+            'ordertype_list',
+            'problemtype_list',
+            'technician_list',
+            'travel_list',
+            'system_list',
+            'user_list',
+            'ticket_list',
+            'task_list',
+            'checklist_daily',
+            'notification_list',
+            'notification_monitor',
+            'settings',
+            'permissions',
+        }
+
+        allowed_url_names = set(sidebar_url_names)
+        admin_only_url_names = {'settings', 'permissions', 'user_list', 'notification_monitor'}
+
+        if role_code not in {'admin', 'super_admin'}:
+            allowed_url_names -= admin_only_url_names
+
+        try:
+            pages = list(AppPage.objects.filter(url_name__in=sidebar_url_names))
+            page_by_id = {p.id: p for p in pages}
+            page_by_url_name = {p.url_name: p for p in pages}
+
+            for url_name, page in page_by_url_name.items():
+                if not page.is_enabled and url_name in allowed_url_names:
+                    allowed_url_names.remove(url_name)
+
+            if role_code and role_code != 'super_admin':
+                role = RoleLevel.objects.filter(code=role_code, is_active=True).first()
+                if role:
+                    denied_page_ids = set(
+                        RolePagePermission.objects.filter(
+                            role=role,
+                            page_id__in=page_by_id.keys(),
+                            allowed=False,
+                        ).values_list('page_id', flat=True)
+                    )
+                    for page_id in denied_page_ids:
+                        page = page_by_id.get(page_id)
+                        if page and page.url_name in allowed_url_names:
+                            allowed_url_names.remove(page.url_name)
+        except (OperationalError, ProgrammingError):
+            pass
+        except Exception:
+            pass
+
+        context['allowed_url_names'] = allowed_url_names
+    else:
+        context['allowed_url_names'] = set()
         
     return context

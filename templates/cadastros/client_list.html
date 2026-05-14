@@ -4,144 +4,370 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Clientes</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="{% url 'client_search' %}" class="btn btn-outline-secondary me-2">
-            <i class="fas fa-search"></i> Busca Avançada
-        </a>
         <a href="{% url 'client_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Cliente
         </a>
     </div>
 </div>
 
-<div class="card card-custom">
+<div class="card card-custom mb-4">
     <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Nome</th>
-                        <th>Email</th>
-                        <th>Telefone</th>
-                        <th>Endereço</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for client in clients %}
-                    <tr style="cursor: pointer;"
-                        data-id="{{ client.id }}"
-                        data-name="{{ client.name }}"
-                        data-email="{{ client.email|default:'-' }}"
-                        data-phone="{{ client.phone|default:'-' }}"
-                        data-phone2="{{ client.phone2|default:'-' }}"
-                        data-address="{{ client.address|default:'-' }}"
-                        data-contact1-name="{{ client.contact1_name|default:'-' }}"
-                        data-contact1-phone="{{ client.contact1_phone|default:'-' }}"
-                        data-contact1-email="{{ client.contact1_email|default:'-' }}"
-                        data-contact2-name="{{ client.contact2_name|default:'-' }}"
-                        data-contact2-phone="{{ client.contact2_phone|default:'-' }}"
-                        data-contact2-email="{{ client.contact2_email|default:'-' }}"
-                        ondblclick="openClientModal(this)">
-                        <td>
-                            {{ client.name }}
-                            {% if client.is_preferred %}
-                                <i class="fas fa-star text-warning ms-2" title="Empresa Preferencial"></i>
-                            {% endif %}
-                        </td>
-                        <td>{{ client.email|default:"-" }}</td>
-                        <td>{{ client.phone|default:"-" }}</td>
-                        <td>{{ client.address|truncatechars:50|default:"-" }}</td>
-                        <td>
-                            <a href="{% url 'client_update' client.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {% if request.user.profile.role in 'admin,super_admin' %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'client_delete' client.id %}', '{{ client.name|escapejs }}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-center py-4">Nenhum cliente cadastrado.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="row g-3 align-items-center">
+            <div class="col-md-10">
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input id="clientSearchInput" type="text" class="form-control" placeholder="Buscar clientes por nome, CM, grupo, cidade, estado, email, telefone, endereço, supervisor, técnico, sistema...">
+                </div>
+                <div class="form-text">Digite para filtrar em tempo real. A busca considera aproximação (contém).</div>
+            </div>
+            <div class="col-md-2 text-md-end">
+                <span id="clientSearchCount" class="badge bg-secondary rounded-pill"></span>
+            </div>
         </div>
+    </div>
+</div>
+
+<div id="clientsGrid" class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+    {% for client in clients %}
+    <div class="col client-card-col">
+        <div class="card h-100 card-custom border-start border-4 border-primary client-card"
+             role="button"
+             tabindex="0"
+             onclick="openClientModal(this)"
+             data-id="{{ client.id }}"
+             data-name="{{ client.name }}"
+             data-email="{{ client.email|default:'-' }}"
+             data-phone="{{ client.phone|default:'-' }}"
+             data-phone2="{{ client.phone2|default:'-' }}"
+             data-address="{{ client.address|default:'-' }}"
+             data-contact1-name="{{ client.contact1_name|default:'-' }}"
+             data-contact1-phone="{{ client.contact1_phone|default:'-' }}"
+             data-contact1-email="{{ client.contact1_email|default:'-' }}"
+             data-contact2-name="{{ client.contact2_name|default:'-' }}"
+             data-contact2-phone="{{ client.contact2_phone|default:'-' }}"
+             data-contact2-email="{{ client.contact2_email|default:'-' }}"
+             data-is-preferred="{% if client.is_preferred %}1{% else %}0{% endif %}"
+             data-quick-update-url="{% url 'client_quick_update' client.id %}"
+             data-search-base="{{ client.cm_code|default:'' }} {{ client.group|default:'' }} {{ client.city|default:'' }} {{ client.state|default:'' }} {% if client.supervisor %}{{ client.supervisor.get_full_name|default:client.supervisor.username }}{% endif %} {% for sys in client.systems.all %}{{ sys.name }} {% endfor %}{% for tech in client.technicians.all %}{{ tech.get_full_name|default:tech.username }} {% endfor %}"
+             data-search="{{ client.name }} {{ client.email|default:'' }} {{ client.phone|default:'' }} {{ client.phone2|default:'' }} {{ client.address|default:'' }} {{ client.contact1_name|default:'' }} {{ client.contact1_phone|default:'' }} {{ client.contact1_email|default:'' }} {{ client.contact2_name|default:'' }} {{ client.contact2_phone|default:'' }} {{ client.contact2_email|default:'' }} {{ client.cm_code|default:'' }} {{ client.group|default:'' }} {{ client.city|default:'' }} {{ client.state|default:'' }} {% if client.supervisor %}{{ client.supervisor.get_full_name|default:client.supervisor.username }}{% endif %} {% for sys in client.systems.all %}{{ sys.name }} {% endfor %}{% for tech in client.technicians.all %}{{ tech.get_full_name|default:tech.username }} {% endfor %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h5 class="card-title fw-bold text-primary mb-0">
+                        <span class="client-name">{{ client.name }}</span>
+                        {% if client.cm_code %}
+                            <small class="text-muted d-block fs-6 mt-1">CM: {{ client.cm_code }}</small>
+                        {% endif %}
+                    </h5>
+                    {% if client.is_preferred %}
+                        <span class="badge bg-success client-preferred-badge" title="Cliente Preferencial"><i class="fas fa-star"></i></span>
+                    {% endif %}
+                </div>
+
+                <div class="card-text small text-muted mb-3">
+                    {% if client.group %}
+                        <div class="mb-1"><i class="fas fa-layer-group me-2 w-20"></i>{{ client.group }}</div>
+                    {% endif %}
+
+                    {% if client.address or client.city or client.state %}
+                        <div class="mb-1">
+                            <i class="fas fa-map-marker-alt me-2 w-20"></i>
+                            {% if client.address %}<span class="client-address">{{ client.address|truncatechars:60 }}</span>{% endif %}
+                            {% if client.city or client.state %}
+                                {% if client.address %}<span class="text-muted"> • </span>{% endif %}
+                                {{ client.city|default:'' }}{% if client.city and client.state %} - {% endif %}{{ client.state|default:'' }}
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    {% if client.supervisor %}
+                        <div class="mb-1"><i class="fas fa-user-tie me-2 w-20"></i>{{ client.supervisor.get_full_name|default:client.supervisor.username }}</div>
+                    {% endif %}
+
+                    {% if client.email %}
+                        <div class="mb-1 client-email-line"><i class="fas fa-envelope me-2 w-20"></i><span class="client-email">{{ client.email }}</span></div>
+                    {% endif %}
+
+                    {% if client.phone %}
+                        <div class="mb-1 client-phone-line"><i class="fas fa-phone me-2 w-20"></i><span class="client-phone">{{ client.phone }}</span>{% if client.phone2 %}<span class="text-muted"> • </span><span class="client-phone2">{{ client.phone2 }}</span>{% endif %}</div>
+                    {% endif %}
+                </div>
+
+                {% if client.systems.exists %}
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for sys in client.systems.all %}
+                            <span class="badge bg-secondary">{{ sys.name }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="card-footer bg-transparent border-top-0 d-flex justify-content-end gap-2">
+                <a href="{% url 'client_update' client.pk %}" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();">
+                    <i class="fas fa-edit"></i> Editar
+                </a>
+                {% if request.user.profile.role in 'admin,super_admin' %}
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); confirmDelete('{% url 'client_delete' client.id %}', '{{ client.name|escapejs }}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+                {% endif %}
+                <a href="{% url 'ticket_create' %}?client={{ client.pk }}" class="btn btn-sm btn-success" onclick="event.stopPropagation();">
+                    <i class="fas fa-ticket-alt"></i> Abrir OS
+                </a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center py-5">
+        <div class="text-muted">
+            <i class="fas fa-users fa-3x mb-3"></i>
+            <h4>Nenhum cliente cadastrado</h4>
+            <p>Cadastre um cliente para começar.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div id="clientSearchEmptyState" class="text-center py-5 d-none">
+    <div class="text-muted">
+        <i class="fas fa-search fa-3x mb-3"></i>
+        <h4>Nenhum cliente encontrado</h4>
+        <p>Tente buscar por outros termos.</p>
     </div>
 </div>
 
 <!-- Client Detail Modal -->
 <div class="modal fade" id="clientDetailModal" tabindex="-1" aria-labelledby="clientDetailModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content bg-dark text-light border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="clientDetailModalLabel">Detalhes do Cliente</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="fw-bold text-secondary small">NOME</label>
-                    <div id="modalName" class="fs-5"></div>
-                </div>
-                <div class="mb-3">
-                    <label class="fw-bold text-secondary small">EMAIL</label>
-                    <div id="modalEmail"></div>
-                </div>
-                <div class="mb-3">
-                    <label class="fw-bold text-secondary small">TELEFONE</label>
-                    <div id="modalPhone"></div>
-                    <div id="modalPhone2" class="text-muted small"></div>
-                </div>
-                <div class="mb-3">
-                    <label class="fw-bold text-secondary small">ENDEREÇO</label>
-                    <div id="modalAddress" class="p-2 border border-secondary rounded bg-secondary bg-opacity-10"></div>
-                </div>
-                
-                <hr class="border-secondary">
-                <h6 class="text-primary mb-3">Contatos de Suporte</h6>
-                
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-secondary small">CONTATO 1</label>
-                        <div id="modalContact1Name" class="fw-bold"></div>
-                        <div id="modalContact1Phone" class="small"></div>
-                        <div id="modalContact1Email" class="small text-muted"></div>
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: #fff7cc;">
+            <div class="modal-header border-0" style="background: #ffcc00;">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center text-dark" style="width: 44px; height: 44px; background: rgba(255,255,255,0.65);">
+                        <i class="fas fa-building"></i>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="fw-bold text-secondary small">CONTATO 2</label>
-                        <div id="modalContact2Name" class="fw-bold"></div>
-                        <div id="modalContact2Phone" class="small"></div>
-                        <div id="modalContact2Email" class="small text-muted"></div>
+                    <div>
+                        <h5 class="modal-title mb-0 text-dark" id="clientDetailModalLabel">
+                            <span id="modalName"></span>
+                            <span id="modalPreferredBadge" class="badge bg-success ms-2 d-none" title="Cliente Preferencial"><i class="fas fa-star"></i></span>
+                        </h5>
+                        <div class="small text-black-50">Atalho: detalhes + edição rápida</div>
                     </div>
                 </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+            <div class="modal-body pt-3">
+                <ul class="nav nav-pills gap-2 mb-3" id="clientModalTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="client-tab-details" data-bs-toggle="pill" data-bs-target="#client-pane-details" type="button" role="tab" aria-controls="client-pane-details" aria-selected="true">Detalhes</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="client-tab-edit" data-bs-toggle="pill" data-bs-target="#client-pane-edit" type="button" role="tab" aria-controls="client-pane-edit" aria-selected="false">Editar rápido</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="client-pane-details" role="tabpanel" aria-labelledby="client-tab-details" tabindex="0">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-3 bg-white shadow-sm">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <i class="fas fa-envelope text-secondary"></i>
+                                        <div class="fw-semibold">Email</div>
+                                    </div>
+                                    <div id="modalEmail" class="text-dark"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="p-3 rounded-3 bg-white shadow-sm">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <i class="fas fa-phone text-secondary"></i>
+                                        <div class="fw-semibold">Telefones</div>
+                                    </div>
+                                    <div id="modalPhone" class="text-dark"></div>
+                                    <div id="modalPhone2" class="text-muted small"></div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="p-3 rounded-3 bg-white shadow-sm">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <i class="fas fa-map-marker-alt text-secondary"></i>
+                                        <div class="fw-semibold">Endereço</div>
+                                    </div>
+                                    <div id="modalAddress" class="text-dark"></div>
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="p-3 rounded-3 bg-white shadow-sm">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <i class="fas fa-headset text-secondary"></i>
+                                            <div class="fw-semibold">Contatos de Suporte</div>
+                                        </div>
+                                        <a href="#" id="modalEditLink" class="btn btn-sm btn-outline-dark">
+                                            <i class="fas fa-pen me-1"></i> Editar completo
+                                        </a>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <div class="fw-bold" id="modalContact1Name"></div>
+                                            <div class="small" id="modalContact1Phone"></div>
+                                            <div class="small text-muted" id="modalContact1Email"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="fw-bold" id="modalContact2Name"></div>
+                                            <div class="small" id="modalContact2Phone"></div>
+                                            <div class="small text-muted" id="modalContact2Email"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="client-pane-edit" role="tabpanel" aria-labelledby="client-tab-edit" tabindex="0">
+                        <div id="clientQuickEditAlert" class="alert d-none" role="alert"></div>
+
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Nome</label>
+                                <input id="quick_name" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check form-switch">
+                                    <input id="quick_is_preferred" class="form-check-input" type="checkbox" role="switch">
+                                    <label class="form-check-label fw-semibold" for="quick_is_preferred">Preferencial</label>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Email</label>
+                                <input id="quick_email" type="email" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Telefone</label>
+                                <input id="quick_phone" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Telefone 2</label>
+                                <input id="quick_phone2" type="text" class="form-control">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Endereço</label>
+                                <textarea id="quick_address" class="form-control" rows="2"></textarea>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 1 (Nome)</label>
+                                <input id="quick_c1_name" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 1 (Telefone)</label>
+                                <input id="quick_c1_phone" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 1 (Email)</label>
+                                <input id="quick_c1_email" type="email" class="form-control">
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 2 (Nome)</label>
+                                <input id="quick_c2_name" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 2 (Telefone)</label>
+                                <input id="quick_c2_phone" type="text" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Contato 2 (Email)</label>
+                                <input id="quick_c2_email" type="email" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" id="clientQuickSaveBtn" class="btn btn-dark">
+                    <span class="me-2 d-none" id="clientQuickSaveSpinner"><span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span></span>
+                    Salvar edição rápida
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    function openClientModal(row) {
-        const id = row.getAttribute('data-id');
-        const name = row.getAttribute('data-name');
-        const email = row.getAttribute('data-email');
-        const phone = row.getAttribute('data-phone');
-        const phone2 = row.getAttribute('data-phone2');
-        const address = row.getAttribute('data-address');
+    let currentClientEl = null;
+
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }
+
+    function showQuickEditAlert(type, message) {
+        const el = document.getElementById('clientQuickEditAlert');
+        if (!el) return;
+        el.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-info', 'alert-warning');
+        el.classList.add(`alert-${type}`);
+        el.textContent = message;
+    }
+
+    function hideQuickEditAlert() {
+        const el = document.getElementById('clientQuickEditAlert');
+        if (!el) return;
+        el.classList.add('d-none');
+        el.textContent = '';
+        el.className = 'alert d-none';
+    }
+
+    function showToast(type, message) {
+        const container = document.querySelector('.toast-container');
+        if (!container) return;
+
+        const bg = type === 'success' ? 'success' : type === 'error' ? 'danger' : type === 'warning' ? 'warning' : 'info';
+        const textColor = bg === 'warning' ? 'text-dark' : 'text-white';
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+            <div class="toast align-items-center ${textColor} bg-${bg} border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="6000">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close ${bg === 'warning' ? '' : 'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        const toastEl = wrapper.firstElementChild;
+        container.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+    }
+
+    function truncateText(text, maxLen) {
+        const value = (text || '').toString();
+        if (value.length <= maxLen) return value;
+        return value.slice(0, Math.max(0, maxLen - 1)).trimEnd() + '…';
+    }
+
+    function openClientModal(el) {
+        currentClientEl = el;
+        const id = el.getAttribute('data-id');
+        const name = el.getAttribute('data-name');
+        const email = el.getAttribute('data-email');
+        const phone = el.getAttribute('data-phone');
+        const phone2 = el.getAttribute('data-phone2');
+        const address = el.getAttribute('data-address');
         
-        const c1Name = row.getAttribute('data-contact1-name');
-        const c1Phone = row.getAttribute('data-contact1-phone');
-        const c1Email = row.getAttribute('data-contact1-email');
+        const c1Name = el.getAttribute('data-contact1-name');
+        const c1Phone = el.getAttribute('data-contact1-phone');
+        const c1Email = el.getAttribute('data-contact1-email');
         
-        const c2Name = row.getAttribute('data-contact2-name');
-        const c2Phone = row.getAttribute('data-contact2-phone');
-        const c2Email = row.getAttribute('data-contact2-email');
+        const c2Name = el.getAttribute('data-contact2-name');
+        const c2Phone = el.getAttribute('data-contact2-phone');
+        const c2Email = el.getAttribute('data-contact2-email');
 
         document.getElementById('modalName').textContent = name;
         document.getElementById('modalEmail').textContent = email;
@@ -159,9 +385,249 @@
 
         document.getElementById('modalEditLink').href = "/clients/" + id + "/edit/";
 
+        const preferredBadge = document.getElementById('modalPreferredBadge');
+        const isPreferred = el.getAttribute('data-is-preferred') === '1';
+        if (preferredBadge) {
+            preferredBadge.classList.toggle('d-none', !isPreferred);
+        }
+
+        const quickName = document.getElementById('quick_name');
+        const quickEmail = document.getElementById('quick_email');
+        const quickPhone = document.getElementById('quick_phone');
+        const quickPhone2 = document.getElementById('quick_phone2');
+        const quickAddress = document.getElementById('quick_address');
+        const quickC1Name = document.getElementById('quick_c1_name');
+        const quickC1Phone = document.getElementById('quick_c1_phone');
+        const quickC1Email = document.getElementById('quick_c1_email');
+        const quickC2Name = document.getElementById('quick_c2_name');
+        const quickC2Phone = document.getElementById('quick_c2_phone');
+        const quickC2Email = document.getElementById('quick_c2_email');
+        const quickIsPreferred = document.getElementById('quick_is_preferred');
+
+        if (quickName) quickName.value = name && name !== '-' ? name : '';
+        if (quickEmail) quickEmail.value = email && email !== '-' ? email : '';
+        if (quickPhone) quickPhone.value = phone && phone !== '-' ? phone : '';
+        if (quickPhone2) quickPhone2.value = phone2 && phone2 !== '-' ? phone2 : '';
+        if (quickAddress) quickAddress.value = address && address !== '-' ? address : '';
+        if (quickC1Name) quickC1Name.value = c1Name && c1Name !== '-' ? c1Name : '';
+        if (quickC1Phone) quickC1Phone.value = c1Phone && c1Phone !== '-' ? c1Phone : '';
+        if (quickC1Email) quickC1Email.value = c1Email && c1Email !== '-' ? c1Email : '';
+        if (quickC2Name) quickC2Name.value = c2Name && c2Name !== '-' ? c2Name : '';
+        if (quickC2Phone) quickC2Phone.value = c2Phone && c2Phone !== '-' ? c2Phone : '';
+        if (quickC2Email) quickC2Email.value = c2Email && c2Email !== '-' ? c2Email : '';
+        if (quickIsPreferred) quickIsPreferred.checked = isPreferred;
+
+        const detailsTabBtn = document.getElementById('client-tab-details');
+        if (detailsTabBtn) {
+            const tab = new bootstrap.Tab(detailsTabBtn);
+            tab.show();
+        }
+
+        hideQuickEditAlert();
+
         const modal = new bootstrap.Modal(document.getElementById('clientDetailModal'));
         modal.show();
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('clientSearchInput');
+        const countEl = document.getElementById('clientSearchCount');
+        const grid = document.getElementById('clientsGrid');
+        const emptyState = document.getElementById('clientSearchEmptyState');
+
+        if (!input || !countEl || !grid || !emptyState) {
+            return;
+        }
+
+        const cards = Array.from(grid.querySelectorAll('.client-card'));
+        const cols = cards.map(card => card.closest('.client-card-col')).filter(Boolean);
+        const total = cols.length;
+
+        const normalize = (value) => (value || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+
+        const applyFilter = () => {
+            const query = normalize(input.value);
+            const terms = query ? query.split(/\s+/).filter(Boolean) : [];
+
+            let visible = 0;
+
+            cols.forEach(col => {
+                const card = col.querySelector('.client-card');
+                const haystack = normalize(card ? card.getAttribute('data-search') : '');
+
+                const matches = terms.length === 0 || terms.every(t => haystack.includes(t));
+                col.classList.toggle('d-none', !matches);
+                if (matches) visible += 1;
+            });
+
+            countEl.textContent = `${visible} de ${total}`;
+            emptyState.classList.toggle('d-none', visible !== 0 || total === 0);
+        };
+
+        input.addEventListener('input', applyFilter);
+        applyFilter();
+
+        cols.forEach(col => {
+            const card = col.querySelector('.client-card');
+            if (!card) return;
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openClientModal(card);
+                }
+            });
+        });
+
+        const saveBtn = document.getElementById('clientQuickSaveBtn');
+        const spinner = document.getElementById('clientQuickSaveSpinner');
+
+        async function submitQuickEdit() {
+            if (!currentClientEl) return;
+
+            const url = currentClientEl.getAttribute('data-quick-update-url');
+            const csrftoken = getCookie('csrftoken');
+
+            const payload = {
+                name: document.getElementById('quick_name')?.value || '',
+                email: document.getElementById('quick_email')?.value || '',
+                phone: document.getElementById('quick_phone')?.value || '',
+                phone2: document.getElementById('quick_phone2')?.value || '',
+                address: document.getElementById('quick_address')?.value || '',
+                contact1_name: document.getElementById('quick_c1_name')?.value || '',
+                contact1_phone: document.getElementById('quick_c1_phone')?.value || '',
+                contact1_email: document.getElementById('quick_c1_email')?.value || '',
+                contact2_name: document.getElementById('quick_c2_name')?.value || '',
+                contact2_phone: document.getElementById('quick_c2_phone')?.value || '',
+                contact2_email: document.getElementById('quick_c2_email')?.value || '',
+                is_preferred: document.getElementById('quick_is_preferred')?.checked || false,
+            };
+
+            if (!url) return;
+
+            if (saveBtn) saveBtn.disabled = true;
+            if (spinner) spinner.classList.remove('d-none');
+            hideQuickEditAlert();
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken || '',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.status !== 'success') {
+                    showQuickEditAlert('danger', data.message || 'Não foi possível salvar.');
+                    showToast('error', data.message || 'Não foi possível salvar.');
+                    return;
+                }
+
+                const updated = data.client || {};
+
+                currentClientEl.setAttribute('data-name', updated.name || '-');
+                currentClientEl.setAttribute('data-email', updated.email || '-');
+                currentClientEl.setAttribute('data-phone', updated.phone || '-');
+                currentClientEl.setAttribute('data-phone2', updated.phone2 || '-');
+                currentClientEl.setAttribute('data-address', updated.address || '-');
+                currentClientEl.setAttribute('data-contact1-name', updated.contact1_name || '-');
+                currentClientEl.setAttribute('data-contact1-phone', updated.contact1_phone || '-');
+                currentClientEl.setAttribute('data-contact1-email', updated.contact1_email || '-');
+                currentClientEl.setAttribute('data-contact2-name', updated.contact2_name || '-');
+                currentClientEl.setAttribute('data-contact2-phone', updated.contact2_phone || '-');
+                currentClientEl.setAttribute('data-contact2-email', updated.contact2_email || '-');
+                currentClientEl.setAttribute('data-is-preferred', updated.is_preferred ? '1' : '0');
+
+                const base = currentClientEl.getAttribute('data-search-base') || '';
+                currentClientEl.setAttribute('data-search', `${updated.name || ''} ${updated.email || ''} ${updated.phone || ''} ${updated.phone2 || ''} ${updated.address || ''} ${updated.contact1_name || ''} ${updated.contact1_phone || ''} ${updated.contact1_email || ''} ${updated.contact2_name || ''} ${updated.contact2_phone || ''} ${updated.contact2_email || ''} ${base}`);
+
+                const cardName = currentClientEl.querySelector('.client-name');
+                if (cardName) cardName.textContent = updated.name || '';
+
+                const cardEmail = currentClientEl.querySelector('.client-email');
+                const cardEmailLine = currentClientEl.querySelector('.client-email-line');
+                if (cardEmailLine) {
+                    const hasEmail = !!(updated.email || '').trim();
+                    cardEmailLine.classList.toggle('d-none', !hasEmail);
+                    if (cardEmail) cardEmail.textContent = updated.email || '';
+                }
+
+                const cardPhoneLine = currentClientEl.querySelector('.client-phone-line');
+                const cardPhone = currentClientEl.querySelector('.client-phone');
+                const cardPhone2 = currentClientEl.querySelector('.client-phone2');
+                if (cardPhoneLine) {
+                    const hasPhone = !!(updated.phone || '').trim();
+                    cardPhoneLine.classList.toggle('d-none', !hasPhone);
+                    if (cardPhone) cardPhone.textContent = updated.phone || '';
+                    if (cardPhone2) cardPhone2.textContent = updated.phone2 || '';
+                }
+
+                const cardAddress = currentClientEl.querySelector('.client-address');
+                if (cardAddress) {
+                    cardAddress.textContent = truncateText(updated.address || '', 60);
+                }
+
+                const existingBadge = currentClientEl.querySelector('.client-preferred-badge');
+                if (updated.is_preferred) {
+                    document.querySelectorAll('.client-card').forEach(card => {
+                        card.setAttribute('data-is-preferred', '0');
+                        const badge = card.querySelector('.client-preferred-badge');
+                        if (badge) badge.remove();
+                    });
+                    currentClientEl.setAttribute('data-is-preferred', '1');
+                    if (!existingBadge) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge bg-success client-preferred-badge';
+                        badge.title = 'Cliente Preferencial';
+                        badge.innerHTML = '<i class="fas fa-star"></i>';
+                        const titleRow = currentClientEl.querySelector('.card-body .d-flex.justify-content-between');
+                        if (titleRow) titleRow.appendChild(badge);
+                    }
+                } else {
+                    if (existingBadge) existingBadge.remove();
+                }
+
+                document.getElementById('modalName').textContent = updated.name || '';
+                document.getElementById('modalEmail').textContent = updated.email || '-';
+                document.getElementById('modalPhone').textContent = updated.phone || '-';
+                document.getElementById('modalPhone2').textContent = updated.phone2 || '';
+                document.getElementById('modalAddress').textContent = updated.address || '-';
+
+                document.getElementById('modalContact1Name').textContent = updated.contact1_name || '-';
+                document.getElementById('modalContact1Phone').textContent = updated.contact1_phone || '-';
+                document.getElementById('modalContact1Email').textContent = updated.contact1_email || '-';
+                document.getElementById('modalContact2Name').textContent = updated.contact2_name || '-';
+                document.getElementById('modalContact2Phone').textContent = updated.contact2_phone || '-';
+                document.getElementById('modalContact2Email').textContent = updated.contact2_email || '-';
+
+                const preferredBadge = document.getElementById('modalPreferredBadge');
+                if (preferredBadge) {
+                    preferredBadge.classList.toggle('d-none', !updated.is_preferred);
+                }
+
+                showQuickEditAlert('success', 'Cliente atualizado com sucesso.');
+                showToast('success', 'Cliente atualizado com sucesso.');
+                applyFilter();
+            } catch (e) {
+                showQuickEditAlert('danger', 'Erro ao salvar. Tente novamente.');
+                showToast('error', 'Erro ao salvar. Tente novamente.');
+            } finally {
+                if (saveBtn) saveBtn.disabled = false;
+                if (spinner) spinner.classList.add('d-none');
+            }
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', submitQuickEdit);
+        }
+    });
 </script>
 
 {% endblock %}
