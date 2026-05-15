@@ -247,7 +247,7 @@
 
 <!-- Dynamic Ticket Modal Container -->
 <div class="modal fade" id="ticketModal" tabindex="-1" aria-labelledby="ticketModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content" id="ticketModalContent">
             <!-- Content loaded via AJAX -->
             <div class="modal-body text-center p-5">
@@ -260,30 +260,54 @@
 </div>
 
 <style>
+    #ticketModal .modal-content {
+        background-color: #fff9c4;
+        border: 0;
+        box-shadow: 0 1rem 3rem rgba(0,0,0,.175);
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+    }
+    #ticketModal .modal-header {
+        border-bottom: 1px solid rgba(0,0,0,0.12);
+        cursor: move;
+    }
+    #ticketModal .modal-body {
+        flex: 1;
+        overflow-y: auto;
+        background-color: #fff9c4;
+    }
     .resizer {
         position: absolute;
-        background-color: transparent;
-        z-index: 100;
+        background-color: rgba(0,0,0,0.0);
+        z-index: 2000;
     }
     .resizer-se {
-        width: 15px;
-        height: 15px;
+        width: 18px;
+        height: 18px;
         bottom: 0;
         right: 0;
         cursor: se-resize;
     }
     .resizer-e {
-        width: 5px;
-        height: 100%;
+        width: 12px;
         top: 0;
+        bottom: 0;
         right: 0;
         cursor: e-resize;
     }
-    .resizer-s {
-        height: 5px;
-        width: 100%;
+    .resizer-w {
+        width: 12px;
+        top: 0;
         bottom: 0;
         left: 0;
+        cursor: w-resize;
+    }
+    .resizer-s {
+        height: 12px;
+        left: 0;
+        right: 0;
+        bottom: 0;
         cursor: s-resize;
     }
 </style>
@@ -291,7 +315,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const ticketModalElement = document.getElementById('ticketModal');
-        const ticketModal = new bootstrap.Modal(ticketModalElement);
+        const ticketModal = new bootstrap.Modal(ticketModalElement, { backdrop: 'static', keyboard: true });
         const modalContent = document.getElementById('ticketModalContent');
         const dockContainer = document.getElementById('ticketDockContainer');
 
@@ -320,10 +344,23 @@
                 const stored = localStorage.getItem(STORAGE_KEY);
                 if (stored) {
                     const ticketsArray = JSON.parse(stored);
+                    if (!Array.isArray(ticketsArray)) return;
+
                     openTickets.clear();
-                    ticketsArray.forEach(([id, state]) => {
-                        openTickets.set(id, state);
+                    const normalized = [];
+                    ticketsArray.forEach((entry) => {
+                        if (!Array.isArray(entry) || entry.length < 2) return;
+                        const id = entry[0];
+                        const state = entry[1];
+                        if (id === null || id === undefined) return;
+                        if (!state || typeof state !== 'object') return;
+
+                        const key = String(id);
+                        openTickets.set(key, state);
+                        normalized.push([key, state]);
                     });
+
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
                     renderDock();
                 }
             } catch (e) {
@@ -384,9 +421,11 @@
             if (isFullscreen) {
                 dialog.classList.add('modal-fullscreen');
                 dialog.classList.remove('modal-xl');
+                dialog.classList.remove('modal-dialog-centered');
             } else {
                 dialog.classList.remove('modal-fullscreen');
                 dialog.classList.add('modal-xl');
+                dialog.classList.add('modal-dialog-centered');
             }
         }
 
@@ -474,7 +513,7 @@
 
             openTickets.set(activeTicketId, {
                 html: modalContent.innerHTML,
-                dialogClass: dialog ? dialog.className : 'modal-dialog modal-xl',
+                dialogClass: dialog ? dialog.className : 'modal-dialog modal-xl modal-dialog-centered',
                 dialogStyle: dialog ? dialog.getAttribute('style') : '',
                 title: title
             });
@@ -515,7 +554,14 @@
             
             const dialog = getDialog();
             if (dialog) {
-                dialog.className = state.dialogClass;
+                const rawClass = String(state.dialogClass || '');
+                const normalizedClass = rawClass.includes('modal-lg')
+                    ? rawClass.replace('modal-lg', 'modal-xl')
+                    : rawClass;
+                const finalClass = normalizedClass || 'modal-dialog modal-xl modal-dialog-centered';
+                dialog.className = finalClass.includes('modal-fullscreen')
+                    ? finalClass
+                    : (finalClass.includes('modal-dialog-centered') ? finalClass : `${finalClass} modal-dialog-centered`);
                 if (state.dialogStyle) dialog.setAttribute('style', state.dialogStyle);
                 else dialog.removeAttribute('style');
             }
@@ -548,7 +594,7 @@
             `;
             const dialog = getDialog();
             if (dialog) {
-                dialog.className = 'modal-dialog modal-xl';
+                dialog.className = 'modal-dialog modal-xl modal-dialog-centered';
                 dialog.removeAttribute('style');
             }
             
@@ -563,7 +609,7 @@
                     const title = titleEl ? titleEl.textContent : `OS ${formatTicketId(ticketId)}`;
                     openTickets.set(ticketId, {
                         html: html,
-                        dialogClass: 'modal-dialog modal-xl',
+                        dialogClass: 'modal-dialog modal-xl modal-dialog-centered',
                         dialogStyle: '',
                         title: title
                     });
@@ -595,6 +641,12 @@
         }
 
         // --- Event Handlers & Binding ---
+
+        ticketModalElement.addEventListener('mousedown', function(e) {
+            if (e.target === ticketModalElement && activeTicketId) {
+                minimizeCurrentTicket();
+            }
+        });
 
         ticketModalElement.addEventListener('hidden.bs.modal', function () {
             if (activeTicketId) {
@@ -830,6 +882,7 @@
                 const rect = dialog.getBoundingClientRect();
                 dialog.style.position = 'fixed';
                 dialog.style.margin = '0';
+                dialog.style.transform = 'none';
                 dialog.style.left = `${rect.left}px`;
                 dialog.style.top = `${rect.top}px`;
                 dialog.style.width = `${rect.width}px`;
@@ -851,8 +904,12 @@
 
                     const dx = e.clientX - dragStartX;
                     const dy = e.clientY - dragStartY;
-                    dialog.style.left = `${dialogStartLeft + dx}px`;
-                    dialog.style.top = `${dialogStartTop + dy}px`;
+                    const nextLeft = dialogStartLeft + dx;
+                    const nextTop = dialogStartTop + dy;
+                    const maxLeft = window.innerWidth - dialog.getBoundingClientRect().width - 20;
+                    const maxTop = window.innerHeight - dialog.getBoundingClientRect().height - 20;
+                    dialog.style.left = `${Math.min(Math.max(nextLeft, 20), Math.max(20, maxLeft))}px`;
+                    dialog.style.top = `${Math.min(Math.max(nextTop, 20), Math.max(20, maxTop))}px`;
                 } else if (isResizing) {
                     const dialog = getDialog();
                     if (!dialog) return;
@@ -860,19 +917,39 @@
                     if (currentResizer.classList.contains('resizer-se')) {
                         const width = originalWidth + (e.clientX - originalMouseX);
                         const height = originalHeight + (e.clientY - originalMouseY);
-                        if (width > 300) dialog.style.width = `${width}px`;
-                        if (width > 300) dialog.style.maxWidth = `${width}px`;
+                        const maxW = Math.max(320, window.innerWidth - 40);
+                        const maxH = Math.max(260, window.innerHeight - 40);
+                        const clampedW = Math.min(Math.max(width, 320), maxW);
+                        const clampedH = Math.min(Math.max(height, 260), maxH);
+                        dialog.style.width = `${clampedW}px`;
+                        dialog.style.maxWidth = `${clampedW}px`;
                         // Note: Height in bootstrap modal is driven by content, but we can set min-height or height
                         // For height resize to work, we might need to set height on modal-content or body
                         // Let's set height on .modal-content
-                        if (height > 200) modalContent.style.height = `${height}px`;
+                        modalContent.style.maxHeight = `${maxH}px`;
+                        modalContent.style.height = `${clampedH}px`;
                     } else if (currentResizer.classList.contains('resizer-e')) {
                         const width = originalWidth + (e.clientX - originalMouseX);
-                        if (width > 300) dialog.style.width = `${width}px`;
-                        if (width > 300) dialog.style.maxWidth = `${width}px`;
+                        const maxW = Math.max(320, window.innerWidth - 40);
+                        const clampedW = Math.min(Math.max(width, 320), maxW);
+                        dialog.style.width = `${clampedW}px`;
+                        dialog.style.maxWidth = `${clampedW}px`;
+                    } else if (currentResizer.classList.contains('resizer-w')) {
+                        const dx = e.clientX - originalMouseX;
+                        const width = originalWidth - dx;
+                        const left = originalX + dx;
+                        const maxW = Math.max(320, window.innerWidth - 40);
+                        const clampedW = Math.min(Math.max(width, 320), maxW);
+                        dialog.style.width = `${clampedW}px`;
+                        dialog.style.maxWidth = `${clampedW}px`;
+                        const maxLeft = window.innerWidth - clampedW - 20;
+                        dialog.style.left = `${Math.min(Math.max(left, 20), Math.max(20, maxLeft))}px`;
                     } else if (currentResizer.classList.contains('resizer-s')) {
                          const height = originalHeight + (e.clientY - originalMouseY);
-                         if (height > 200) modalContent.style.height = `${height}px`;
+                         const maxH = Math.max(260, window.innerHeight - 40);
+                         const clamped = Math.min(Math.max(height, 260), maxH);
+                         modalContent.style.maxHeight = `${maxH}px`;
+                         modalContent.style.height = `${clamped}px`;
                     }
                 }
             }
@@ -905,12 +982,16 @@
                     resizerE.className = 'resizer resizer-e';
                     dialog.appendChild(resizerE);
 
+                    const resizerW = document.createElement('div');
+                    resizerW.className = 'resizer resizer-w';
+                    dialog.appendChild(resizerW);
+
                     const resizerS = document.createElement('div');
                     resizerS.className = 'resizer resizer-s';
                     dialog.appendChild(resizerS);
                     
                     // Attach events to resizers
-                    [resizerSE, resizerE, resizerS].forEach(el => {
+                    [resizerSE, resizerE, resizerW, resizerS].forEach(el => {
                         el.addEventListener('mousedown', function(e) {
                             if (e.button !== 0) return;
                             e.stopPropagation(); // Prevent drag
@@ -920,6 +1001,13 @@
                             originalMouseY = e.clientY;
                             
                             const rect = dialog.getBoundingClientRect();
+                            dialog.style.position = 'fixed';
+                            dialog.style.margin = '0';
+                            dialog.style.transform = 'none';
+                            dialog.style.left = `${rect.left}px`;
+                            dialog.style.top = `${rect.top}px`;
+                            dialog.style.width = `${rect.width}px`;
+                            dialog.style.maxWidth = `${rect.width}px`;
                             originalWidth = rect.width;
                             originalHeight = modalContent.getBoundingClientRect().height; // Resize content height
                             originalX = rect.left;

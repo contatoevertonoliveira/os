@@ -189,6 +189,22 @@
                          data-image-desc="Imagem Inicial do Evento">
                 </div>
                 {% endif %}
+
+                {% if ticket.images.exists %}
+                <div class="mb-3">
+                    <h6 class="text-primary border-bottom pb-1 mb-2">Anexos</h6>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        {% for img_obj in ticket.images.all %}
+                            <img src="{{ img_obj.image.url }}"
+                                 alt="Anexo da OS"
+                                 class="img-thumbnail open-gallery-btn shadow-sm"
+                                 style="width: 120px; height: 120px; object-fit: cover; cursor: pointer;"
+                                 data-image-url="{{ img_obj.image.url }}"
+                                 data-image-desc="Anexo da OS {{ ticket.formatted_id }}">
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -225,6 +241,9 @@
                                              onmouseover="this.style.transform='scale(1.02)'"
                                              onmouseout="this.style.transform='scale(1)'"
                                              data-image-url="{{ img_obj.image.url }}"
+                                             {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or update.created_by == request.user %}
+                                             data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                             {% endif %}
                                              data-image-desc="{{ update.description|default:''|escapejs }}">
                                     </div>
                                 {% endfor %}

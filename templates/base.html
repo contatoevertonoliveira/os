@@ -783,13 +783,27 @@
 
     <!-- Image Gallery Modal -->
     <div class="modal fade" id="imageGalleryModal" tabindex="-1" aria-hidden="true" style="z-index: 2000;">
-        <div class="modal-dialog modal-fullscreen bg-dark p-0">
-            <div class="modal-content bg-dark border-0 h-100">
-                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-4" data-bs-dismiss="modal" aria-label="Close" style="z-index: 2100;"></button>
-                <div class="modal-body p-0 d-flex align-items-center justify-content-center h-100">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-white">
+                    <h6 class="modal-title mb-0" id="galleryTitle">Galeria</h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="galleryCounter" class="text-muted small"></span>
+                        <a id="galleryOpenBtn" class="btn btn-sm btn-outline-secondary" href="#" target="_blank" rel="noopener">Abrir</a>
+                        <a id="galleryDownloadBtn" class="btn btn-sm btn-outline-secondary" href="#" download>Baixar</a>
+                        <button id="galleryDeleteBtn" type="button" class="btn btn-sm btn-danger d-none">Excluir</button>
+                        <button id="galleryMinimizeBtn" type="button" class="btn btn-sm btn-light text-secondary" title="Minimizar" aria-label="Minimizar">
+                            <i class="fas fa-minus fa-xs"></i>
+                        </button>
+                        <button id="galleryMaximizeBtn" type="button" class="btn btn-sm btn-light text-secondary" title="Maximizar" aria-label="Maximizar">
+                            <i class="far fa-square fa-xs"></i>
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body bg-dark p-0" style="height: 70vh;">
                     <div id="galleryCarousel" class="carousel slide h-100 w-100 d-flex align-items-center" data-bs-interval="false">
                         <div class="carousel-inner h-100 d-flex align-items-center" id="galleryCarouselInner">
-                            <!-- Items injected via JS -->
                         </div>
                         <button class="carousel-control-prev" type="button" data-bs-target="#galleryCarousel" data-bs-slide="prev">
                             <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -805,49 +819,285 @@
         </div>
     </div>
 
+    <div id="galleryDockContainer" class="position-fixed bottom-0 p-2 d-flex flex-column-reverse gap-2" style="z-index: 1080; pointer-events: none; max-height: 80vh; overflow-y: auto;"></div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         // Global Gallery Logic
         document.addEventListener('DOMContentLoaded', function() {
-            const galleryModal = new bootstrap.Modal(document.getElementById('imageGalleryModal'));
+            const galleryModalEl = document.getElementById('imageGalleryModal');
+            const galleryDock = document.getElementById('galleryDockContainer');
+            const carouselEl = document.getElementById('galleryCarousel');
             const carouselInner = document.getElementById('galleryCarouselInner');
-            
-            // Event delegation for gallery images
+            const openBtn = document.getElementById('galleryOpenBtn');
+            const downloadBtn = document.getElementById('galleryDownloadBtn');
+            const deleteBtn = document.getElementById('galleryDeleteBtn');
+            const counterEl = document.getElementById('galleryCounter');
+            const minimizeBtn = document.getElementById('galleryMinimizeBtn');
+            const maximizeBtn = document.getElementById('galleryMaximizeBtn');
+            if (!galleryModalEl || !galleryDock || !carouselEl || !carouselInner || !openBtn || !downloadBtn || !deleteBtn || !counterEl || !minimizeBtn || !maximizeBtn) return;
+
+            const galleryModal = new bootstrap.Modal(galleryModalEl);
+            const carousel = bootstrap.Carousel.getOrCreateInstance(carouselEl, { interval: false });
+
+            let galleryContext = null;
+            let galleryMinimized = false;
+            let galleryState = null;
+
+            function getCsrfToken() {
+                const el = document.querySelector('[name=csrfmiddlewaretoken]');
+                return el ? el.value : '';
+            }
+
+            function getDialog() {
+                return galleryModalEl.querySelector('.modal-dialog');
+            }
+
+            function setGalleryFullscreen(isFullscreen) {
+                const dialog = getDialog();
+                if (!dialog) return;
+                if (isFullscreen) {
+                    dialog.classList.add('modal-fullscreen');
+                    dialog.classList.remove('modal-xl');
+                    dialog.classList.remove('modal-dialog-centered');
+                } else {
+                    dialog.classList.remove('modal-fullscreen');
+                    dialog.classList.add('modal-xl');
+                    dialog.classList.add('modal-dialog-centered');
+                }
+            }
+
+            function getActiveItem() {
+                return carouselInner.querySelector('.carousel-item.active') || carouselInner.querySelector('.carousel-item');
+            }
+
+            function syncActions() {
+                const items = Array.from(carouselInner.querySelectorAll('.carousel-item'));
+                const active = getActiveItem();
+                if (!active) {
+                    openBtn.href = '#';
+                    downloadBtn.href = '#';
+                    deleteBtn.classList.add('d-none');
+                    counterEl.textContent = '';
+                    return;
+                }
+
+                const activeUrl = active.dataset.imageUrl || '#';
+                openBtn.href = activeUrl;
+                downloadBtn.href = activeUrl;
+
+                const deleteUrl = active.dataset.imageDeleteUrl || '';
+                deleteBtn.dataset.deleteUrl = deleteUrl;
+                deleteBtn.dataset.activeUrl = activeUrl;
+                if (deleteUrl) deleteBtn.classList.remove('d-none');
+                else deleteBtn.classList.add('d-none');
+
+                const idx = Math.max(0, items.indexOf(active));
+                counterEl.textContent = items.length ? `${idx + 1} / ${items.length}` : '';
+            }
+
+            function buildCarousel(images, startIndex) {
+                carouselInner.innerHTML = '';
+                const list = (images || []).map((el) => {
+                    if (el && el.dataset && el.dataset.imageUrl) {
+                        return { url: el.dataset.imageUrl, desc: el.dataset.imageDesc || '', deleteUrl: el.dataset.imageDeleteUrl || '' };
+                    }
+                    if (el && typeof el === 'object' && el.url) {
+                        return { url: el.url, desc: el.desc || '', deleteUrl: el.deleteUrl || '' };
+                    }
+                    return null;
+                }).filter(Boolean);
+
+                list.forEach((imgEl, index) => {
+                    const url = imgEl.url;
+                    const desc = imgEl.desc || '';
+                    const deleteUrl = imgEl.deleteUrl || '';
+
+                    const item = document.createElement('div');
+                    item.className = `carousel-item h-100 ${index === 0 ? 'active' : ''}`;
+                    item.dataset.imageUrl = url;
+                    item.dataset.imageDesc = desc;
+                    if (deleteUrl) item.dataset.imageDeleteUrl = deleteUrl;
+                    item.innerHTML = `
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100 p-4">
+                            <img src="${url}" class="d-block" style="max-height: 85vh; max-width: 100%; object-fit: contain;" alt="Imagem">
+                            ${desc ? `<div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2 mb-4">
+                                <p class="mb-0">${desc}</p>
+                            </div>` : ''}
+                        </div>
+                    `;
+                    carouselInner.appendChild(item);
+                });
+
+                const safeIndex = Math.max(0, Math.min(Number(startIndex || 0), Math.max(0, carouselInner.children.length - 1)));
+                if (safeIndex) {
+                    carousel.to(safeIndex);
+                }
+                syncActions();
+            }
+
+            carouselEl.addEventListener('slid.bs.carousel', syncActions);
+
+            function getMainContentEl() {
+                return document.querySelector('.main-content') || document.body;
+            }
+
+            function positionDock() {
+                const mainContent = getMainContentEl();
+                const rect = mainContent.getBoundingClientRect();
+                galleryDock.style.left = `${rect.left}px`;
+            }
+
+            function closeDock() {
+                galleryDock.innerHTML = '';
+            }
+
+            function renderDock() {
+                closeDock();
+                if (!galleryMinimized || !galleryState) return;
+                positionDock();
+
+                const item = document.createElement('div');
+                item.className = 'card shadow-sm border-primary';
+                item.style.cssText = 'width: 240px; min-width: 240px; cursor: pointer; pointer-events: auto; opacity: 0.96;';
+
+                const count = (galleryState.items || []).length;
+                item.innerHTML = `
+                    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-2 text-truncate" style="max-width: 170px;">
+                            <i class="far fa-images text-primary"></i>
+                            <div class="d-flex flex-column" style="line-height: 1.1;">
+                                <span class="fw-bold small text-truncate">Galeria</span>
+                                <span class="small text-muted text-truncate" style="font-size: 0.75rem;">${count} imagem(ns)</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-sm ms-2 gallery-dock-close" aria-label="Close"></button>
+                    </div>
+                `;
+
+                item.addEventListener('click', (e) => {
+                    if (e.target.closest('.gallery-dock-close')) return;
+                    restoreGallery();
+                });
+
+                item.querySelector('.gallery-dock-close').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    galleryMinimized = false;
+                    galleryState = null;
+                    closeDock();
+                });
+
+                galleryDock.appendChild(item);
+            }
+
+            function minimizeGallery() {
+                const items = Array.from(carouselInner.querySelectorAll('.carousel-item'));
+                const active = getActiveItem();
+                const idx = active ? Math.max(0, items.indexOf(active)) : 0;
+                const dataItems = items.map((it) => ({
+                    url: it.dataset.imageUrl || '',
+                    desc: it.dataset.imageDesc || '',
+                    deleteUrl: it.dataset.imageDeleteUrl || ''
+                })).filter((x) => x.url);
+
+                galleryState = { items: dataItems, index: idx, fullscreen: !!(getDialog() && getDialog().classList.contains('modal-fullscreen')) };
+                galleryMinimized = true;
+                renderDock();
+                galleryModal.hide();
+            }
+
+            function restoreGallery() {
+                if (!galleryState) return;
+                galleryMinimized = false;
+                buildCarousel(galleryState.items || [], galleryState.index || 0);
+                setGalleryFullscreen(!!galleryState.fullscreen);
+                closeDock();
+                galleryModal.show();
+            }
+
+            minimizeBtn.addEventListener('click', function() {
+                minimizeGallery();
+            });
+
+            maximizeBtn.addEventListener('click', function() {
+                const dialog = getDialog();
+                const isFullscreen = !!(dialog && dialog.classList.contains('modal-fullscreen'));
+                setGalleryFullscreen(!isFullscreen);
+            });
+
+            window.addEventListener('resize', function() {
+                if (galleryDock.children.length) positionDock();
+            });
+
+            galleryModalEl.addEventListener('hidden.bs.modal', function() {
+                if (galleryMinimized) return;
+                galleryState = null;
+                closeDock();
+                setGalleryFullscreen(false);
+            });
+
+            deleteBtn.addEventListener('click', function() {
+                const deleteUrl = deleteBtn.dataset.deleteUrl || '';
+                const activeUrl = deleteBtn.dataset.activeUrl || '';
+                if (!deleteUrl) return;
+                if (!confirm('Excluir esta imagem?')) return;
+
+                fetch(deleteUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data || data.status !== 'success') {
+                        alert('Erro ao excluir a imagem.');
+                        return;
+                    }
+
+                    if (galleryContext) {
+                        const nodes = Array.from(galleryContext.querySelectorAll('.open-gallery-btn'));
+                        nodes.forEach((el) => {
+                            const elDeleteUrl = el.dataset.imageDeleteUrl || '';
+                            const elUrl = el.dataset.imageUrl || '';
+                            if ((elDeleteUrl && elDeleteUrl === deleteUrl) || (activeUrl && elUrl === activeUrl)) {
+                                const wrapper = el.closest('.position-relative') || el;
+                                wrapper.remove();
+                            }
+                        });
+                    }
+
+                    const updatedImages = galleryContext ? Array.from(galleryContext.querySelectorAll('.open-gallery-btn')) : [];
+                    if (!updatedImages.length) {
+                        galleryModal.hide();
+                        return;
+                    }
+
+                    const items = Array.from(carouselInner.querySelectorAll('.carousel-item'));
+                    const active = getActiveItem();
+                    const idx = active ? Math.max(0, items.indexOf(active)) : 0;
+                    buildCarousel(updatedImages, Math.min(idx, updatedImages.length - 1));
+                })
+                .catch(() => alert('Erro ao excluir a imagem.'));
+            });
+
             document.body.addEventListener('click', function(e) {
                 const target = e.target.closest('.open-gallery-btn');
-                if (target) {
-                    e.preventDefault();
-                    
-                    // Find context (are we in a modal or the main page?)
-                    const context = target.closest('.modal-body') || document.body;
-                    
-                    // Collect all gallery images in the current context
-                    const allImages = Array.from(context.querySelectorAll('.open-gallery-btn'));
-                    const currentIndex = allImages.indexOf(target);
-                    
-                    // Build Carousel Items
-                    carouselInner.innerHTML = '';
-                    allImages.forEach((img, index) => {
-                        const url = img.dataset.imageUrl;
-                        const desc = img.dataset.imageDesc || '';
-                        
-                        const item = document.createElement('div');
-                        item.className = `carousel-item h-100 ${index === currentIndex ? 'active' : ''}`;
-                        item.innerHTML = `
-                            <div class="d-flex flex-column align-items-center justify-content-center h-100 p-4">
-                                <img src="${url}" class="d-block" style="max-height: 85vh; max-width: 100%; object-fit: contain;" alt="Imagem">
-                                ${desc ? `<div class="carousel-caption d-none d-md-block bg-dark bg-opacity-50 rounded p-2 mb-4">
-                                    <p class="mb-0">${desc}</p>
-                                </div>` : ''}
-                            </div>
-                        `;
-                        carouselInner.appendChild(item);
-                    });
-                    
-                    galleryModal.show();
-                }
+                if (!target) return;
+                e.preventDefault();
+
+                galleryContext = target.closest('.modal-body') || document.body;
+                const group = target.dataset.galleryGroup || '';
+                const selector = group ? `.open-gallery-btn[data-gallery-group="${group}"]` : '.open-gallery-btn';
+                const allImages = Array.from(galleryContext.querySelectorAll(selector));
+                const currentIndex = allImages.indexOf(target);
+
+                buildCarousel(allImages, currentIndex);
+                setGalleryFullscreen(false);
+                galleryModal.show();
             });
         });
     </script>
@@ -862,6 +1112,32 @@
             
             modal.show();
         }
+
+        function pruneTicketDockStorageByDeleteUrl(url) {
+            try {
+                const match = String(url || '').match(/\/tickets\/(\d+)\/delete\/?$/);
+                if (!match) return;
+                const ticketId = match[1];
+                const storageKey = 'OS_SYSTEM_OPEN_TICKETS';
+                const stored = localStorage.getItem(storageKey);
+                if (!stored) return;
+                const ticketsArray = JSON.parse(stored);
+                if (!Array.isArray(ticketsArray)) return;
+                const filtered = ticketsArray.filter((entry) => {
+                    if (!Array.isArray(entry) || entry.length < 1) return false;
+                    return String(entry[0]) !== String(ticketId);
+                });
+                localStorage.setItem(storageKey, JSON.stringify(filtered));
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteForm = document.getElementById('deleteForm');
+            if (!deleteForm) return;
+            deleteForm.addEventListener('submit', function() {
+                pruneTicketDockStorageByDeleteUrl(deleteForm.action);
+            });
+        });
 
         // AJAX Delete Logic
         let deleteUrl = '';
@@ -1037,6 +1313,199 @@
             });
         });
     </script>
+
+    {% if request.user.is_authenticated %}
+    <div class="modal fade" id="msConnectModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Conectar Microsoft</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-2">Para atualizar os clientes automaticamente a partir do Teams/SharePoint, conecte sua conta Microsoft.</div>
+                    <div id="msConnectAlert" class="alert alert-danger d-none" role="alert"></div>
+                    <div id="msConnectStep" class="d-none">
+                        <div class="mb-2">
+                            <div class="fw-semibold">1) Acesse:</div>
+                            <a id="msConnectUrl" href="#" target="_blank" rel="noopener noreferrer"></a>
+                        </div>
+                        <div class="mb-2">
+                            <div class="fw-semibold">2) Digite o código:</div>
+                            <div class="d-flex align-items-center gap-2">
+                                <div id="msConnectCode" class="badge bg-dark fs-6"></div>
+                                <button id="msConnectCopyBtn" type="button" class="btn btn-sm btn-outline-secondary">Copiar</button>
+                            </div>
+                        </div>
+                        <div class="small text-muted" id="msConnectStatusText"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="msConnectBtn" type="button" class="btn btn-primary">Conectar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return '';
+            }
+
+            const statusUrl = "{% url 'clients_sharepoint_sync_status' %}";
+            const startUrl = "{% url 'microsoft_connect_start' %}";
+            const pollUrl = "{% url 'microsoft_connect_poll' %}";
+            const runUrl = "{% url 'clients_sharepoint_sync_run' %}";
+
+            const modalEl = document.getElementById('msConnectModal');
+            const alertEl = document.getElementById('msConnectAlert');
+            const stepEl = document.getElementById('msConnectStep');
+            const urlEl = document.getElementById('msConnectUrl');
+            const codeEl = document.getElementById('msConnectCode');
+            const statusTextEl = document.getElementById('msConnectStatusText');
+            const btnEl = document.getElementById('msConnectBtn');
+            const copyBtnEl = document.getElementById('msConnectCopyBtn');
+
+            if (!modalEl) return;
+            const modal = new bootstrap.Modal(modalEl);
+            let deviceCode = null;
+            let pollTimer = null;
+
+            function setError(msg) {
+                alertEl.textContent = msg || 'Erro ao conectar.';
+                alertEl.classList.remove('d-none');
+            }
+
+            function clearError() {
+                alertEl.textContent = '';
+                alertEl.classList.add('d-none');
+            }
+
+            async function fetchStatus() {
+                try {
+                    const resp = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+                    if (!resp.ok) return null;
+                    return await resp.json();
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            async function maybePrompt() {
+                const st = await fetchStatus();
+                if (!st || !st.enabled) return;
+                if (st.requires_auth) {
+                    modal.show();
+                }
+            }
+
+            async function startConnect() {
+                clearError();
+                btnEl.disabled = true;
+                btnEl.textContent = 'Aguarde...';
+                try {
+                    const resp = await fetch(startUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({})
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || data.status !== 'ok') {
+                        setError(data.message || 'Não foi possível iniciar a conexão.');
+                        return;
+                    }
+                    deviceCode = data.device_code;
+                    urlEl.textContent = data.verification_uri || '';
+                    urlEl.href = data.verification_uri || '#';
+                    codeEl.textContent = data.user_code || '';
+                    statusTextEl.textContent = data.message || 'Conclua o login e aguarde a validação.';
+                    stepEl.classList.remove('d-none');
+                    const interval = Number(data.interval || 5) * 1000;
+                    if (pollTimer) clearInterval(pollTimer);
+                    pollTimer = setInterval(pollOnce, interval);
+                    await pollOnce();
+                } catch (e) {
+                    setError(e.message || 'Erro ao conectar.');
+                } finally {
+                    btnEl.disabled = false;
+                    btnEl.textContent = 'Conectar';
+                }
+            }
+
+            async function pollOnce() {
+                if (!deviceCode) return;
+                try {
+                    const resp = await fetch(pollUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify({ device_code: deviceCode })
+                    });
+                    const data = await resp.json();
+                    if (data.status === 'ok') {
+                        statusTextEl.textContent = 'Conectado. Sincronizando clientes...';
+                        if (pollTimer) clearInterval(pollTimer);
+                        pollTimer = null;
+                        deviceCode = null;
+                        await fetch(runUrl, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': getCookie('csrftoken'),
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+                        setTimeout(() => modal.hide(), 600);
+                        return;
+                    }
+                    if (data.status === 'pending') {
+                        statusTextEl.textContent = 'Aguardando autenticação Microsoft...';
+                        return;
+                    }
+                    if (data.status === 'error') {
+                        setError('Não foi possível concluir a autenticação Microsoft.');
+                        if (pollTimer) clearInterval(pollTimer);
+                        pollTimer = null;
+                        deviceCode = null;
+                        return;
+                    }
+                } catch (e) {
+                    setError(e.message || 'Erro ao validar conexão.');
+                }
+            }
+
+            btnEl.addEventListener('click', startConnect);
+            copyBtnEl.addEventListener('click', async function() {
+                try {
+                    await navigator.clipboard.writeText(codeEl.textContent || '');
+                } catch (e) {
+                }
+            });
+
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                clearError();
+                stepEl.classList.add('d-none');
+                statusTextEl.textContent = '';
+                deviceCode = null;
+                if (pollTimer) clearInterval(pollTimer);
+                pollTimer = null;
+            });
+
+            document.addEventListener('DOMContentLoaded', maybePrompt);
+            maybePrompt();
+        })();
+    </script>
+    {% endif %}
     
     {% block scripts %}{% endblock %}
 </body>

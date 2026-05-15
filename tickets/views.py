@@ -13,7 +13,10 @@ from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Exists, OuterRef, Subquery, Prefetch
 from django.template.loader import get_template
-from xhtml2pdf import pisa
+try:
+    from xhtml2pdf import pisa
+except ModuleNotFoundError:
+    pisa = None
 from django.contrib.staticfiles import finders
 from django.conf import settings
 from django.db import transaction
@@ -461,7 +464,7 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'ticket'
 
     def get_queryset(self):
-        return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('requesters', 'technicians', 'equipments', 'systems', 'updates', 'updates__images')
+        return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('requesters', 'technicians', 'equipments', 'systems', 'updates', 'updates__images', 'images')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -481,6 +484,19 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['back_url'] = reverse_lazy('ticket_list')
         return context
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        files = self.request.FILES.getlist('ticket_images')
+        if files:
+            if not self.object.image:
+                self.object.image = files[0]
+                self.object.save(update_fields=['image'])
+            for f in files:
+                if hasattr(f, 'seek'):
+                    f.seek(0)
+                TicketImage.objects.create(ticket=self.object, image=f, uploaded_by=self.request.user)
+        return response
+
 class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
     form_class = TicketForm
@@ -494,6 +510,19 @@ class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['back_url'] = reverse_lazy('ticket_list')
         context['updates'] = self.object.updates.all()
         return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        files = self.request.FILES.getlist('ticket_images')
+        if files:
+            if not self.object.image:
+                self.object.image = files[0]
+                self.object.save(update_fields=['image'])
+            for f in files:
+                if hasattr(f, 'seek'):
+                    f.seek(0)
+                TicketImage.objects.create(ticket=self.object, image=f, uploaded_by=self.request.user)
+        return response
 
 class TicketDeleteView(LoginRequiredMixin, DeleteView):
     model = Ticket
@@ -945,6 +974,20 @@ class TicketUpdateDeleteView(LoginRequiredMixin, View):
         # Return JSON for AJAX requests
         return JsonResponse({'status': 'success', 'message': 'Evolução excluída com sucesso!'})
 
+class TicketUpdateImageDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        img_obj = get_object_or_404(TicketUpdateImage, pk=pk)
+        update = img_obj.update
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        can_delete = bool(role in ['admin', 'super_admin'] or update.created_by_id == request.user.id)
+        if not can_delete:
+            return JsonResponse({'status': 'error', 'message': 'Sem permissão para excluir esta imagem.'}, status=403)
+
+        if img_obj.image:
+            img_obj.image.delete(save=False)
+        img_obj.delete()
+        return JsonResponse({'status': 'success', 'message': 'Imagem excluída com sucesso!'})
+
 class TicketUpdateEditView(LoginRequiredMixin, View):
     def post(self, request, pk):
         update = get_object_or_404(TicketUpdate, pk=pk)
@@ -1360,6 +1403,77 @@ def mark_all_notifications_read(request):
         Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def clients_sharepoint_sync_status(request):
+    from .models import ClientSyncState
+    from .microsoft_graph import shared_clients_url, get_graph_access_token
+
+    url = shared_clients_url()
+    enabled = bool(url)
+    state = ClientSyncState.objects.filter(source='sharepoint').first()
+    access_token = get_graph_access_token() if enabled else None
+    requires_auth = enabled and not bool(access_token)
+
+    payload = {
+        'enabled': enabled,
+        'requires_auth': requires_auth,
+        'last_checked_at': state.last_checked_at.isoformat() if state and state.last_checked_at else None,
+        'last_synced_at': state.last_synced_at.isoformat() if state and state.last_synced_at else None,
+        'last_success_at': state.last_success_at.isoformat() if state and state.last_success_at else None,
+        'last_error': state.last_error if state else None,
+        'is_running': bool(state.is_running) if state else False,
+    }
+    return JsonResponse(payload)
+
+
+@login_required
+def microsoft_connect_start(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+    from .microsoft_graph import start_device_code_flow
+    try:
+        data = start_device_code_flow()
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({
+        'status': 'ok',
+        'device_code': data.get('device_code'),
+        'user_code': data.get('user_code'),
+        'verification_uri': data.get('verification_uri'),
+        'expires_in': data.get('expires_in'),
+        'interval': data.get('interval'),
+        'message': data.get('message'),
+    })
+
+
+@login_required
+def microsoft_connect_poll(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        payload = {}
+    device_code = (payload.get('device_code') or '').strip()
+    if not device_code:
+        return JsonResponse({'status': 'error', 'message': 'device_code obrigatório.'}, status=400)
+
+    from .microsoft_graph import poll_device_code
+    from .sync_sharepoint import trigger_sync_background
+    result = poll_device_code(device_code)
+    if result.get('status') == 'ok':
+        trigger_sync_background()
+    return JsonResponse(result)
+
+
+@login_required
+def clients_sharepoint_sync_run(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+    from .sync_sharepoint import trigger_sync_background
+    trigger_sync_background()
+    return JsonResponse({'status': 'ok'})
 
 class NotificationMonitorView(AdminRequiredMixin, ListView):
     model = Notification
@@ -2406,12 +2520,94 @@ class ChecklistPDFView(LoginRequiredMixin, View):
             return uri
         
         try:
+            if pisa is None:
+                return HttpResponse('PDF indisponível.', status=500)
             pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
             if pisa_status.err:
                 return HttpResponse(f'We had some errors <pre>{html}</pre>')
         except Exception as e:
             return HttpResponse(f'Error generating PDF: {str(e)}')
             
+        return response
+
+class TicketsDailyReportPDFView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+
+        date_str = request.GET.get('date')
+        target_date = timezone.localdate()
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        start_of_day = timezone.make_aware(datetime.combine(target_date, datetime.min.time()))
+        end_of_day = timezone.make_aware(datetime.combine(target_date, datetime.max.time()))
+
+        scope = request.GET.get('scope', 'mine')
+        if scope == 'all' and role not in ['admin', 'super_admin']:
+            scope = 'mine'
+
+        tickets_qs = Ticket.objects.select_related('client', 'hub', 'ticket_type').prefetch_related('systems', 'technicians').filter(
+            created_at__range=(start_of_day, end_of_day)
+        )
+
+        if scope != 'all':
+            tickets_qs = tickets_qs.filter(Q(technicians=user) | Q(requester=user)).distinct()
+
+        tickets_qs = tickets_qs.order_by('created_at', 'id')
+
+        context = {
+            'user': user,
+            'date': target_date,
+            'tickets': tickets_qs,
+            'scope': scope,
+            'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
+        }
+
+        template_path = 'tickets/tickets_daily_report_pdf.html'
+        response = HttpResponse(content_type='application/pdf')
+        scope_label = 'todas' if scope == 'all' else 'minhas'
+        response['Content-Disposition'] = f'attachment; filename="relatorio_os_{scope_label}_{user.username}_{target_date}.pdf"'
+
+        template = get_template(template_path)
+        html = template.render(context)
+
+        def link_callback(uri, rel):
+            if uri.startswith('http://') or uri.startswith('https://'):
+                return uri
+
+            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                path = uri.replace(settings.STATIC_URL, '')
+                absolute_path = finders.find(path)
+                if absolute_path:
+                    return absolute_path
+
+            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                path = uri.replace(settings.MEDIA_URL, '')
+                absolute_path = os.path.join(settings.MEDIA_ROOT, path.replace('/', os.sep))
+                if os.path.exists(absolute_path):
+                    return absolute_path
+
+            if not uri.startswith('/'):
+                if 'media/' in uri:
+                    possible_path = os.path.join(settings.BASE_DIR, uri.replace('/', os.sep))
+                    if os.path.exists(possible_path):
+                        return possible_path
+
+            return uri
+
+        try:
+            if pisa is None:
+                return HttpResponse('PDF indisponível.', status=500)
+            pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+            if pisa_status.err:
+                return HttpResponse(f'We had some errors <pre>{html}</pre>')
+        except Exception as e:
+            return HttpResponse(f'Error generating PDF: {str(e)}')
+
         return response
 
 class ChecklistItemDetailAddView(LoginRequiredMixin, View):

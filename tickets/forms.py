@@ -221,7 +221,7 @@ class TicketForm(forms.ModelForm):
             'client', 'hub', 'systems',
             'equipments', 'order_type', 'ticket_type', 'problem_type',
             'requesters', 'technicians', 'start_date', 'deadline', 'estimated_time',
-            'leankeep_id', 'description', 'final_description', 'image', 'status'
+            'leankeep_id', 'description', 'final_description', 'status'
         ]
         widgets = {
             'start_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),

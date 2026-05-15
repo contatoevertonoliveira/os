@@ -157,3 +157,12 @@ LOGIN_URL = 'login'
 SESSION_COOKIE_AGE = 1800  # 30 minutes in seconds
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+MS_TENANT_ID = os.environ.get('MS_TENANT_ID', '')
+MS_CLIENT_ID = os.environ.get('MS_CLIENT_ID', '')
+MS_CLIENT_SECRET = os.environ.get('MS_CLIENT_SECRET', '')
+
+CLIENTS_SHAREPOINT_URL = os.environ.get(
+    'CLIENTS_SHAREPOINT_URL',
+    'https://jumperfour.sharepoint.com/:x:/r/sites/LeanKeep/_layouts/15/Doc.aspx?sourcedoc=%7BC9B80D9D-3D50-4E8B-AD2A-4FFC40EF7E1A%7D&file=APANHADO%20DE%20CLIENTES%20LEANKEEP.xlsx&fromShare=true&action=default&mobileredirect=true',
+)

@@ -215,25 +215,26 @@
                                 </div>
                                 {% endif %}
                                 <div class="col-12">
-                                    <label for="{{ form.image.id_for_label }}" class="form-label small fw-bold mb-1">Imagem / Anexo</label>
-                                    <div class="input-group input-group-sm">
-                                        {% render_field form.image class="form-control form-control-sm" %}
-                                        <span class="input-group-text bg-light text-muted" title="Cole uma imagem da área de transferência (Ctrl+V) em qualquer lugar da página">
-                                            <i class="fas fa-paste me-1"></i> Ctrl+V
-                                        </span>
-                                    </div>
-                                    <div class="text-danger small">{{ form.image.errors }}</div>
-                                    
-                                    <!-- Preview Container for New Selection/Paste -->
-                                    <div id="new-image-preview-container" class="mt-2 d-none">
-                                        <small class="text-success fw-bold">Nova imagem selecionada:</small><br>
-                                        <img id="new-image-preview" src="" alt="Preview" class="img-thumbnail" style="max-height: 150px;">
+                                    <div class="mt-2">
+                                        <label for="id_ticket_images" class="form-label small fw-bold mb-1">Anexar várias imagens</label>
+                                        <input type="file" name="ticket_images" id="id_ticket_images" class="form-control form-control-sm" multiple>
+                                        <small class="text-muted" style="font-size: 0.8rem;">As imagens serão enviadas ao salvar a OS.</small>
+                                        <div id="ticket-images-preview" class="d-flex flex-wrap gap-2 mt-2 d-none"></div>
                                     </div>
 
-                                    {% if form.instance.image %}
-                                        <div class="mt-2" id="current-image-container">
-                                            <small class="text-muted">Imagem Atual:</small><br>
-                                            <img src="{{ form.instance.image.url }}" alt="Imagem do Ticket" class="img-thumbnail" style="max-height: 100px;">
+                                    {% if form.instance.pk and form.instance.images.exists %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">Anexos:</small>
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                {% for img_obj in form.instance.images.all %}
+                                                    <img src="{{ img_obj.image.url }}"
+                                                         alt="Anexo da OS"
+                                                         class="img-thumbnail open-gallery-btn shadow-sm"
+                                                         style="width: 80px; height: 80px; object-fit: cover; cursor: pointer;"
+                                                         data-image-url="{{ img_obj.image.url }}"
+                                                         data-image-desc="Anexo da OS">
+                                                {% endfor %}
+                                            </div>
                                         </div>
                                     {% endif %}
                                 </div>
@@ -282,6 +283,9 @@
                                                      onmouseover="this.style.transform='scale(1.05)'"
                                                      onmouseout="this.style.transform='scale(1)'"
                                                      data-image-url="{{ img_obj.image.url }}"
+                                                     {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or update.created_by == request.user %}
+                                                     data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                     {% endif %}
                                                      data-image-desc="{{ update.description|default:''|escapejs }}">
                                             </div>
                                         {% endfor %}
@@ -313,58 +317,70 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Paste Image Logic
-        const imageInput = document.getElementById('id_image');
-        const previewContainer = document.getElementById('new-image-preview-container');
-        const previewImage = document.getElementById('new-image-preview');
-        const currentImageContainer = document.getElementById('current-image-container');
+        const ticketImagesInput = document.getElementById('id_ticket_images');
+        const ticketImagesPreview = document.getElementById('ticket-images-preview');
+        let ticketImagesBuffer = [];
 
-        function handleImageSelect(file) {
-            if (file && file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImage.src = e.target.result;
-                    previewContainer.classList.remove('d-none');
-                    if (currentImageContainer) currentImageContainer.classList.add('d-none'); // Hide current if new is selected
-                };
-                reader.readAsDataURL(file);
-            }
+        function syncTicketImagesInput() {
+            if (!ticketImagesInput) return;
+            const dt = new DataTransfer();
+            ticketImagesBuffer.forEach((f) => dt.items.add(f));
+            ticketImagesInput.files = dt.files;
         }
 
-        if (imageInput) {
-            // Handle manual selection
-            imageInput.addEventListener('change', function() {
-                if (this.files && this.files[0]) {
-                    handleImageSelect(this.files[0]);
-                } else {
-                    previewContainer.classList.add('d-none');
-                    if (currentImageContainer) currentImageContainer.classList.remove('d-none');
-                }
-            });
+        function renderTicketImagesPreview() {
+            if (!ticketImagesPreview) return;
+            ticketImagesPreview.innerHTML = '';
+            if (!ticketImagesBuffer.length) {
+                ticketImagesPreview.classList.add('d-none');
+                return;
+            }
+            ticketImagesPreview.classList.remove('d-none');
 
-            // Handle Paste
-            document.addEventListener('paste', function(e) {
-                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-                let hasImage = false;
-                
-                for (let i = 0; i < items.length; i++) {
-                    if (items[i].type.indexOf('image') !== -1) {
-                        const blob = items[i].getAsFile();
-                        const timestamp = new Date().getTime();
-                        const file = new File([blob], `pasted_image_${timestamp}.png`, {type: blob.type});
-                        
-                        // Set to input
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(file);
-                        imageInput.files = dataTransfer.files;
-                        
-                        handleImageSelect(file);
-                        hasImage = true;
-                        
-                        // Show toast or visual feedback?
-                        // For now the preview is enough feedback
-                    }
-                }
+            ticketImagesBuffer.forEach((file, idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'position-relative d-inline-block';
+
+                const img = document.createElement('img');
+                img.className = 'img-thumbnail shadow-sm open-gallery-btn';
+                img.alt = file.name || 'Imagem';
+                img.style.width = '90px';
+                img.style.height = '90px';
+                img.style.objectFit = 'cover';
+                img.style.cursor = 'pointer';
+                img.dataset.galleryGroup = 'ticket_images_preview';
+                img.dataset.imageDesc = file.name || 'Anexo';
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0 m-1';
+                btn.style.lineHeight = '1';
+                btn.textContent = '×';
+                btn.addEventListener('click', function() {
+                    ticketImagesBuffer.splice(idx, 1);
+                    syncTicketImagesInput();
+                    renderTicketImagesPreview();
+                });
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                    img.dataset.imageUrl = e.target.result;
+                };
+                reader.readAsDataURL(file);
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(btn);
+                ticketImagesPreview.appendChild(wrapper);
+            });
+        }
+
+        if (ticketImagesInput) {
+            ticketImagesInput.addEventListener('change', function() {
+                const files = Array.from(ticketImagesInput.files || []);
+                ticketImagesBuffer = files;
+                syncTicketImagesInput();
+                renderTicketImagesPreview();
             });
         }
 

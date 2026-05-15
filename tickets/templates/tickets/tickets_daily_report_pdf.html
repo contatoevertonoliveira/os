@@ -1,0 +1,97 @@
+{% load static %}
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>Relatório Diário de OS - {{ date|date:"d/m/Y" }}</title>
+    <style type="text/css">
+        @page { size: A4; margin: 1.2cm; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
+        .brand-header { width: 100%; border-bottom: 2px solid #26923B; margin-bottom: 10px; }
+        .brand-table { width: 100%; }
+        .brand-table td { vertical-align: middle; }
+        .brand-title { font-size: 16px; font-weight: bold; color: #1E2E40; text-align: right; }
+        .muted { color: #666; font-size: 11px; }
+        .section { margin: 14px 0; }
+        .section-title { font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 6px; border: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; vertical-align: top; }
+        th { background-color: #f9fafb; font-weight: bold; }
+        .summary-grid { width: 100%; border: 1px solid #ddd; margin-top: 8px; }
+        .summary-grid td { padding: 6px; border: 1px solid #ddd; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #777; }
+    </style>
+</head>
+<body>
+    <div class="brand-header">
+        <table class="brand-table">
+            <tr>
+                <td width="50%">
+                    <img src="{{ logo_path }}" alt="Logo" style="height: 55px;">
+                </td>
+                <td width="50%" class="brand-title">
+                    Relatório Diário de OS
+                    <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
+                    <div class="muted">Escopo: {% if scope == 'all' %}todas as OS{% else %}minhas OS{% endif %}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="summary-grid">
+        <tr>
+            <td><strong>Colaborador</strong><br>{{ user.get_full_name|default:user.username }}</td>
+            <td><strong>Total de OS</strong><br>{{ tickets|length }}</td>
+            <td><strong>Gerado em</strong><br>{% now "d/m/Y H:i" %}</td>
+        </tr>
+    </table>
+
+    <div class="section">
+        <div class="section-title">Ordens de Serviço do Dia</div>
+        {% if tickets %}
+            <table>
+                <thead>
+                    <tr>
+                        <th width="10%">OS</th>
+                        <th width="15%">Leankeep</th>
+                        <th width="20%">Cliente</th>
+                        <th width="10%">Status</th>
+                        <th width="15%">Criada em</th>
+                        <th width="30%">Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr>
+                        <td>{{ ticket.formatted_id }}</td>
+                        <td>{{ ticket.leankeep_id|default:"-" }}</td>
+                        <td>
+                            {{ ticket.client.name }}
+                            {% if ticket.hub %}
+                                <br><span class="muted">{{ ticket.hub.name }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ ticket.get_status_display }}</td>
+                        <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {{ ticket.description|default:"-"|truncatechars:220 }}
+                            {% if ticket.systems.exists %}
+                                <br><span class="muted">Sistemas: {% for s in ticket.systems.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                            {% endif %}
+                            {% if ticket.technicians.exists %}
+                                <br><span class="muted">Resp.: {% for t in ticket.technicians.all %}{{ t.get_full_name|default:t.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #666; font-style: italic; padding: 10px;">Nenhuma OS encontrada para este dia.</p>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        Gerado em {% now "d/m/Y H:i" %} por Sistema JumperFour
+    </div>
+</body>
+</html>

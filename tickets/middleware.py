@@ -17,6 +17,12 @@ class SessionTimeoutMiddleware:
                     request.session.set_expiry(settings.session_timeout_minutes * 60)
             except Exception:
                 pass
+
+            try:
+                from .sync_sharepoint import maybe_trigger_sync
+                maybe_trigger_sync(request)
+            except Exception:
+                pass
                 
         response = self.get_response(request)
         return response
@@ -47,7 +53,19 @@ class RolePageAccessMiddleware:
         if not url_name:
             return None
 
-        if url_name in {'home', 'login', 'logout', 'services_hub', 'api_tickets', 'api_clients', 'api_equipments'}:
+        if url_name in {
+            'home',
+            'login',
+            'logout',
+            'services_hub',
+            'api_tickets',
+            'api_clients',
+            'api_equipments',
+            'clients_sharepoint_sync_status',
+            'clients_sharepoint_sync_run',
+            'microsoft_connect_start',
+            'microsoft_connect_poll',
+        }:
             return None
 
         profile = getattr(request.user, 'profile', None)

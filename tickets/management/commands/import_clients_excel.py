@@ -1,151 +1,81 @@
-import pandas as pd
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
-from tickets.models import Client, System, UserProfile, ClientHub
+import csv
 import os
-import re
+
+from tickets.client_import import ClientImporter
+
+from openpyxl import load_workbook
 
 class Command(BaseCommand):
-    help = 'Imports clients from media/clientes.xlsx'
+    help = 'Importa/atualiza clientes a partir de data/clientes.csv (preferencial) ou data/media clientes.xlsx'
 
     def handle(self, *args, **options):
-        # Try data/ first (for deployment), then media/ (legacy/local)
-        file_path = 'data/clientes.xlsx'
+        dry_run = bool(options.get('dry_run'))
+
+        file_path = 'data/clientes.csv'
+        file_kind = 'csv'
+        if not os.path.exists(file_path):
+            file_path = 'data/clientes.xlsx'
+            file_kind = 'xlsx'
         if not os.path.exists(file_path):
             file_path = 'media/clientes.xlsx'
-        
+            file_kind = 'xlsx'
+
         if not os.path.exists(file_path):
-            self.stdout.write(self.style.ERROR(f'File not found in data/ or media/: clientes.xlsx'))
+            self.stdout.write(self.style.ERROR('Arquivo não encontrado: data/clientes.csv ou data/media clientes.xlsx'))
             return
 
         try:
             self.stdout.write(self.style.SUCCESS(f'Reading from {file_path}...'))
-            df = pd.read_excel(file_path)
-            # Replace NaN with None/Empty string
-            df = df.where(pd.notnull(df), None)
+            if file_kind == 'csv':
+                rows = self.read_csv_best_effort(file_path)
+            else:
+                rows = self.read_xlsx(file_path)
             
-            self.stdout.write(self.style.SUCCESS(f'Found {len(df)} rows to process.'))
+            self.stdout.write(self.style.SUCCESS(f'Found {len(rows)} rows to process.'))
 
-            for index, row in df.iterrows():
-                try:
-                    self.process_row(row)
-                except Exception as e:
-                    self.stdout.write(self.style.ERROR(f'Error processing row {index}: {e}'))
+            importer = ClientImporter(stdout=self.stdout)
+            result = importer.import_rows(rows, dry_run=dry_run)
+            self.stdout.write(self.style.SUCCESS(f"Processados: {result['processed']} | Criados: {result['created']} | Atualizados: {result['updated']}"))
 
             self.stdout.write(self.style.SUCCESS('Import completed successfully.'))
 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'Critical error: {e}'))
 
-    def process_row(self, row):
-        # 1. Extract basic data
-        contract_name = str(row.get('Contrato', '')).strip()
-        if not contract_name or contract_name == 'None':
-            return
-
-        client_data = {
-            'name': contract_name,
-            'group': row.get('Grupo'),
-            'cm_code': row.get('CM'),
-            'periodicity': row.get('Periodicidade'),
-            'visits_count': self.parse_int(row.get('Visitas')),
-            'service_hours': row.get('Horário'),
-            'address': row.get('Endereço'),
-            'city': row.get('Cidade'),
-            'state': row.get('Estado'),
-            'contact1_name': row.get('Nome Cliente'),
-            'contact1_email': row.get('E-mail'),
-            'contact1_phone': row.get('Telefone'),
-        }
-
-        # 2. Get or Create Client
-        client, created = Client.objects.update_or_create(
-            name=contract_name,
-            defaults=client_data
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--dry-run',
+            action='store_true',
+            help='Lê e valida o arquivo, mas não grava no banco.',
         )
-        action = "Created" if created else "Updated"
-        self.stdout.write(f'{action} Client: {client.name}')
 
-        # 3. Handle Systems (Sistemas)
-        systems_str = str(row.get('Sistemas', '')).strip()
-        if systems_str and systems_str != 'None':
-            system_names = [s.strip() for s in re.split(r'[;,\n]', systems_str) if s.strip()]
-            for sys_name in system_names:
-                system_obj, _ = System.objects.get_or_create(name=sys_name)
-                client.systems.add(system_obj)
+    def read_csv_best_effort(self, file_path):
+        for encoding in ('utf-8-sig', 'utf-8', 'latin-1'):
+            try:
+                with open(file_path, 'r', encoding=encoding, newline='') as f:
+                    reader = csv.DictReader(f, delimiter=';')
+                    return [row for row in reader]
+            except UnicodeDecodeError:
+                continue
+        raise RuntimeError('Não foi possível decodificar o arquivo CSV.')
 
-        # 4. Handle Supervisor
-        supervisor_name = str(row.get('Supervisor', '')).strip()
-        if supervisor_name and supervisor_name != 'None':
-            supervisor_user = self.get_or_create_user(supervisor_name, role='supervisor')
-            if supervisor_user:
-                client.supervisor = supervisor_user
-                client.save()
-
-        # 5. Handle Technicians (Técnicos Alocados)
-        techs_str = str(row.get('Técnicos Alocados', '')).strip()
-        if techs_str and techs_str != 'None':
-            tech_names = [t.strip() for t in re.split(r'[;,\n]', techs_str) if t.strip()]
-            for tech_name in tech_names:
-                tech_user = self.get_or_create_user(tech_name, role='technician')
-                if tech_user:
-                    client.technicians.add(tech_user)
-
-    def parse_int(self, value):
-        try:
-            return int(value)
-        except (ValueError, TypeError):
-            return 0
-
-    def get_or_create_user(self, full_name, role='technician'):
-        if not full_name:
-            return None
-        
-        # Try to match by full name (case insensitive)
-        # Note: This is a simple matching strategy. 
-        parts = full_name.split()
-        if len(parts) >= 2:
-            first_name = parts[0]
-            last_name = ' '.join(parts[1:])
-        else:
-            first_name = full_name
-            last_name = ''
-
-        users = User.objects.filter(first_name__iexact=first_name, last_name__iexact=last_name)
-        if users.exists():
-            return users.first()
-        
-        # Try matching username (generate a username)
-        username = full_name.lower().replace(' ', '.')
-        try:
-            user = User.objects.get(username=username)
-            return user
-        except User.DoesNotExist:
-            pass
-
-        # Create new user
-        try:
-            # Check if username exists, if so append random number
-            base_username = username
-            counter = 1
-            while User.objects.filter(username=username).exists():
-                username = f"{base_username}{counter}"
-                counter += 1
-
-            user = User.objects.create_user(
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
-                email=f"{username}@example.com", # Placeholder email
-                password='defaultpassword123'
-            )
-            
-            # Create UserProfile if not exists
-            if not hasattr(user, 'profile'):
-                UserProfile.objects.create(user=user)
-            
-            self.stdout.write(self.style.WARNING(f'Created new user: {full_name} ({username})'))
-            return user
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f'Error creating user {full_name}: {e}'))
-            return None
+    def read_xlsx(self, file_path):
+        wb = load_workbook(file_path, read_only=True, data_only=True)
+        ws = wb.active
+        rows_iter = ws.iter_rows(values_only=True)
+        headers = next(rows_iter, None)
+        if not headers:
+            return []
+        headers = [str(h).strip() if h is not None else '' for h in headers]
+        result = []
+        for values in rows_iter:
+            if values is None:
+                continue
+            row = {}
+            for i, header in enumerate(headers):
+                if not header:
+                    continue
+                row[header] = values[i] if i < len(values) else None
+            result.append(row)
+        return result

@@ -127,10 +127,18 @@ class Client(models.Model):
     systems = models.ManyToManyField('System', blank=True, related_name='clients', verbose_name="Sistemas")
     periodicity = models.CharField(max_length=100, verbose_name="Periodicidade", blank=True, null=True)
     visits_count = models.IntegerField(default=0, verbose_name="Quantidade de Visitas", blank=True, null=True)
+    emergency_policy = models.CharField(max_length=100, verbose_name="Emergenciais", blank=True, null=True)
+    emergency_used = models.CharField(max_length=100, verbose_name="Emergencial Utilizadas", blank=True, null=True)
     service_hours = models.CharField(max_length=100, verbose_name="Horário de Atendimento", blank=True, null=True)
     technicians = models.ManyToManyField(User, blank=True, related_name='client_allocations', verbose_name="Técnicos Alocados")
     city = models.CharField(max_length=100, verbose_name="Cidade", blank=True, null=True)
     state = models.CharField(max_length=100, verbose_name="Estado", blank=True, null=True)
+    monitoring_cso = models.CharField(max_length=100, verbose_name="Monitoramento CSO", blank=True, null=True)
+    alarms_wpp = models.CharField(max_length=100, verbose_name="Alarmes WPP", blank=True, null=True)
+    leankeep_assets = models.CharField(max_length=100, verbose_name="Ativos Leankeep", blank=True, null=True)
+    maintenance_plan = models.CharField(max_length=200, verbose_name="Plano de Manutenção", blank=True, null=True)
+    plan_review_due = models.CharField(max_length=50, verbose_name="Data Limite para revisão", blank=True, null=True)
+    plan_review_status = models.CharField(max_length=50, verbose_name="Revisão do plano", blank=True, null=True)
     
     is_preferred = models.BooleanField(default=False, verbose_name="Empresa Preferencial/Padrão")
     
@@ -252,6 +260,31 @@ class SystemSettings(models.Model):
         verbose_name = "Configuração do Sistema"
         verbose_name_plural = "Configurações do Sistema"
 
+class MicrosoftGraphToken(models.Model):
+    purpose = models.SlugField(max_length=50, unique=True)
+    access_token = models.TextField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
+    expires_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.purpose
+
+class ClientSyncState(models.Model):
+    source = models.SlugField(max_length=50, unique=True, default='sharepoint')
+    etag = models.CharField(max_length=200, blank=True, null=True)
+    remote_last_modified = models.DateTimeField(blank=True, null=True)
+    last_checked_at = models.DateTimeField(blank=True, null=True)
+    last_synced_at = models.DateTimeField(blank=True, null=True)
+    last_success_at = models.DateTimeField(blank=True, null=True)
+    last_error = models.TextField(blank=True, null=True)
+    is_running = models.BooleanField(default=False)
+    running_started_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.source
+
 class Ticket(models.Model):
     STATUS_CHOICES = (
         ('open', 'Em Aberto'),
@@ -356,6 +389,17 @@ class Ticket(models.Model):
     class Meta:
         verbose_name = "Ordem de Serviço"
         verbose_name_plural = "Ordens de Serviço"
+
+class TicketImage(models.Model):
+    ticket = models.ForeignKey(Ticket, related_name='images', on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='tickets/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Imagem da OS"
+        verbose_name_plural = "Imagens da OS"
+        ordering = ['-uploaded_at']
 
 class TicketFavorite(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_tickets')

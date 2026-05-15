@@ -15,12 +15,14 @@ from .views import (
     TaskListView, TaskFavoriteView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
     load_hubs, ChecklistDailyView, ChecklistPDFView,
+    TicketsDailyReportPDFView,
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
-    TicketUpdateEditView, TicketUpdateDeleteView,
+    TicketUpdateEditView, TicketUpdateDeleteView, TicketUpdateImageDeleteView,
     ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
     ChecklistImageToggleReportView, ServicesHubView, WelcomeView,
     LocalView, LocalAgendaAPIView,
-    PermissionsView
+    PermissionsView,
+    clients_sharepoint_sync_status, microsoft_connect_start, microsoft_connect_poll, clients_sharepoint_sync_run
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -41,6 +43,7 @@ urlpatterns = [
     # Checklist
     path('checklist/daily/', ChecklistDailyView.as_view(), name='checklist_daily'),
     path('checklist/daily/pdf/', ChecklistPDFView.as_view(), name='checklist_pdf'),
+    path('tickets/daily/pdf/', TicketsDailyReportPDFView.as_view(), name='tickets_daily_pdf'),
     path('checklist/config/', ChecklistConfigView.as_view(), name='checklist_config'),
     path('checklist/config/new/', ChecklistTemplateCreateView.as_view(), name='checklist_template_create'),
     path('checklist/config/<int:pk>/edit/', ChecklistTemplateUpdateView.as_view(), name='checklist_template_edit'),
@@ -70,6 +73,7 @@ urlpatterns = [
     # Evolution Updates
     path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
     path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
+    path('updates/images/<int:pk>/delete/', TicketUpdateImageDeleteView.as_view(), name='ticket_update_image_delete'),
 
     # Checklist Sub-items
     path('checklist/item/<int:item_id>/detail/add/', ChecklistItemDetailAddView.as_view(), name='checklist_item_detail_add'),
@@ -77,6 +81,10 @@ urlpatterns = [
     path('checklist/detail/<int:pk>/delete/', ChecklistItemDetailDeleteView.as_view(), name='checklist_item_detail_delete'),
     path('api/client/<int:client_id>/hubs/', ClientHubsAPIView.as_view(), name='api_client_hubs'),
     path('api/client/<int:client_id>/todays-tickets/', ClientTodaysTicketsAPIView.as_view(), name='api_client_todays_tickets'),
+    path('microsoft/clients-sync/status/', clients_sharepoint_sync_status, name='clients_sharepoint_sync_status'),
+    path('microsoft/clients-sync/run/', clients_sharepoint_sync_run, name='clients_sharepoint_sync_run'),
+    path('microsoft/connect/start/', microsoft_connect_start, name='microsoft_connect_start'),
+    path('microsoft/connect/poll/', microsoft_connect_poll, name='microsoft_connect_poll'),
 
     # Cadastros
     path('clients/', ClientListView.as_view(), name='client_list'),
