@@ -21,12 +21,13 @@
                         <th>Email</th>
                         <th>Nível de Acesso</th>
                         <th>Cargo/Posto</th>
+                        <th>Status</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for user_item in users %}
-                    <tr>
+                    <tr class="{% if not user_item.is_active and user_item.profile.blocked_until %}table-warning{% elif not user_item.is_active %}table-danger{% endif %}">
                         <td>
                             <div class="d-flex align-items-center">
                                 {% if user_item.profile.photo %}
@@ -53,10 +54,36 @@
                             {% if not user_item.profile.job_title and not user_item.profile.station %}-{% endif %}
                         </td>
                         <td>
+                            {% if user_item.is_active %}
+                                <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                                {% if user_item.profile.blocked_until %}
+                                    <span class="badge bg-warning text-dark">Bloqueado até {{ user_item.profile.blocked_until|date:"d/m/Y H:i" }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Bloqueado</span>
+                                {% endif %}
+                            {% endif %}
+                            {% if user_item.profile.blocked_reason %}
+                                <div class="text-muted small">{{ user_item.profile.blocked_reason }}</div>
+                            {% endif %}
+                        </td>
+                        <td>
                             <a href="{% url 'user_update' user_item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </a>
                             {% if request.user.id != user_item.id %}
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    title="Bloqueio de Acesso"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#userAccessModal"
+                                    data-access-url="{% url 'user_access_update' user_item.id %}"
+                                    data-user-name="{{ user_item.get_full_name|default:user_item.username|escapejs }}"
+                                    data-user-active="{% if user_item.is_active %}1{% else %}0{% endif %}"
+                                >
+                                    <i class="fas fa-user-shield"></i>
+                                </button>
                             <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmDelete('{% url 'user_delete' user_item.id %}', '{{ user_item.get_full_name|default:user_item.username|escapejs }}')">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -65,7 +92,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-4">Nenhum usuário cadastrado.</td>
+                        <td colspan="7" class="text-center py-4">Nenhum usuário cadastrado.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -73,4 +100,101 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="userAccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userAccessModalTitle">Bloqueio de Acesso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <div class="fw-bold" id="userAccessModalUserName"></div>
+                    <div class="text-muted small" id="userAccessModalUserHint"></div>
+                </div>
+
+                <form method="post" id="userAccessForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" id="userAccessAction" value="">
+                    <div class="mb-2">
+                        <label for="userAccessReason" class="form-label small mb-1">Motivo (opcional)</label>
+                        <input type="text" class="form-control form-control-sm" name="reason" id="userAccessReason" maxlength="200">
+                    </div>
+                </form>
+
+                <div class="d-flex flex-wrap gap-2" id="userAccessModalActionsActive">
+                    <button type="button" class="btn btn-outline-warning btn-sm" data-action="block_1h">
+                        <i class="fas fa-user-lock me-1"></i> Bloquear 1h
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" data-action="block_1d">
+                        <i class="fas fa-user-clock me-1"></i> Bloquear 24h
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-action="block">
+                        <i class="fas fa-ban me-1"></i> Bloquear
+                    </button>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2" id="userAccessModalActionsBlocked">
+                    <button type="button" class="btn btn-outline-success btn-sm" data-action="unblock">
+                        <i class="fas fa-unlock me-1"></i> Desbloquear
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalEl = document.getElementById('userAccessModal');
+        if (!modalEl) return;
+
+        const titleEl = document.getElementById('userAccessModalTitle');
+        const userNameEl = document.getElementById('userAccessModalUserName');
+        const hintEl = document.getElementById('userAccessModalUserHint');
+        const formEl = document.getElementById('userAccessForm');
+        const actionEl = document.getElementById('userAccessAction');
+        const reasonEl = document.getElementById('userAccessReason');
+        const actionsActiveEl = document.getElementById('userAccessModalActionsActive');
+        const actionsBlockedEl = document.getElementById('userAccessModalActionsBlocked');
+
+        modalEl.addEventListener('show.bs.modal', function(event) {
+            const trigger = event.relatedTarget;
+            const accessUrl = trigger ? trigger.getAttribute('data-access-url') : '';
+            const userName = trigger ? trigger.getAttribute('data-user-name') : '';
+            const userActive = trigger ? trigger.getAttribute('data-user-active') : '1';
+
+            formEl.action = accessUrl;
+            userNameEl.textContent = userName || '';
+            reasonEl.value = '';
+            actionEl.value = '';
+
+            const isActive = String(userActive) === '1';
+            actionsActiveEl.classList.toggle('d-none', !isActive);
+            actionsBlockedEl.classList.toggle('d-none', isActive);
+
+            if (isActive) {
+                titleEl.textContent = 'Bloquear Acesso';
+                hintEl.textContent = 'Escolha o tipo de bloqueio';
+            } else {
+                titleEl.textContent = 'Desbloquear Acesso';
+                hintEl.textContent = 'Usuário está bloqueado. Você pode liberar o acesso.';
+            }
+        });
+
+        modalEl.addEventListener('click', function(e) {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            actionEl.value = action || '';
+            if (actionEl.value) {
+                formEl.submit();
+            }
+        });
+    });
+</script>
 {% endblock %}

@@ -11,6 +11,7 @@ from .views import (
     TravelSegmentCreateView, TravelSegmentUpdateView, TravelSegmentDeleteView,
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
+    UserAccessUpdateView,
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
@@ -22,7 +23,8 @@ from .views import (
     ChecklistImageToggleReportView, ServicesHubView, WelcomeView,
     LocalView, LocalAgendaAPIView,
     PermissionsView,
-    clients_sharepoint_sync_status, microsoft_connect_start, microsoft_connect_poll, clients_sharepoint_sync_run
+    clients_sharepoint_sync_status, microsoft_connect_start, microsoft_connect_poll, clients_sharepoint_sync_run,
+    load_client_people
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -31,6 +33,7 @@ urlpatterns = [
     path('api/clients/', ClientAPIView.as_view(), name='api_clients'),
     path('api/equipments/', EquipmentAPIView.as_view(), name='api_equipments'),
     path('ajax/load-hubs/', load_hubs, name='ajax_load_hubs'),
+    path('ajax/load-client-people/', load_client_people, name='ajax_load_client_people'),
     path('checklist/image/<int:pk>/toggle-report/', ChecklistImageToggleReportView.as_view(), name='checklist_image_toggle_report'),
     path('hub/', ServicesHubView.as_view(), name='services_hub'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
@@ -134,6 +137,7 @@ urlpatterns = [
     path('users/', UserListView.as_view(), name='user_list'),
     path('users/new/', UserCreateView.as_view(), name='user_create'),
     path('users/<int:pk>/edit/', UserUpdateView.as_view(), name='user_update'),
+    path('users/<int:pk>/access/', UserAccessUpdateView.as_view(), name='user_access_update'),
     path('users/<int:pk>/delete/', UserDeleteView.as_view(), name='user_delete'),
 
     # Notifications

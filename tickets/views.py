@@ -1206,6 +1206,57 @@ class UserDeleteView(AdminRequiredMixin, DeleteView):
         context['back_url'] = reverse_lazy('user_list')
         return context
 
+class UserAccessUpdateView(AdminRequiredMixin, View):
+    def post(self, request, pk):
+        target_user = get_object_or_404(User, pk=pk)
+        if request.user.id == target_user.id:
+            messages.error(request, "Você não pode bloquear/desbloquear o seu próprio acesso.")
+            return redirect(request.META.get('HTTP_REFERER', reverse_lazy('user_list')))
+
+        action = (request.POST.get('action') or '').strip()
+        reason = (request.POST.get('reason') or '').strip() or None
+        profile = getattr(target_user, 'profile', None)
+        if not profile:
+            profile = UserProfile.objects.create(user=target_user)
+
+        now = timezone.now()
+        blocked_until = None
+        blocked_reason = None
+
+        if action == 'unblock':
+            target_user.is_active = True
+            target_user.save(update_fields=['is_active'])
+            profile.blocked_until = None
+            profile.blocked_reason = None
+            profile.save(update_fields=['blocked_until', 'blocked_reason'])
+            messages.success(request, f"Acesso liberado: {target_user.get_full_name() or target_user.username}")
+            return redirect(request.META.get('HTTP_REFERER', reverse_lazy('user_list')))
+
+        if action == 'block_1h':
+            blocked_until = now + timedelta(hours=1)
+            blocked_reason = "Bloqueio temporário (1h)"
+        elif action == 'block_1d':
+            blocked_until = now + timedelta(days=1)
+            blocked_reason = "Bloqueio temporário (24h)"
+        elif action == 'block':
+            blocked_until = None
+            blocked_reason = "Bloqueio"
+        else:
+            messages.error(request, "Ação inválida.")
+            return redirect(request.META.get('HTTP_REFERER', reverse_lazy('user_list')))
+
+        if reason:
+            blocked_reason = f"{blocked_reason} - {reason}"
+
+        target_user.is_active = False
+        target_user.save(update_fields=['is_active'])
+        profile.blocked_until = blocked_until
+        profile.blocked_reason = blocked_reason
+        profile.save(update_fields=['blocked_until', 'blocked_reason'])
+
+        messages.success(request, f"Acesso bloqueado: {target_user.get_full_name() or target_user.username}")
+        return redirect(request.META.get('HTTP_REFERER', reverse_lazy('user_list')))
+
 
 class PermissionsView(AdminRequiredMixin, TemplateView):
     template_name = 'tickets/permissions.html'
@@ -1396,6 +1447,59 @@ def load_hubs(request):
     else:
         hubs = []
     return JsonResponse(hubs, safe=False)
+
+@login_required
+def load_client_people(request):
+    client_id = request.GET.get('client_id')
+    if not client_id:
+        return JsonResponse({'requesters': [], 'technicians': []})
+
+    client = Client.objects.filter(id=client_id).first()
+    if not client:
+        return JsonResponse({'requesters': [], 'technicians': []})
+
+    from .client_import import ClientImporter
+
+    importer = ClientImporter(stdout=None)
+    if getattr(client, 'contact1_name', None) or getattr(client, 'contact1_email', None):
+        importer.get_or_create_contact_user(client.contact1_name, client.contact1_email, client)
+    if getattr(client, 'contact2_name', None) or getattr(client, 'contact2_email', None):
+        importer.get_or_create_contact_user(client.contact2_name, client.contact2_email, client)
+
+    requesters_qs = (
+        User.objects.filter(is_active=True, profile__fixed_client=client)
+        .select_related('profile')
+        .order_by('first_name', 'last_name', 'username')
+    )
+    allowed_roles = ['technician', 'standard', 'admin', 'super_admin']
+    technicians_qs = (
+        User.objects.filter(
+            Q(is_active=True, profile__fixed_client=client) | Q(
+                is_active=True,
+                client_allocations=client,
+                profile__role__in=allowed_roles,
+            )
+        )
+        .select_related('profile')
+        .distinct()
+        .order_by('first_name', 'last_name', 'username')
+    )
+
+    requesters = []
+    for u in requesters_qs:
+        requesters.append({
+            'id': u.id,
+            'label': f"{u.get_full_name()} ({u.username})" if (u.first_name or u.last_name) else u.username,
+        })
+
+    technicians = []
+    for u in technicians_qs:
+        technicians.append({
+            'id': u.id,
+            'label': f"{u.get_full_name()} ({u.username})" if (u.first_name or u.last_name) else u.username,
+        })
+
+    return JsonResponse({'requesters': requesters, 'technicians': technicians})
 
 @login_required
 def mark_all_notifications_read(request):

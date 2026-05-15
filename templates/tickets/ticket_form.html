@@ -426,6 +426,34 @@
         const clientSelect = document.getElementById('id_client');
         const hubSelect = document.getElementById('id_hub');
         const hubUrl = "{% url 'ajax_load_hubs' %}";
+        const peopleUrl = "{% url 'ajax_load_client_people' %}";
+
+        function setSelectOptions(selectEl, items, emptyLabel) {
+            if (!selectEl) return;
+            selectEl.innerHTML = '';
+            const emptyOption = document.createElement('option');
+            emptyOption.value = '';
+            emptyOption.textContent = emptyLabel;
+            selectEl.appendChild(emptyOption);
+
+            (items || []).forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.label;
+                selectEl.appendChild(opt);
+            });
+        }
+
+        function setHiddenSelectOptions(hiddenEl, items) {
+            if (!hiddenEl) return;
+            hiddenEl.innerHTML = '';
+            (items || []).forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = item.label;
+                hiddenEl.appendChild(opt);
+            });
+        }
 
         if (clientSelect && hubSelect) {
             clientSelect.addEventListener('change', function() {
@@ -446,6 +474,47 @@
                             });
                         })
                         .catch(error => console.error('Error loading hubs:', error));
+
+                    fetch(`${peopleUrl}?client_id=${clientId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const requesterSelection = document.getElementById('id_requester_selection');
+                            const requestersHidden = document.getElementById('id_requesters');
+                            const technicianSelection = document.getElementById('id_technician_selection');
+                            const techniciansHidden = document.getElementById('id_technicians');
+
+                            setSelectOptions(requesterSelection, data.requesters, 'Selecione um solicitante');
+                            setHiddenSelectOptions(requestersHidden, data.requesters);
+
+                            setSelectOptions(technicianSelection, data.technicians, 'Selecione um responsável');
+                            setHiddenSelectOptions(techniciansHidden, data.technicians);
+
+                            if (typeof updateRequestersBadges === 'function') {
+                                updateRequestersBadges();
+                            }
+                            if (typeof updateTechniciansBadges === 'function') {
+                                updateTechniciansBadges();
+                            }
+                        })
+                        .catch(error => console.error('Error loading people:', error));
+                } else {
+                    const requesterSelection = document.getElementById('id_requester_selection');
+                    const requestersHidden = document.getElementById('id_requesters');
+                    const technicianSelection = document.getElementById('id_technician_selection');
+                    const techniciansHidden = document.getElementById('id_technicians');
+
+                    setSelectOptions(requesterSelection, [], 'Selecione um solicitante');
+                    setHiddenSelectOptions(requestersHidden, []);
+
+                    setSelectOptions(technicianSelection, [], 'Selecione um responsável');
+                    setHiddenSelectOptions(techniciansHidden, []);
+
+                    if (typeof updateRequestersBadges === 'function') {
+                        updateRequestersBadges();
+                    }
+                    if (typeof updateTechniciansBadges === 'function') {
+                        updateTechniciansBadges();
+                    }
                 }
             });
         }
@@ -520,6 +589,28 @@
             updateBadges();
         }
 
+        function normalizePersonLabel(label) {
+            return (label || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+        }
+
+        function getSelectedClientName() {
+            const clientSelect = document.getElementById('id_client');
+            if (!clientSelect || !clientSelect.value) {
+                return '';
+            }
+            const opt = clientSelect.options[clientSelect.selectedIndex];
+            return (opt && opt.textContent ? opt.textContent : '').trim();
+        }
+
+        function buildClientPersonLabel(optionText) {
+            const clientName = getSelectedClientName();
+            const personName = normalizePersonLabel(optionText);
+            if (clientName) {
+                return `${clientName} - ${personName}`;
+            }
+            return personName;
+        }
+
         function setupBadgeMultiSelect(selectionSelectId, hiddenSelectId, badgesContainerId) {
             const selectionSelect = document.getElementById(selectionSelectId);
             const hiddenSelect = document.getElementById(hiddenSelectId);
@@ -540,7 +631,7 @@
                     badge.style.fontSize = '0.75rem';
 
                     const text = document.createElement('span');
-                    text.textContent = option.text;
+                    text.textContent = buildClientPersonLabel(option.text);
 
                     const removeBtn = document.createElement('i');
                     removeBtn.className = 'fas fa-times';
@@ -583,10 +674,11 @@
             });
 
             update();
+            return update;
         }
 
-        setupBadgeMultiSelect('id_requester_selection', 'id_requesters', 'selected-requesters-container');
-        setupBadgeMultiSelect('id_technician_selection', 'id_technicians', 'selected-technicians-container');
+        const updateRequestersBadges = setupBadgeMultiSelect('id_requester_selection', 'id_requesters', 'selected-requesters-container');
+        const updateTechniciansBadges = setupBadgeMultiSelect('id_technician_selection', 'id_technicians', 'selected-technicians-container');
     });
 </script>
 {% endblock %}

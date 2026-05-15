@@ -37,6 +37,9 @@ class UserProfile(models.Model):
     # Fixed Technician Location
     fixed_client = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Empresa (Fixo)", related_name='fixed_technicians')
     fixed_hub = models.ForeignKey('ClientHub', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Hub/Loja (Fixo)", related_name='fixed_technicians')
+    
+    blocked_until = models.DateTimeField(blank=True, null=True, verbose_name="Bloqueado até")
+    blocked_reason = models.CharField(max_length=200, blank=True, null=True, verbose_name="Motivo do Bloqueio")
 
     def get_role_display(self):
         role = (self.role or '').strip()

@@ -1,8 +1,14 @@
+import re
+import unicodedata
+from datetime import timedelta
+
 from django import forms
+from django.db.models import Q
 from django.forms import inlineformset_factory
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption
 
 class TokenLoginForm(forms.Form):
@@ -40,6 +46,15 @@ class TokenLoginForm(forms.Form):
         If the given user may log in, this method should return None.
         """
         if not user.is_active:
+            profile = getattr(user, 'profile', None)
+            blocked_until = getattr(profile, 'blocked_until', None) if profile else None
+            if blocked_until and blocked_until <= timezone.now():
+                user.is_active = True
+                user.save(update_fields=['is_active'])
+                profile.blocked_until = None
+                profile.blocked_reason = None
+                profile.save(update_fields=['blocked_until', 'blocked_reason'])
+                return None
             raise forms.ValidationError(
                 "Esta conta está inativa.",
                 code='inactive',
@@ -256,6 +271,69 @@ class TicketForm(forms.ModelForm):
         if self.instance.pk and self.instance.requester and not self.instance.requesters.exists():
             self.initial['requesters'] = [self.instance.requester]
 
+        current_client = None
+        if 'client' in self.data:
+            try:
+                client_id = int(self.data.get('client'))
+                current_client = Client.objects.filter(id=client_id).first()
+            except (ValueError, TypeError):
+                current_client = None
+        elif self.instance.pk:
+            current_client = getattr(self.instance, 'client', None)
+        else:
+            initial_client = self.initial.get('client')
+            if isinstance(initial_client, Client):
+                current_client = initial_client
+            else:
+                try:
+                    client_id = int(initial_client) if initial_client else None
+                    if client_id:
+                        current_client = Client.objects.filter(id=client_id).first()
+                except (ValueError, TypeError):
+                    current_client = None
+
+        if current_client:
+            self._ensure_client_contact_users(current_client)
+
+            selected_ids = set()
+            if self.instance.pk:
+                selected_ids = set(self.instance.requesters.values_list('id', flat=True))
+                if self.instance.requester_id:
+                    selected_ids.add(self.instance.requester_id)
+
+            requester_filter = Q(is_active=True, profile__fixed_client=current_client)
+            if selected_ids:
+                requester_filter |= Q(id__in=selected_ids)
+            requester_qs = (
+                User.objects.filter(requester_filter)
+                .select_related('profile')
+                .distinct()
+                .order_by('first_name', 'last_name', 'username')
+            )
+            self.fields['requesters'].queryset = requester_qs
+            self.fields['requester_selection'].queryset = requester_qs
+
+            allowed_roles = ['technician', 'standard', 'admin', 'super_admin']
+            selected_tech_ids = set()
+            if self.instance.pk:
+                selected_tech_ids = set(self.instance.technicians.values_list('id', flat=True))
+
+            tech_filter = Q(is_active=True, profile__fixed_client=current_client) | Q(
+                is_active=True,
+                client_allocations=current_client,
+                profile__role__in=allowed_roles,
+            )
+            if selected_tech_ids:
+                tech_filter |= Q(id__in=selected_tech_ids)
+            tech_qs = (
+                User.objects.filter(tech_filter)
+                .select_related('profile')
+                .distinct()
+                .order_by('first_name', 'last_name', 'username')
+            )
+            self.fields['technicians'].queryset = tech_qs
+            self.fields['technician_selection'].queryset = tech_qs
+
         # Dynamic filtering for hubs
         self.fields['hub'].queryset = ClientHub.objects.none()
         self.fields['hub'].empty_label = "Todas as Lojas / Sem Hub Específico"
@@ -268,6 +346,91 @@ class TicketForm(forms.ModelForm):
                 pass  # invalid input from the client; ignore and fallback to empty queryset
         elif self.instance.pk:
             self.fields['hub'].queryset = self.instance.client.hubs.order_by('name')
+
+    def _ensure_client_contact_users(self, client):
+        contacts = []
+        if getattr(client, 'contact1_name', None) or getattr(client, 'contact1_email', None):
+            contacts.append((client.contact1_name, client.contact1_email))
+        if getattr(client, 'contact2_name', None) or getattr(client, 'contact2_email', None):
+            contacts.append((client.contact2_name, client.contact2_email))
+
+        for full_name, email in contacts:
+            full_name = (full_name or '').strip()
+            email = (email or '').strip() or None
+
+            if not full_name and not email:
+                continue
+
+            user = None
+            if email:
+                user = User.objects.filter(email__iexact=email).first()
+
+            first_name = full_name
+            last_name = ''
+            if full_name:
+                parts = full_name.split()
+                if len(parts) >= 2:
+                    first_name = parts[0]
+                    last_name = ' '.join(parts[1:])
+
+            if not user and full_name:
+                user = (
+                    User.objects.filter(first_name__iexact=first_name, last_name__iexact=last_name, profile__fixed_client=client)
+                    .select_related('profile')
+                    .first()
+                )
+
+            if not user:
+                username_seed = email or full_name
+                username = self._slugify_username(username_seed)
+                base_username = username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+
+                if not full_name and email:
+                    first_name = email.split('@', 1)[0]
+                    last_name = ''
+
+                user = User(username=username, first_name=first_name, last_name=last_name)
+                if email:
+                    user.email = email
+                user.set_unusable_password()
+                user.save()
+
+            user_changed = False
+            if email and (not (user.email or '').strip()):
+                user.email = email
+                user_changed = True
+            if full_name and (not (user.first_name or '').strip()) and (not (user.last_name or '').strip()):
+                user.first_name = first_name
+                user.last_name = last_name
+                user_changed = True
+            if user_changed:
+                user.save()
+
+            profile = getattr(user, 'profile', None)
+            if not profile:
+                profile = UserProfile.objects.create(user=user)
+
+            profile_changed = False
+            if profile.fixed_client_id != client.id:
+                profile.fixed_client = client
+                profile_changed = True
+            if not (profile.role or '').strip():
+                profile.role = 'standard'
+                profile_changed = True
+            if profile_changed:
+                profile.save()
+
+    def _slugify_username(self, value):
+        normalized = unicodedata.normalize('NFKD', value or '')
+        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = normalized.lower()
+        normalized = re.sub(r'[^a-z0-9]+', '.', normalized)
+        normalized = normalized.strip('.')
+        return normalized or 'user'
 
     def save(self, commit=True):
         instance = super().save(commit=False)

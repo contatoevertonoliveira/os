@@ -15,6 +15,9 @@ class Command(BaseCommand):
         file_path = 'data/clientes.csv'
         file_kind = 'csv'
         if not os.path.exists(file_path):
+            file_path = 'media/clientes.csv'
+            file_kind = 'csv'
+        if not os.path.exists(file_path):
             file_path = 'data/clientes.xlsx'
             file_kind = 'xlsx'
         if not os.path.exists(file_path):
@@ -22,7 +25,7 @@ class Command(BaseCommand):
             file_kind = 'xlsx'
 
         if not os.path.exists(file_path):
-            self.stdout.write(self.style.ERROR('Arquivo não encontrado: data/clientes.csv ou data/media clientes.xlsx'))
+            self.stdout.write(self.style.ERROR('Arquivo não encontrado: data/clientes.csv, media/clientes.csv, data/clientes.xlsx ou media/clientes.xlsx'))
             return
 
         try:

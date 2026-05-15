@@ -105,6 +105,11 @@ class ClientImporter:
                     techs_to_set.append(tech_user)
         client.technicians.set(techs_to_set)
 
+        contact_name = client_data.get('contact1_name')
+        contact_email = client_data.get('contact1_email')
+        if contact_name or contact_email:
+            self.get_or_create_contact_user(contact_name, contact_email, client)
+
         return action
 
     def clean_value(self, value):
@@ -181,6 +186,78 @@ class ClientImporter:
         if not hasattr(user, 'profile'):
             UserProfile.objects.create(user=user)
         self.write(f'Created new user: {full_name} ({username})')
+        return user
+
+    def get_or_create_contact_user(self, full_name, email, client):
+        full_name = (full_name or '').strip()
+        email = (email or '').strip() or None
+
+        if not full_name and not email:
+            return None
+
+        user = None
+        if email:
+            user = User.objects.filter(email__iexact=email).first()
+
+        first_name = full_name
+        last_name = ''
+        if full_name:
+            parts = full_name.split()
+            if len(parts) >= 2:
+                first_name = parts[0]
+                last_name = ' '.join(parts[1:])
+
+        if not user and full_name:
+            user = (
+                User.objects.filter(first_name__iexact=first_name, last_name__iexact=last_name)
+                .select_related('profile')
+                .first()
+            )
+
+        if not user:
+            username_seed = email or full_name
+            username = self.slugify_username(username_seed)
+            existing = User.objects.filter(username=username).first()
+            if existing:
+                user = existing
+            else:
+                base_username = username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                user = User(username=username, first_name=first_name, last_name=last_name)
+                if email:
+                    user.email = email
+                user.set_unusable_password()
+                user.save()
+                self.write(f'Created new contact user: {full_name or email} ({username})')
+
+        user_changed = False
+        if email and (not (user.email or '').strip()):
+            user.email = email
+            user_changed = True
+        if full_name and (not (user.first_name or '').strip()) and (not (user.last_name or '').strip()):
+            user.first_name = first_name
+            user.last_name = last_name
+            user_changed = True
+        if user_changed:
+            user.save()
+
+        profile = getattr(user, 'profile', None)
+        if not profile:
+            profile = UserProfile.objects.create(user=user)
+
+        profile_changed = False
+        if client and profile.fixed_client_id != client.id:
+            profile.fixed_client = client
+            profile_changed = True
+        if not (profile.role or '').strip():
+            profile.role = 'standard'
+            profile_changed = True
+        if profile_changed:
+            profile.save()
+
         return user
 
     def slugify_username(self, value):
