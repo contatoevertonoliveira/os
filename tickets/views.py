@@ -505,6 +505,7 @@ class TicketPDFView(LoginRequiredMixin, View):
 
         template_path = 'tickets/ticket_pdf.html'
         response = HttpResponse(content_type='application/pdf')
+        response['X-Frame-Options'] = 'SAMEORIGIN'
         download = str(request.GET.get('download') or '').strip() == '1'
         disposition = 'attachment' if download else 'inline'
         leankeep_part = (ticket.leankeep_id or '').strip() or '00000'
@@ -2764,6 +2765,7 @@ class TicketsDailyReportPDFView(LoginRequiredMixin, View):
 
         template_path = 'tickets/tickets_daily_report_pdf.html'
         response = HttpResponse(content_type='application/pdf')
+        response['X-Frame-Options'] = 'SAMEORIGIN'
         download = str(request.GET.get('download') or '').strip() == '1'
         disposition = 'attachment' if download else 'inline'
         response['Content-Disposition'] = f'{disposition}; filename="jumperfour_chamados.pdf"'
