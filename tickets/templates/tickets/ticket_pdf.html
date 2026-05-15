@@ -1,0 +1,186 @@
+{% load static %}
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>OS {{ ticket.formatted_id }}</title>
+    <style type="text/css">
+        @page { size: A4; margin: 1.2cm; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
+        .brand-header { width: 100%; border-bottom: 2px solid #26923B; margin-bottom: 10px; }
+        .brand-table { width: 100%; }
+        .brand-table td { vertical-align: middle; }
+        .brand-title { font-size: 16px; font-weight: bold; color: #1E2E40; text-align: right; }
+        .muted { color: #666; font-size: 11px; }
+        .grid { width: 100%; border: 1px solid #ddd; margin-top: 8px; border-collapse: collapse; }
+        .grid td { padding: 6px; border: 1px solid #ddd; vertical-align: top; }
+        .section { margin: 14px 0; }
+        .section-title { font-size: 13px; font-weight: bold; background-color: #f1f5f9; padding: 6px; border: 1px solid #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: left; vertical-align: top; }
+        th { background-color: #f9fafb; font-weight: bold; }
+        .badge { display: inline-block; padding: 2px 6px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; font-size: 10px; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #777; }
+        .img-thumb { width: 210px; height: auto; border: 1px solid #ddd; padding: 2px; margin: 4px 6px 0 0; }
+    </style>
+</head>
+<body>
+    <div class="brand-header">
+        <table class="brand-table">
+            <tr>
+                <td width="50%">
+                    <img src="{{ logo_path }}" alt="Logo" style="height: 55px;">
+                </td>
+                <td width="50%" class="brand-title">
+                    Relatório da Ordem de Serviço
+                    <div class="muted">Gerado em: {{ generated_at|date:"d/m/Y H:i" }}</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table class="grid">
+        <tr>
+            <td width="34%"><strong>OS (Jumper)</strong><br>{{ ticket.formatted_id }}</td>
+            <td width="33%"><strong>Ocorrência (Leankeep)</strong><br>{{ ticket.leankeep_id|default:"-" }}</td>
+            <td width="33%"><strong>Status</strong><br>{{ ticket.get_status_display }}</td>
+        </tr>
+        <tr>
+            <td><strong>Cliente</strong><br>{{ ticket.client.name }}</td>
+            <td><strong>Hub/Loja</strong><br>{% if ticket.hub %}{{ ticket.hub.name }}{% else %}-{% endif %}</td>
+            <td><strong>Sistemas</strong><br>{% for s in ticket.systems.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</td>
+        </tr>
+    </table>
+
+    <div class="section">
+        <div class="section-title">Classificação</div>
+        <table>
+            <tr>
+                <th width="25%">Tipo de Chamado</th>
+                <th width="25%">Tipo de Problema</th>
+                <th width="25%">Tipo de Ordem</th>
+                <th width="25%">Equipamentos</th>
+            </tr>
+            <tr>
+                <td>{{ ticket.ticket_type.name|default:"-" }}</td>
+                <td>{{ ticket.problem_type.name|default:"-" }}</td>
+                <td>{{ ticket.order_type.name|default:"-" }}</td>
+                <td>
+                    {% if ticket.equipments.exists %}
+                        {% for eq in ticket.equipments.all %}{{ eq.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% else %}
+                        {{ ticket.equipment.name|default:"-" }}
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Responsáveis e Prazos</div>
+        <table>
+            <tr>
+                <th width="25%">Solicitante(s)</th>
+                <th width="25%">Responsável(is)</th>
+                <th width="25%">Criado em</th>
+                <th width="25%">Deadline</th>
+            </tr>
+            <tr>
+                <td>
+                    {% if ticket.requesters.exists %}
+                        {% for r in ticket.requesters.all %}{{ r.get_full_name|default:r.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% elif ticket.requester %}
+                        {{ ticket.requester.get_full_name|default:ticket.requester.username }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% for t in ticket.technicians.all %}{{ t.get_full_name|default:t.username }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
+                </td>
+                <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</td>
+            </tr>
+        </table>
+        <table class="grid" style="margin-top: 8px;">
+            <tr>
+                <td width="25%"><strong>Início</strong><br>{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</td>
+                <td width="25%"><strong>Finalizado em</strong><br>{{ ticket.finished_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                <td width="25%"><strong>Atualizado em</strong><br>{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
+                <td width="25%"><strong>Tempo Estimado</strong><br>{{ ticket.estimated_time|default:"-" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Descrição Inicial</div>
+        <div style="border: 1px solid #ddd; padding: 8px; background: #fff;">
+            {{ ticket.description|default:"-"|linebreaksbr }}
+        </div>
+    </div>
+
+    {% if ticket.final_description %}
+    <div class="section">
+        <div class="section-title">Descrição Final (Resolução)</div>
+        <div style="border: 1px solid #ddd; padding: 8px; background: #fff;">
+            {{ ticket.final_description|default:"-"|linebreaksbr }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if ticket.image or ticket.images.exists %}
+    <div class="section">
+        <div class="section-title">Anexos</div>
+        <div style="border: 1px solid #ddd; padding: 8px; background: #fff;">
+            {% if ticket.image %}
+                <div class="muted">Imagem Inicial</div>
+                <img src="{{ ticket.image.url }}" class="img-thumb" alt="Imagem Inicial">
+            {% endif %}
+            {% if ticket.images.exists %}
+                <div style="margin-top: 8px;" class="muted">Outros Anexos</div>
+                {% for img in ticket.images.all %}
+                    <img src="{{ img.image.url }}" class="img-thumb" alt="Anexo">
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <div class="section-title">Histórico de Evolução</div>
+        {% if updates %}
+            <table>
+                <thead>
+                    <tr>
+                        <th width="18%">Data/Hora</th>
+                        <th width="22%">Autor</th>
+                        <th width="60%">Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in updates %}
+                    <tr>
+                        <td>{{ u.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{% if u.created_by %}{{ u.created_by.get_full_name|default:u.created_by.username }}{% else %}-{% endif %}</td>
+                        <td>
+                            {{ u.description|default:"-"|linebreaksbr }}
+                            {% if u.images.exists %}
+                                <br><span class="muted">Imagens: {{ u.images.count }}</span>
+                            {% elif u.image %}
+                                <br><span class="muted">Imagem: 1</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div style="color: #666; font-style: italic; padding: 10px; border: 1px solid #ddd; background: #fff;">Nenhuma evolução registrada.</div>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        OS {{ ticket.formatted_id }} • Gerado por Sistema JumperFour
+    </div>
+</body>
+</html>
+

@@ -455,6 +455,14 @@ class TicketListView(LoginRequiredMixin, ListView):
             })
 
         context['alerts'] = alerts
+
+        today = timezone.localdate()
+        start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
+        end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
+        today_count = Ticket.objects.filter(created_at__range=(start_of_day, end_of_day)).count()
+        context['today_date'] = today
+        context['today_tickets_count'] = today_count
+        context['can_daily_report_all'] = getattr(getattr(self.request.user, 'profile', None), 'role', None) in ['admin', 'super_admin']
         
         return context
 
@@ -470,6 +478,66 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('ticket_list')
         return context
+
+
+class TicketPDFView(LoginRequiredMixin, View):
+    def get(self, request, pk, *args, **kwargs):
+        if pisa is None:
+            return HttpResponse('PDF indisponível.', status=500)
+
+        ticket = (
+            Ticket.objects.select_related('client', 'hub', 'equipment', 'requester', 'ticket_type', 'problem_type', 'order_type')
+            .prefetch_related('requesters', 'technicians', 'equipments', 'systems', 'updates', 'updates__images', 'images')
+            .filter(pk=pk)
+            .first()
+        )
+        if not ticket:
+            return HttpResponse('OS não encontrada.', status=404)
+
+        updates = ticket.updates.all().order_by('created_at', 'id')
+        context = {
+            'user': request.user,
+            'ticket': ticket,
+            'updates': updates,
+            'generated_at': timezone.now(),
+            'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
+        }
+
+        template_path = 'tickets/ticket_pdf.html'
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="OS_{ticket.formatted_id}.pdf"'
+
+        template = get_template(template_path)
+        html = template.render(context)
+
+        def link_callback(uri, rel):
+            if uri.startswith('http://') or uri.startswith('https://'):
+                return uri
+
+            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                path = uri.replace(settings.STATIC_URL, '')
+                absolute_path = finders.find(path)
+                if absolute_path:
+                    return absolute_path
+
+            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                path = uri.replace(settings.MEDIA_URL, '')
+                absolute_path = os.path.join(settings.MEDIA_ROOT, path.replace('/', os.sep))
+                if os.path.exists(absolute_path):
+                    return absolute_path
+
+            if not uri.startswith('/'):
+                if 'media/' in uri:
+                    possible_path = os.path.join(settings.BASE_DIR, uri.replace('/', os.sep))
+                    if os.path.exists(possible_path):
+                        return possible_path
+
+            return uri
+
+        pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+        if pisa_status.err:
+            return HttpResponse('Erro ao gerar PDF.', status=500)
+        return response
 
 class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Ticket
