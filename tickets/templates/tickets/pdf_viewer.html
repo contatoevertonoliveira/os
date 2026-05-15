@@ -21,9 +21,85 @@
 {% else %}
     <div class="card card-custom">
         <div class="card-body p-0">
-            <iframe src="{{ pdf_url }}" style="width: 100%; height: 82vh; border: 0;" title="{{ title }}"></iframe>
+            <div id="pdfLoading" class="p-4">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="fw-semibold">Gerando/Carregando PDF…</div>
+                    <div id="pdfLoadingPct" class="text-muted small">0%</div>
+                </div>
+                <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                    <div id="pdfLoadingBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                </div>
+                <div class="text-muted small mt-2">Aguarde. Assim que finalizar, o visualizador abrirá automaticamente.</div>
+                <div id="pdfError" class="alert alert-danger d-none mt-3 mb-0"></div>
+            </div>
+            <iframe id="pdfFrame" style="width: 100%; height: 82vh; border: 0; display: none;" title="{{ title }}"></iframe>
         </div>
     </div>
+
+    <script>
+        (function() {
+            const pdfUrl = "{{ pdf_url|escapejs }}";
+            const statusUrl = "{{ status_url|default:''|escapejs }}";
+            const loadingEl = document.getElementById('pdfLoading');
+            const frameEl = document.getElementById('pdfFrame');
+            const barEl = document.getElementById('pdfLoadingBar');
+            const pctEl = document.getElementById('pdfLoadingPct');
+            const errEl = document.getElementById('pdfError');
+            let pct = 0;
+            let timer = null;
+
+            function setError(msg) {
+                errEl.textContent = msg || 'Erro ao carregar o PDF.';
+                errEl.classList.remove('d-none');
+                if (timer) clearInterval(timer);
+                timer = null;
+            }
+
+            function startProgress() {
+                pct = 0;
+                pctEl.textContent = '0%';
+                barEl.style.width = '0%';
+                timer = setInterval(function() {
+                    pct = Math.min(pct + (pct < 80 ? 6 : 1), 95);
+                    pctEl.textContent = pct + '%';
+                    barEl.style.width = pct + '%';
+                }, 350);
+            }
+
+            async function checkStatus() {
+                if (!statusUrl) return true;
+                try {
+                    const resp = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+                    const data = await resp.json();
+                    if (data && data.ok) return true;
+                    setError((data && data.message) ? data.message : 'PDF indisponível.');
+                    return false;
+                } catch (e) {
+                    setError('Erro ao validar PDF.');
+                    return false;
+                }
+            }
+
+            async function start() {
+                startProgress();
+                const ok = await checkStatus();
+                if (!ok) return;
+                setTimeout(function() {
+                    frameEl.src = pdfUrl;
+                }, 150);
+            }
+
+            frameEl.addEventListener('load', function() {
+                if (timer) clearInterval(timer);
+                timer = null;
+                pctEl.textContent = '100%';
+                barEl.style.width = '100%';
+                loadingEl.style.display = 'none';
+                frameEl.style.display = 'block';
+            });
+
+            start();
+        })();
+    </script>
 {% endif %}
 {% endblock %}
-

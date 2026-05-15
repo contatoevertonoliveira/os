@@ -2,7 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
     DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
-    TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView,
+    TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView, TicketPDFStatusView, TicketsDailyReportPDFStatusView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView, client_quick_update,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
     OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
@@ -48,6 +48,7 @@ urlpatterns = [
     path('checklist/daily/', ChecklistDailyView.as_view(), name='checklist_daily'),
     path('checklist/daily/pdf/', ChecklistPDFView.as_view(), name='checklist_pdf'),
     path('tickets/daily/pdf/', TicketsDailyReportPDFView.as_view(), name='tickets_daily_pdf'),
+    path('tickets/daily/pdf/status/', TicketsDailyReportPDFStatusView.as_view(), name='tickets_daily_pdf_status'),
     path('tickets/daily/report/', TicketsDailyReportViewerView.as_view(), name='tickets_daily_report_view'),
     path('checklist/config/', ChecklistConfigView.as_view(), name='checklist_config'),
     path('checklist/config/new/', ChecklistTemplateCreateView.as_view(), name='checklist_template_create'),
@@ -72,6 +73,7 @@ urlpatterns = [
     path('tickets/new/', TicketCreateView.as_view(), name='ticket_create'),
     path('tickets/<int:pk>/', TicketDetailView.as_view(), name='ticket_detail'),
     path('tickets/<int:pk>/pdf/', TicketPDFView.as_view(), name='ticket_pdf'),
+    path('tickets/<int:pk>/pdf/status/', TicketPDFStatusView.as_view(), name='ticket_pdf_status'),
     path('tickets/<int:pk>/pdf/view/', TicketPDFViewerView.as_view(), name='ticket_pdf_view'),
     path('tickets/<int:pk>/modal/', TicketModalView.as_view(), name='ticket_modal'),
     path('tickets/<int:pk>/edit/', TicketUpdateView.as_view(), name='ticket_update'),

@@ -507,7 +507,10 @@ class TicketPDFView(LoginRequiredMixin, View):
         response = HttpResponse(content_type='application/pdf')
         download = str(request.GET.get('download') or '').strip() == '1'
         disposition = 'attachment' if download else 'inline'
-        response['Content-Disposition'] = f'{disposition}; filename="OS_{ticket.formatted_id}.pdf"'
+        leankeep_part = (ticket.leankeep_id or '').strip() or '00000'
+        client_part = (ticket.client.name or '').strip()
+        client_part = slugify(client_part).replace('-', '_').upper() or 'CLIENTE'
+        response['Content-Disposition'] = f'{disposition}; filename="{ticket.formatted_id}_{leankeep_part}_{client_part}.pdf"'
 
         template = get_template(template_path)
         html = template.render(context)
@@ -554,6 +557,7 @@ class TicketPDFViewerView(LoginRequiredMixin, TemplateView):
             return context
         context['title'] = 'Relatório Detalhado do Chamado'
         context['pdf_url'] = reverse('ticket_pdf', kwargs={'pk': pk})
+        context['status_url'] = reverse('ticket_pdf_status', kwargs={'pk': pk})
         context['download_url'] = f"{context['pdf_url']}?download=1"
         return context
 
@@ -2760,10 +2764,9 @@ class TicketsDailyReportPDFView(LoginRequiredMixin, View):
 
         template_path = 'tickets/tickets_daily_report_pdf.html'
         response = HttpResponse(content_type='application/pdf')
-        scope_label = 'todas' if scope == 'all' else 'minhas'
         download = str(request.GET.get('download') or '').strip() == '1'
         disposition = 'attachment' if download else 'inline'
-        response['Content-Disposition'] = f'{disposition}; filename="relatorio_diario_chamados_{scope_label}_{user.username}_{target_date}.pdf"'
+        response['Content-Disposition'] = f'{disposition}; filename="jumperfour_chamados.pdf"'
 
         template = get_template(template_path)
         html = template.render(context)
@@ -2827,8 +2830,26 @@ class TicketsDailyReportViewerView(LoginRequiredMixin, TemplateView):
         pdf_url = reverse('tickets_daily_pdf') + qs
         context['title'] = 'Relatório Diário de Chamados'
         context['pdf_url'] = pdf_url
+        context['status_url'] = reverse('tickets_daily_pdf_status') + qs
         context['download_url'] = pdf_url + '&download=1'
         return context
+
+
+class TicketPDFStatusView(LoginRequiredMixin, View):
+    def get(self, request, pk, *args, **kwargs):
+        if pisa is None:
+            return JsonResponse({'ok': False, 'message': 'PDF indisponível.'}, status=200)
+        exists = Ticket.objects.filter(pk=pk).exists()
+        if not exists:
+            return JsonResponse({'ok': False, 'message': 'OS não encontrada.'}, status=200)
+        return JsonResponse({'ok': True})
+
+
+class TicketsDailyReportPDFStatusView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if pisa is None:
+            return JsonResponse({'ok': False, 'message': 'PDF indisponível.'}, status=200)
+        return JsonResponse({'ok': True})
 
 class ChecklistItemDetailAddView(LoginRequiredMixin, View):
     def post(self, request, item_id):
