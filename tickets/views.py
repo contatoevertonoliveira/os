@@ -495,10 +495,22 @@ class TicketPDFView(LoginRequiredMixin, View):
             return HttpResponse('OS não encontrada.', status=404)
 
         updates = ticket.updates.all().order_by('created_at', 'id')
+        attachments = []
+        if ticket.image:
+            attachments.append({'url': ticket.image.url, 'label': 'Imagem Inicial'})
+        for img in ticket.images.all():
+            attachments.append({'url': img.image.url, 'label': 'Anexo'})
+        attachment_rows = []
+        for i in range(0, len(attachments), 4):
+            row = attachments[i:i + 4]
+            if len(row) < 4:
+                row = row + ([None] * (4 - len(row)))
+            attachment_rows.append(row)
         context = {
             'user': request.user,
             'ticket': ticket,
             'updates': updates,
+            'attachment_rows': attachment_rows,
             'generated_at': timezone.now(),
             'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
         }

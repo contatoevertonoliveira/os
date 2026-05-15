@@ -20,8 +20,9 @@
         th { background-color: #f9fafb; font-weight: bold; }
         .badge { display: inline-block; padding: 2px 6px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 6px; font-size: 10px; }
         .footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #777; }
-        .img-thumb { width: 100%; max-width: 100%; height: auto; border: 1px solid #ddd; padding: 2px; }
-        .img-cell { width: 50%; padding: 4px; }
+        .img-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .img-table td { border: 0; padding: 4px; width: 25%; }
+        .img-thumb { width: 100%; height: 120px; border: 1px solid #ddd; padding: 2px; }
     </style>
 </head>
 <body>
@@ -128,38 +129,23 @@
     </div>
     {% endif %}
 
-    {% if ticket.image or ticket.images.exists %}
+    {% if attachment_rows %}
     <div class="section">
         <div class="section-title">Anexos</div>
         <div style="border: 1px solid #ddd; padding: 8px; background: #fff;">
-            {% if ticket.image %}
-                <div class="muted">Imagem Inicial</div>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
-                    <tr>
-                        <td style="border: 0; padding: 0;">
-                            <img src="{{ ticket.image.url }}" class="img-thumb" alt="Imagem Inicial">
-                        </td>
-                    </tr>
-                </table>
-            {% endif %}
-            {% if ticket.images.exists %}
-                <div style="margin-top: 8px;" class="muted">Outros Anexos</div>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 6px;">
-                    <tr>
-                        {% for img in ticket.images.all %}
-                            <td class="img-cell" style="border: 0;">
-                                <img src="{{ img.image.url }}" class="img-thumb" alt="Anexo">
-                            </td>
-                            {% if forloop.counter|divisibleby:2 and not forloop.last %}
-                                </tr><tr>
+            <table class="img-table">
+                {% for row in attachment_rows %}
+                <tr>
+                    {% for img in row %}
+                        <td>
+                            {% if img %}
+                                <img src="{{ img.url }}" class="img-thumb" alt="{{ img.label|default:'Anexo' }}">
                             {% endif %}
-                        {% endfor %}
-                        {% if not ticket.images.count|divisibleby:2 %}
-                            <td class="img-cell" style="border: 0;"></td>
-                        {% endif %}
-                    </tr>
-                </table>
-            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
         </div>
     </div>
     {% endif %}
