@@ -505,7 +505,9 @@ class TicketPDFView(LoginRequiredMixin, View):
 
         template_path = 'tickets/ticket_pdf.html'
         response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="OS_{ticket.formatted_id}.pdf"'
+        download = str(request.GET.get('download') or '').strip() == '1'
+        disposition = 'attachment' if download else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="OS_{ticket.formatted_id}.pdf"'
 
         template = get_template(template_path)
         html = template.render(context)
@@ -538,6 +540,22 @@ class TicketPDFView(LoginRequiredMixin, View):
         if pisa_status.err:
             return HttpResponse('Erro ao gerar PDF.', status=500)
         return response
+
+
+class TicketPDFViewerView(LoginRequiredMixin, TemplateView):
+    template_name = 'tickets/pdf_viewer.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        pk = kwargs.get('pk')
+        ticket = Ticket.objects.filter(pk=pk).only('id').first()
+        if not ticket:
+            context['not_found'] = True
+            return context
+        context['title'] = 'Relatório Detalhado do Chamado'
+        context['pdf_url'] = reverse('ticket_pdf', kwargs={'pk': pk})
+        context['download_url'] = f"{context['pdf_url']}?download=1"
+        return context
 
 class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Ticket
@@ -2737,12 +2755,15 @@ class TicketsDailyReportPDFView(LoginRequiredMixin, View):
             'tickets': tickets_qs,
             'scope': scope,
             'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
+            'report_title': 'Relatório Diário de Chamados',
         }
 
         template_path = 'tickets/tickets_daily_report_pdf.html'
         response = HttpResponse(content_type='application/pdf')
         scope_label = 'todas' if scope == 'all' else 'minhas'
-        response['Content-Disposition'] = f'attachment; filename="relatorio_os_{scope_label}_{user.username}_{target_date}.pdf"'
+        download = str(request.GET.get('download') or '').strip() == '1'
+        disposition = 'attachment' if download else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="relatorio_diario_chamados_{scope_label}_{user.username}_{target_date}.pdf"'
 
         template = get_template(template_path)
         html = template.render(context)
@@ -2781,6 +2802,33 @@ class TicketsDailyReportPDFView(LoginRequiredMixin, View):
             return HttpResponse(f'Error generating PDF: {str(e)}')
 
         return response
+
+
+class TicketsDailyReportViewerView(LoginRequiredMixin, TemplateView):
+    template_name = 'tickets/pdf_viewer.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        date_str = self.request.GET.get('date')
+        target_date = timezone.localdate()
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+        user = self.request.user
+        role = getattr(getattr(user, 'profile', None), 'role', None)
+        scope = self.request.GET.get('scope', 'mine')
+        if scope == 'all' and role not in ['admin', 'super_admin']:
+            scope = 'mine'
+
+        qs = f"?date={target_date.strftime('%Y-%m-%d')}&scope={scope}"
+        pdf_url = reverse('tickets_daily_pdf') + qs
+        context['title'] = 'Relatório Diário de Chamados'
+        context['pdf_url'] = pdf_url
+        context['download_url'] = pdf_url + '&download=1'
+        return context
 
 class ChecklistItemDetailAddView(LoginRequiredMixin, View):
     def post(self, request, item_id):

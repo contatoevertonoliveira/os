@@ -33,24 +33,24 @@
         {% if today_tickets_count|default:0 > 0 %}
             {% if can_daily_report_all %}
                 <div class="btn-group me-2">
-                    <a href="{% url 'tickets_daily_pdf' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary" target="_blank">
-                        <i class="fas fa-file-pdf"></i> Relatório do Dia
+                    <a href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary">
+                        <i class="fas fa-file-pdf"></i> Relatório Diário de Chamados
                     </a>
                     <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
                         <span class="visually-hidden">Opções</span>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         <li>
-                            <a class="dropdown-item" href="{% url 'tickets_daily_pdf' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" target="_blank">Minhas OS (hoje)</a>
+                            <a class="dropdown-item" href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine">Minhas OS (hoje)</a>
                         </li>
                         <li>
-                            <a class="dropdown-item" href="{% url 'tickets_daily_pdf' %}?date={{ today_date|date:'Y-m-d' }}&scope=all" target="_blank">Todas as OS (hoje)</a>
+                            <a class="dropdown-item" href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=all">Todas as OS (hoje)</a>
                         </li>
                     </ul>
                 </div>
             {% else %}
-                <a href="{% url 'tickets_daily_pdf' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary me-2" target="_blank">
-                    <i class="fas fa-file-pdf"></i> Relatório do Dia
+                <a href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-file-pdf"></i> Relatório Diário de Chamados
                 </a>
             {% endif %}
         {% endif %}
@@ -247,7 +247,7 @@
                             <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <a href="{% url 'ticket_pdf' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Gerar PDF" target="_blank" onclick="event.stopPropagation();">
+                            <a href="{% url 'ticket_pdf_view' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Gerar PDF" onclick="event.stopPropagation();">
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                             {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}

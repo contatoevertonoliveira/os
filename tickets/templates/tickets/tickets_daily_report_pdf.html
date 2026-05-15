@@ -2,7 +2,7 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-    <title>Relatório Diário de OS - {{ date|date:"d/m/Y" }}</title>
+    <title>{{ report_title|default:"Relatório Diário de Chamados" }} - {{ date|date:"d/m/Y" }}</title>
     <style type="text/css">
         @page { size: A4; margin: 1.2cm; }
         body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
@@ -29,7 +29,7 @@
                     <img src="{{ logo_path }}" alt="Logo" style="height: 55px;">
                 </td>
                 <td width="50%" class="brand-title">
-                    Relatório Diário de OS
+                    {{ report_title|default:"Relatório Diário de Chamados" }}
                     <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
                     <div class="muted">Escopo: {% if scope == 'all' %}todas as OS{% else %}minhas OS{% endif %}</div>
                 </td>
