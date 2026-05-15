@@ -1395,14 +1395,6 @@
                 }
             }
 
-            async function maybePrompt() {
-                const st = await fetchStatus();
-                if (!st || !st.enabled) return;
-                if (st.requires_auth) {
-                    modal.show();
-                }
-            }
-
             async function startConnect() {
                 clearError();
                 btnEl.disabled = true;
@@ -1500,9 +1492,6 @@
                 if (pollTimer) clearInterval(pollTimer);
                 pollTimer = null;
             });
-
-            document.addEventListener('DOMContentLoaded', maybePrompt);
-            maybePrompt();
         })();
     </script>
     {% endif %}
