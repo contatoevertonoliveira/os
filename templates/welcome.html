@@ -208,6 +208,7 @@
             
             fetch(form.action, {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRFToken': formData.get('csrfmiddlewaretoken')
