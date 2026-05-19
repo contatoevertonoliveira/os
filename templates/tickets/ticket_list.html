@@ -30,7 +30,7 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        {% if today_tickets_count|default:0 > 0 and 'tickets_daily_report_view' in allowed_url_names %}
+        {% if 'tickets_daily_report_view' in allowed_url_names %}
             {% if can_daily_report_all %}
                 <div class="btn-group me-2">
                     <a href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary">
