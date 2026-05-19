@@ -74,6 +74,17 @@ class RolePageAccessMiddleware:
         if role_code == 'super_admin':
             return None
 
+        pdf_url_names = {
+            'ticket_pdf_view',
+            'ticket_pdf',
+            'tickets_daily_report_view',
+            'tickets_daily_pdf',
+            'checklist_pdf',
+        }
+
+        if url_name in pdf_url_names and profile and not getattr(profile, 'allow_pdf_reports', True):
+            raise PermissionDenied
+
         try:
             page = AppPage.objects.filter(url_name=url_name).first()
         except (OperationalError, ProgrammingError):

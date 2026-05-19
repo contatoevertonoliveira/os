@@ -13,9 +13,11 @@
         </div>
     </div>
     <div class="d-flex align-items-center gap-1">
+        {% if 'ticket_pdf_view' in allowed_url_names %}
         <a href="{% url 'ticket_pdf_view' ticket.id %}" class="btn btn-sm btn-light text-secondary" title="Gerar PDF">
             <i class="fas fa-file-pdf fa-xs"></i>
         </a>
+        {% endif %}
         <button type="button" class="btn btn-sm btn-light text-secondary modal-minimize-btn" title="Minimizar" aria-label="Minimizar">
             <i class="fas fa-minus fa-xs"></i>
         </button>

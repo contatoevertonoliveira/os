@@ -27,6 +27,7 @@ def system_settings(request):
 
         profile = getattr(request.user, 'profile', None)
         role_code = getattr(profile, 'role', None) if profile else None
+        allow_pdf_reports = getattr(profile, 'allow_pdf_reports', True) if profile else True
 
         can_access_permissions = role_code in {'admin', 'super_admin'}
         if role_code == 'super_admin':
@@ -70,14 +71,24 @@ def system_settings(request):
             'permissions',
         }
 
-        allowed_url_names = set(sidebar_url_names)
+        feature_url_names = {
+            'ticket_pdf_view',
+            'ticket_pdf',
+            'tickets_daily_report_view',
+            'tickets_daily_pdf',
+            'checklist_pdf',
+        }
+
+        ui_url_names = sidebar_url_names | feature_url_names
+
+        allowed_url_names = set(ui_url_names)
         admin_only_url_names = {'settings', 'permissions', 'user_list', 'notification_monitor'}
 
         if role_code not in {'admin', 'super_admin'}:
             allowed_url_names -= admin_only_url_names
 
         try:
-            pages = list(AppPage.objects.filter(url_name__in=sidebar_url_names))
+            pages = list(AppPage.objects.filter(url_name__in=ui_url_names))
             page_by_id = {p.id: p for p in pages}
             page_by_url_name = {p.url_name: p for p in pages}
 
@@ -104,6 +115,10 @@ def system_settings(request):
         except Exception:
             pass
 
+        if not allow_pdf_reports:
+            allowed_url_names -= feature_url_names
+
+        context['allow_pdf_reports'] = allow_pdf_reports
         context['allowed_url_names'] = allowed_url_names
     else:
         context['allowed_url_names'] = set()

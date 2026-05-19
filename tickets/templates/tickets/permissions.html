@@ -151,6 +151,52 @@
             <div class="alert alert-warning mt-3">
                 Páginas desabilitadas ficam inacessíveis para todos, exceto Admin/Super Admin.
             </div>
+
+            <div class="card border-0 shadow-sm mt-4" style="border-radius: 1rem;">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                        <div class="fw-bold">Relatórios PDF por Usuário</div>
+                        <div class="text-muted small">Desmarque para bloquear PDFs (OS, diário e checklist) somente para o usuário.</div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="save_user_pdf">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Usuário</th>
+                                        <th class="text-center" style="min-width: 160px;">Permitir PDFs</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in pdf_user_rows %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">{{ row.user.get_full_name|default:row.user.username }}</div>
+                                                <div class="text-muted small">{{ row.user.username }}</div>
+                                            </td>
+                                            <td class="text-center">
+                                                <input class="form-check-input" type="checkbox" name="user_pdf_{{ row.user.id }}" {% if row.allowed %}checked{% endif %}>
+                                            </td>
+                                        </tr>
+                                    {% empty %}
+                                        <tr>
+                                            <td colspan="2" class="text-muted">Nenhum usuário encontrado.</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-primary-custom px-4" type="submit">
+                                <i class="fas fa-save me-1"></i> Salvar PDFs por usuário
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
     {% endif %}

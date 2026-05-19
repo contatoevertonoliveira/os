@@ -85,9 +85,11 @@
             </p>
         </div>
         <div>
+            {% if 'checklist_pdf' in allowed_url_names %}
             <a href="{% url 'checklist_pdf' %}?date={{ target_date|date:'Y-m-d' }}" class="btn btn-danger shadow-sm {% if checklist and checklist.status != 'completed' and not system_settings.allow_checklist_pdf_debug %}disabled{% endif %}">
                 <i class="fas fa-file-pdf me-2"></i>Exportar PDF
             </a>
+            {% endif %}
         </div>
     </div>
 

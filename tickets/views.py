@@ -1383,6 +1383,7 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
             context['db_missing'] = True
             context['roles'] = []
             context['groups'] = []
+            context['pdf_user_rows'] = []
             return context
 
         perms = RolePagePermission.objects.filter(role__in=roles, page__in=pages)
@@ -1416,6 +1417,20 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
 
         context['roles'] = roles
         context['groups'] = groups
+        try:
+            users = User.objects.select_related('profile').all().order_by('first_name', 'username')
+            pdf_user_rows = []
+            for u in users:
+                profile = getattr(u, 'profile', None)
+                pdf_user_rows.append({
+                    'user': u,
+                    'allowed': getattr(profile, 'allow_pdf_reports', True) if profile else True,
+                })
+            context['pdf_user_rows'] = pdf_user_rows
+        except (OperationalError, ProgrammingError):
+            context['pdf_user_rows'] = []
+        except Exception:
+            context['pdf_user_rows'] = []
         return context
 
     def post(self, request, *args, **kwargs):
@@ -1483,6 +1498,36 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
                 messages.success(request, f"Página criada: {name} ({url_name}).")
             else:
                 messages.success(request, f"Página atualizada: {name} ({url_name}).")
+            return redirect('permissions')
+
+        if action == 'save_user_pdf':
+            try:
+                users = list(User.objects.select_related('profile').all())
+            except Exception:
+                messages.error(request, "Não foi possível carregar usuários.")
+                return redirect('permissions')
+
+            changed = 0
+            try:
+                with transaction.atomic():
+                    for u in users:
+                        allowed = request.POST.get(f'user_pdf_{u.id}') == 'on'
+                        profile = getattr(u, 'profile', None)
+                        if not profile:
+                            profile = UserProfile.objects.create(user=u)
+                        current = getattr(profile, 'allow_pdf_reports', True)
+                        if current != allowed:
+                            profile.allow_pdf_reports = allowed
+                            profile.save(update_fields=['allow_pdf_reports'])
+                            changed += 1
+            except Exception:
+                messages.error(request, "Erro ao salvar permissões de PDF por usuário.")
+                return redirect('permissions')
+
+            if changed == 0:
+                messages.info(request, "Nenhuma alteração de PDF por usuário para salvar.")
+            else:
+                messages.success(request, f"Permissões de PDF por usuário salvas! Alterações: {changed}.")
             return redirect('permissions')
 
         roles = list(RoleLevel.objects.filter(is_active=True).order_by('name'))

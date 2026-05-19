@@ -40,6 +40,7 @@ class UserProfile(models.Model):
     
     blocked_until = models.DateTimeField(blank=True, null=True, verbose_name="Bloqueado até")
     blocked_reason = models.CharField(max_length=200, blank=True, null=True, verbose_name="Motivo do Bloqueio")
+    allow_pdf_reports = models.BooleanField(default=True, verbose_name="Permitir relatórios PDF")
 
     def get_role_display(self):
         role = (self.role or '').strip()
