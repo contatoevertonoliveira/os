@@ -174,6 +174,65 @@ class TechnicianForm(forms.ModelForm):
             profile.save()
         return user
 
+
+class ResponsibleForm(forms.ModelForm):
+    first_name = forms.CharField(label="Nome do Responsável", max_length=150, required=True)
+    email = forms.EmailField(label="Email (opcional)", required=False)
+    fixed_client = forms.ModelChoiceField(
+        queryset=Client.objects.all().order_by('name'),
+        label="Cliente",
+        required=True,
+        empty_label="Selecione o cliente",
+    )
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'email']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            profile = getattr(self.instance, 'profile', None)
+            if profile and profile.fixed_client_id:
+                self.fields['fixed_client'].initial = profile.fixed_client_id
+
+    def _slugify_username(self, value):
+        normalized = unicodedata.normalize('NFKD', value or '')
+        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+        normalized = normalized.lower()
+        normalized = re.sub(r'[^a-z0-9]+', '.', normalized)
+        normalized = normalized.strip('.')
+        return normalized or 'user'
+
+    def _unique_username(self, seed):
+        base = self._slugify_username(seed)
+        username = base
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base}{counter}"
+            counter += 1
+        return username
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+
+        if not user.pk:
+            seed = (self.cleaned_data.get('email') or self.cleaned_data.get('first_name') or 'user').strip()
+            user.username = self._unique_username(seed)
+            user.set_unusable_password()
+
+        if commit:
+            user.save()
+            profile = getattr(user, 'profile', None)
+            if not profile:
+                profile = UserProfile(user=user)
+
+            profile.role = 'operator'
+            profile.fixed_client = self.cleaned_data.get('fixed_client')
+            profile.save()
+
+        return user
+
 class TechnicianChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
         if obj.first_name or obj.last_name:
@@ -446,6 +505,12 @@ class TicketForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+    def clean_systems(self):
+        systems = self.cleaned_data.get('systems')
+        if systems is not None and len(systems) > 1:
+            raise forms.ValidationError("Selecione apenas 1 sistema.")
+        return systems
 
     def clean_estimated_time(self):
         data = self.cleaned_data.get('estimated_time')

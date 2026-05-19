@@ -59,6 +59,7 @@ def system_settings(request):
             'ordertype_list',
             'problemtype_list',
             'technician_list',
+            'responsible_list',
             'travel_list',
             'system_list',
             'user_list',

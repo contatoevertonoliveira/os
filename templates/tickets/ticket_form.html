@@ -602,13 +602,13 @@
             return (opt && opt.textContent ? opt.textContent : '').trim();
         }
 
-        function buildClientPersonLabel(optionText) {
+        function buildClientPersonParts(optionText) {
             const clientName = getSelectedClientName();
             const personName = normalizePersonLabel(optionText);
-            if (clientName) {
-                return `${clientName} - ${personName}`;
-            }
-            return personName;
+            return {
+                clientName,
+                personName,
+            };
         }
 
         function setupBadgeMultiSelect(selectionSelectId, hiddenSelectId, badgesContainerId) {
@@ -627,22 +627,55 @@
 
                 selectedOptions.forEach(option => {
                     const badge = document.createElement('span');
-                    badge.className = 'badge bg-secondary d-flex align-items-center gap-1 py-1 px-2';
+                    badge.className = 'badge bg-secondary position-relative py-1 px-2';
                     badge.style.fontSize = '0.75rem';
+                    badge.style.maxWidth = '100%';
+                    badge.style.display = 'inline-block';
+                    badge.style.paddingRight = '1.4rem';
 
-                    const text = document.createElement('span');
-                    text.textContent = buildClientPersonLabel(option.text);
+                    const textWrap = document.createElement('div');
+                    textWrap.style.display = 'flex';
+                    textWrap.style.flexDirection = 'column';
+                    textWrap.style.lineHeight = '1.1';
+                    textWrap.style.minWidth = '0';
 
-                    const removeBtn = document.createElement('i');
-                    removeBtn.className = 'fas fa-times';
+                    const parts = buildClientPersonParts(option.text);
+                    const line1 = document.createElement('div');
+                    line1.className = 'fw-semibold';
+                    line1.textContent = parts.clientName || parts.personName || '';
+
+                    textWrap.appendChild(line1);
+
+                    if (parts.clientName && parts.personName) {
+                        const line2 = document.createElement('div');
+                        line2.className = 'fw-normal';
+                        line2.textContent = parts.personName;
+                        textWrap.appendChild(line2);
+                    }
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'btn btn-link p-0 m-0 text-white position-absolute top-0 end-0';
                     removeBtn.style.cursor = 'pointer';
-                    removeBtn.style.fontSize = '0.7rem';
-                    removeBtn.onclick = function() {
-                        option.selected = false;
-                        update();
-                    };
+                    removeBtn.style.fontSize = '0.75rem';
+                    removeBtn.style.lineHeight = '1';
+                    removeBtn.style.transform = 'translate(-4px, 2px)';
+                    removeBtn.setAttribute('aria-label', 'Remover');
 
-                    badge.appendChild(text);
+                    const removeIcon = document.createElement('i');
+                    removeIcon.className = 'fas fa-times';
+                    removeBtn.appendChild(removeIcon);
+
+                    removeBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        option.selected = false;
+                        option.removeAttribute('selected');
+                        update();
+                        hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    });
+
+                    badge.appendChild(textWrap);
                     badge.appendChild(removeBtn);
                     container.appendChild(badge);
                 });
@@ -694,11 +727,35 @@
 
         // Update badge visibility/opacity based on switch state
         const checkboxes = document.querySelectorAll('input[name="systems"]');
-        
+
+        function enforceSingleSystemSelection(checkedBox) {
+            if (!checkedBox || !checkedBox.checked) {
+                return;
+            }
+            checkboxes.forEach(cb => {
+                if (cb !== checkedBox && cb.checked) {
+                    cb.checked = false;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }
+
+        const initiallyChecked = Array.from(checkboxes).filter(cb => cb.checked);
+        if (initiallyChecked.length > 1) {
+            initiallyChecked.slice(1).forEach(cb => {
+                cb.checked = false;
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
         checkboxes.forEach(checkbox => {
             const badge = document.getElementById(`badge-${checkbox.id}`);
             const systemId = checkbox.value;
             const color = systemColors[systemId] || '#6c757d';
+
+            checkbox.addEventListener('change', function() {
+                enforceSingleSystemSelection(checkbox);
+            });
             
             // Set initial color
             if (badge) {

@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Responsáveis</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'responsible_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Novo Responsável
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Email</th>
+                        <th>Cliente</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_item in responsibles %}
+                    <tr>
+                        <td class="fw-bold">{{ user_item.first_name|default:user_item.username }}</td>
+                        <td>{{ user_item.email|default:"-" }}</td>
+                        <td>{{ user_item.profile.fixed_client.name|default:"-" }}</td>
+                        <td class="text-end">
+                            <a href="{% url 'responsible_update' user_item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'responsible_delete' user_item.id %}" class="btn btn-sm btn-outline-danger" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4">Nenhum responsável cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

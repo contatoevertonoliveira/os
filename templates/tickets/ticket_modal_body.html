@@ -298,11 +298,35 @@
 
         // Update badge visibility/opacity based on switch state
         const checkboxes = document.querySelectorAll('#ticketEditForm input[name="systems"]');
-        
+
+        function enforceSingleSystemSelection(checkedBox) {
+            if (!checkedBox || !checkedBox.checked) {
+                return;
+            }
+            checkboxes.forEach(cb => {
+                if (cb !== checkedBox && cb.checked) {
+                    cb.checked = false;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }
+
+        const initiallyChecked = Array.from(checkboxes).filter(cb => cb.checked);
+        if (initiallyChecked.length > 1) {
+            initiallyChecked.slice(1).forEach(cb => {
+                cb.checked = false;
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        }
+
         checkboxes.forEach(checkbox => {
             const badge = document.getElementById(`modal-badge-${checkbox.id}`);
             const systemId = checkbox.value;
             const color = systemColors[systemId] || '#6c757d';
+
+            checkbox.addEventListener('change', function() {
+                enforceSingleSystemSelection(checkbox);
+            });
             
             // Set initial color
             if (badge) {

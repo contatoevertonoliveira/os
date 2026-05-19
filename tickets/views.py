@@ -1033,6 +1033,62 @@ class TechnicianDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(self.request, "Técnico excluído com sucesso!")
         return super().form_valid(form)
 
+
+class ResponsibleListView(LoginRequiredMixin, ListView):
+    model = User
+    template_name = 'cadastros/responsible_list.html'
+    context_object_name = 'responsibles'
+
+    def get_queryset(self):
+        return (
+            User.objects.filter(profile__role='operator', profile__fixed_client__isnull=False)
+            .select_related('profile', 'profile__fixed_client')
+            .order_by('first_name', 'username')
+        )
+
+
+class ResponsibleCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = User
+    form_class = ResponsibleForm
+    template_name = 'cadastros/responsible_form.html'
+    success_url = reverse_lazy('responsible_list')
+    success_message = "Responsável cadastrado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Responsável"
+        context['back_url'] = reverse_lazy('responsible_list')
+        return context
+
+
+class ResponsibleUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = User
+    form_class = ResponsibleForm
+    template_name = 'cadastros/responsible_form.html'
+    success_url = reverse_lazy('responsible_list')
+    success_message = "Responsável atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = f"Editar Responsável: {self.object.first_name or self.object.username}"
+        context['back_url'] = reverse_lazy('responsible_list')
+        return context
+
+
+class ResponsibleDeleteView(LoginRequiredMixin, DeleteView):
+    model = User
+    template_name = 'cadastros/generic_confirm_delete.html'
+    success_url = reverse_lazy('responsible_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('responsible_list')
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Responsável excluído com sucesso!")
+        return super().form_valid(form)
+
 class TravelSegmentCreateView(LoginRequiredMixin, CreateView):
     model = TravelSegment
     form_class = TravelSegmentForm

@@ -8,6 +8,7 @@ from .views import (
     OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
     ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView,
     TechnicianListView, TechnicianCreateView, TechnicianUpdateView, TechnicianDeleteView,
+    ResponsibleListView, ResponsibleCreateView, ResponsibleUpdateView, ResponsibleDeleteView,
     TechnicianTravelListView, TechnicianTravelDetailView, TechnicianTravelCreateView, TechnicianTravelUpdateView, TechnicianTravelDeleteView, TechnicianTravelCompleteView,
     TravelSegmentCreateView, TravelSegmentUpdateView, TravelSegmentDeleteView,
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
@@ -122,6 +123,11 @@ urlpatterns = [
     path('technicians/new/', TechnicianCreateView.as_view(), name='technician_create'),
     path('technicians/<int:pk>/edit/', TechnicianUpdateView.as_view(), name='technician_update'),
     path('technicians/<int:pk>/delete/', TechnicianDeleteView.as_view(), name='technician_delete'),
+
+    path('responsibles/', ResponsibleListView.as_view(), name='responsible_list'),
+    path('responsibles/new/', ResponsibleCreateView.as_view(), name='responsible_create'),
+    path('responsibles/<int:pk>/edit/', ResponsibleUpdateView.as_view(), name='responsible_update'),
+    path('responsibles/<int:pk>/delete/', ResponsibleDeleteView.as_view(), name='responsible_delete'),
 
     path('travels/', TechnicianTravelListView.as_view(), name='travel_list'),
     path('travels/<int:pk>/', TechnicianTravelDetailView.as_view(), name='travel_detail'),
