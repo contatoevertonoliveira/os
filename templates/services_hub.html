@@ -277,8 +277,13 @@
         
         // Auto-focus input when modal opens
         const loginModal = document.getElementById('loginModal');
+        const loginModalInstance = new bootstrap.Modal(loginModal);
         loginModal.addEventListener('shown.bs.modal', function () {
             document.getElementById('id_token').focus();
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loginModalInstance.show();
         });
     </script>
 </body>
