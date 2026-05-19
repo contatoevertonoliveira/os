@@ -786,8 +786,8 @@
                                             </div>
                                             
                                             <!-- View Mode -->
-                                            <div id="update-view-{{ update.id }}">
-                                                <p class="mb-1 text-dark small" style="font-size: 0.85rem;">{{ update.description|linebreaksbr }}</p>
+                                            <div id="update-view-{{ update.id }}" ondblclick="if (event && event.target && event.target.tagName !== 'IMG') { toggleEditUpdate('{{ update.id }}'); }" title="Duplo clique para editar">
+                                                <p class="mb-1 text-dark small" style="font-size: 0.85rem; cursor: text;">{{ update.description|linebreaksbr }}</p>
                                                 
                                                 {% if update.images.exists %}
                                                     <div class="d-flex flex-wrap gap-2 mt-2">
