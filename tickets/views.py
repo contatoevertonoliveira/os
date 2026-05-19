@@ -303,6 +303,9 @@ class TokenLoginView(LoginView):
 class ServicesHubView(TemplateView):
     template_name = 'services_hub.html'
 
+    def get(self, request, *args, **kwargs):
+        return redirect('home')
+
 class WelcomeView(TemplateView):
     template_name = 'welcome.html'
 
