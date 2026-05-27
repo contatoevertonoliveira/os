@@ -2214,11 +2214,17 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
                 return timezone.localtime(dt).strftime('%d/%m/%Y %H:%M')
             return timezone.localtime(dt).strftime('%d/%m/%Y')
 
-        # Build card items for grid (clients + hubs)
+                # Build card items for grid (clients with hubs inside)
         dashboard_items = []
+        # Group hubs by client
+        client_hubs_map = defaultdict(list)
+        for h in hubs_qs:
+            client_hubs_map[h.client_id].append(h)
+
         if selected_client_id_int:
             client_obj = clients_qs.filter(id=selected_client_id_int).first()
             if client_obj:
+                hubs_do_cliente = client_hubs_map.get(client_obj.id, [])
                 dashboard_items.append({
                     'type': 'client',
                     'id': client_obj.id,
@@ -2226,11 +2232,11 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
                     'client_name': client_obj.name,
                     'address': getattr(client_obj, 'address', None),
                     'logo': client_obj.logo if hasattr(client_obj, 'logo') else None,
+                    'hubs': [{'id': h.id, 'name': h.name} for h in hubs_do_cliente],
                 })
-            hubs_iter = hubs_qs.filter(client_id=selected_client_id_int)
         else:
-            hubs_iter = hubs_qs
             for client_obj in clients_qs:
+                hubs_do_cliente = client_hubs_map.get(client_obj.id, [])
                 dashboard_items.append({
                     'type': 'client',
                     'id': client_obj.id,
@@ -2238,19 +2244,11 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
                     'client_name': client_obj.name,
                     'address': getattr(client_obj, 'address', None),
                     'logo': client_obj.logo if hasattr(client_obj, 'logo') else None,
+                    'hubs': [{'id': h.id, 'name': h.name} for h in hubs_do_cliente],
                 })
-        for hub in hubs_iter:
-            dashboard_items.append({
-                'type': 'hub',
-                'id': hub.id,
-                'display_name': hub.name,
-                'client_name': hub.client.name,
-                'address': hub.address,
-                'logo': hub.logo if hasattr(hub, 'logo') else None,
-            })
         context['dashboard_items'] = dashboard_items
 
-        # Organize data by hub/client for modal details
+                # Organize data by hub/client for modal details
         hubs_data = {}
         
         # Initialize with real hubs
@@ -2263,6 +2261,11 @@ class HubDashboardView(LoginRequiredMixin, TemplateView):
                 'tickets': [],
                 'travels': []
             }
+        
+        # Group hubs by client for quick lookup
+        client_hubs_dict = defaultdict(list)
+        for hub in hubs_qs:
+            client_hubs_dict[hub.client_id].append(hub)
         
         no_hub_key = 'no_hub'
         hubs_data[no_hub_key] = {
