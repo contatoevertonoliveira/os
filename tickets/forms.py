@@ -9,7 +9,41 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper
+
+
+class ContactClientForm(forms.ModelForm):
+    class Meta:
+        model = ContactClient
+        fields = [
+            "name",
+            "email",
+            "phone",
+            "client_ref_id",
+            "client_name",
+            "hub_ref_id",
+            "hub_name",
+            "is_active",
+        ]
+        widgets = {
+            "phone": forms.TextInput(attrs={"class": "form-control phone-mask", "placeholder": "(00) 0000-0000"}),
+        }
+
+
+class ContactJumperForm(forms.ModelForm):
+    class Meta:
+        model = ContactJumper
+        fields = [
+            "name",
+            "email",
+            "phone",
+            "department",
+            "role",
+            "is_active",
+        ]
+        widgets = {
+            "phone": forms.TextInput(attrs={"class": "form-control phone-mask", "placeholder": "(00) 0000-0000"}),
+        }
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -247,13 +281,13 @@ class TechnicianMultipleChoiceField(forms.ModelMultipleChoiceField):
 
 class TicketForm(forms.ModelForm):
     technicians = TechnicianMultipleChoiceField(
-        queryset=User.objects.filter(profile__role__in=['technician', 'standard', 'admin', 'super_admin'], is_active=True).order_by('first_name'),
+        queryset=User.objects.none(),
         required=False,
         label="Responsável",
         widget=forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_technicians'})
     )
     technician_selection = TechnicianChoiceField(
-        queryset=User.objects.filter(profile__role__in=['technician', 'standard', 'admin', 'super_admin'], is_active=True).order_by('first_name'),
+        queryset=User.objects.none(),
         required=False,
         label="Responsável",
         empty_label="Selecione um responsável",
@@ -261,17 +295,33 @@ class TicketForm(forms.ModelForm):
     )
 
     requesters = TechnicianMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by('first_name'),
+        queryset=User.objects.none(),
         required=False,
         label="Solicitantes",
         widget=forms.SelectMultiple(attrs={'class': 'd-none', 'id': 'id_requesters'})
     )
     requester_selection = TechnicianChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by('first_name'),
+        queryset=User.objects.none(),
         required=False,
         label="Solicitante",
         empty_label="Selecione um solicitante",
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_requester_selection'})
+    )
+
+    contact_client_requester = forms.ModelChoiceField(
+        queryset=ContactClient.objects.filter(is_active=True).order_by("client_name", "hub_name", "name"),
+        required=False,
+        label="Solicitante",
+        empty_label="Selecione um solicitante...",
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_contact_client_requester"}),
+    )
+
+    contact_jumper_responsible = forms.ModelChoiceField(
+        queryset=ContactJumper.objects.filter(is_active=True).order_by("name"),
+        required=False,
+        label="Responsável/Executor",
+        empty_label="Selecione um responsável...",
+        widget=forms.Select(attrs={"class": "form-select", "id": "id_contact_jumper_responsible"}),
     )
 
     equipment_selection = forms.ModelChoiceField(
@@ -294,7 +344,9 @@ class TicketForm(forms.ModelForm):
         fields = [
             'client', 'hub', 'systems',
             'equipments', 'order_type', 'ticket_type', 'problem_type',
-            'requesters', 'technicians', 'start_date', 'deadline', 'estimated_time',
+            'requesters', 'technicians',
+            'contact_client_requester', 'contact_jumper_responsible',
+            'start_date', 'deadline', 'estimated_time',
             'leankeep_id', 'description', 'final_description', 'status'
         ]
         widgets = {
@@ -351,16 +403,33 @@ class TicketForm(forms.ModelForm):
                 except (ValueError, TypeError):
                     current_client = None
 
-        if current_client:
-            self._ensure_client_contact_users(current_client)
+        current_hub_id = None
+        if "hub" in self.data:
+            try:
+                current_hub_id = int(self.data.get("hub")) if self.data.get("hub") else None
+            except (ValueError, TypeError):
+                current_hub_id = None
+        elif self.instance.pk and getattr(self.instance, "hub_id", None):
+            current_hub_id = self.instance.hub_id
 
+        if current_client:
+            qs = ContactClient.objects.filter(is_active=True, client_ref_id=current_client.id)
+            if current_hub_id:
+                qs = qs.filter(Q(hub_ref_id=current_hub_id) | Q(hub_ref_id__isnull=True))
+            self.fields["contact_client_requester"].queryset = qs.order_by("hub_name", "name")
+        else:
+            self.fields["contact_client_requester"].queryset = ContactClient.objects.filter(is_active=True).order_by(
+                "client_name", "hub_name", "name"
+            )
+
+        if current_client:
             selected_ids = set()
             if self.instance.pk:
                 selected_ids = set(self.instance.requesters.values_list('id', flat=True))
                 if self.instance.requester_id:
                     selected_ids.add(self.instance.requester_id)
 
-            requester_filter = Q(is_active=True, profile__fixed_client=current_client)
+            requester_filter = Q(is_active=True, profile__fixed_client=current_client, profile__role='operator')
             if selected_ids:
                 requester_filter |= Q(id__in=selected_ids)
             requester_qs = (
@@ -372,15 +441,13 @@ class TicketForm(forms.ModelForm):
             self.fields['requesters'].queryset = requester_qs
             self.fields['requester_selection'].queryset = requester_qs
 
-            allowed_roles = ['technician', 'standard', 'admin', 'super_admin']
             selected_tech_ids = set()
             if self.instance.pk:
                 selected_tech_ids = set(self.instance.technicians.values_list('id', flat=True))
 
-            tech_filter = Q(is_active=True, profile__fixed_client=current_client) | Q(
-                is_active=True,
-                client_allocations=current_client,
-                profile__role__in=allowed_roles,
+            tech_filter = (
+                Q(is_active=True, profile__fixed_client=current_client, profile__role='operator')  # pessoas do cliente selecionado
+                | Q(is_active=True, profile__fixed_client__isnull=True)  # TODOS os usuários da JumperFour (sem cliente fixo)
             )
             if selected_tech_ids:
                 tech_filter |= Q(id__in=selected_tech_ids)
@@ -406,100 +473,15 @@ class TicketForm(forms.ModelForm):
         elif self.instance.pk:
             self.fields['hub'].queryset = self.instance.client.hubs.order_by('name')
 
-    def _ensure_client_contact_users(self, client):
-        contacts = []
-        if getattr(client, 'contact1_name', None) or getattr(client, 'contact1_email', None):
-            contacts.append((client.contact1_name, client.contact1_email))
-        if getattr(client, 'contact2_name', None) or getattr(client, 'contact2_email', None):
-            contacts.append((client.contact2_name, client.contact2_email))
-
-        for full_name, email in contacts:
-            full_name = (full_name or '').strip()
-            email = (email or '').strip() or None
-
-            if not full_name and not email:
-                continue
-
-            user = None
-            if email:
-                user = User.objects.filter(email__iexact=email).first()
-
-            first_name = full_name
-            last_name = ''
-            if full_name:
-                parts = full_name.split()
-                if len(parts) >= 2:
-                    first_name = parts[0]
-                    last_name = ' '.join(parts[1:])
-
-            if not user and full_name:
-                user = (
-                    User.objects.filter(first_name__iexact=first_name, last_name__iexact=last_name, profile__fixed_client=client)
-                    .select_related('profile')
-                    .first()
-                )
-
-            if not user:
-                username_seed = email or full_name
-                username = self._slugify_username(username_seed)
-                base_username = username
-                counter = 1
-                while User.objects.filter(username=username).exists():
-                    username = f"{base_username}{counter}"
-                    counter += 1
-
-                if not full_name and email:
-                    first_name = email.split('@', 1)[0]
-                    last_name = ''
-
-                user = User(username=username, first_name=first_name, last_name=last_name)
-                if email:
-                    user.email = email
-                user.set_unusable_password()
-                user.save()
-
-            user_changed = False
-            if email and (not (user.email or '').strip()):
-                user.email = email
-                user_changed = True
-            if full_name and (not (user.first_name or '').strip()) and (not (user.last_name or '').strip()):
-                user.first_name = first_name
-                user.last_name = last_name
-                user_changed = True
-            if user_changed:
-                user.save()
-
-            profile = getattr(user, 'profile', None)
-            if not profile:
-                profile = UserProfile.objects.create(user=user)
-
-            profile_changed = False
-            if profile.fixed_client_id != client.id:
-                profile.fixed_client = client
-                profile_changed = True
-            if not (profile.role or '').strip():
-                profile.role = 'standard'
-                profile_changed = True
-            if profile_changed:
-                profile.save()
-
-    def _slugify_username(self, value):
-        normalized = unicodedata.normalize('NFKD', value or '')
-        normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
-        normalized = normalized.lower()
-        normalized = re.sub(r'[^a-z0-9]+', '.', normalized)
-        normalized = normalized.strip('.')
-        return normalized or 'user'
-
     def save(self, commit=True):
         instance = super().save(commit=False)
-        requesters = self.cleaned_data.get('requesters') or []
-        try:
-            primary_requester = requesters[0] if isinstance(requesters, list) else next(iter(requesters), None)
-        except Exception:
-            primary_requester = None
-
-        instance.requester = primary_requester
+        if "requesters" in self.data:
+            requesters = self.cleaned_data.get("requesters") or []
+            try:
+                primary_requester = requesters[0] if isinstance(requesters, list) else next(iter(requesters), None)
+            except Exception:
+                primary_requester = None
+            instance.requester = primary_requester
 
         if commit:
             instance.save()

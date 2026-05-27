@@ -153,22 +153,14 @@
                             </h6>
                             <div class="row g-3">
                                 <div class="col-md-3">
-                                    <label for="{{ form.requester_selection.id_for_label }}" class="form-label small fw-bold mb-1">Solicitante</label>
-                                    {% render_field form.requester_selection class="form-select form-select-sm" %}
-                                    <div class="text-danger small">{{ form.requesters.errors }}</div>
-                                    <div id="selected-requesters-container" class="mt-2 d-flex flex-wrap gap-2"></div>
-                                    <div class="d-none">
-                                        {% render_field form.requesters %}
-                                    </div>
+                                    <label for="{{ form.contact_client_requester.id_for_label }}" class="form-label small fw-bold mb-1">Solicitante</label>
+                                    {% render_field form.contact_client_requester class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.contact_client_requester.errors }}</div>
                                 </div>
                                 <div class="col-md-3">
-                                    <label for="{{ form.technician_selection.id_for_label }}" class="form-label small fw-bold mb-1">Responsável</label>
-                                    {% render_field form.technician_selection class="form-select form-select-sm" %}
-                                    <div class="text-danger small">{{ form.technicians.errors }}</div>
-                                    <div id="selected-technicians-container" class="mt-2 d-flex flex-wrap gap-2"></div>
-                                    <div class="d-none">
-                                        {% render_field form.technicians %}
-                                    </div>
+                                    <label for="{{ form.contact_jumper_responsible.id_for_label }}" class="form-label small fw-bold mb-1">Responsável/Executor</label>
+                                    {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.contact_jumper_responsible.errors }}</div>
                                 </div>
                                 <div class="col-md-3">
                                     <label for="{{ form.start_date.id_for_label }}" class="form-label small fw-bold mb-1">Data de Início</label>
@@ -426,7 +418,7 @@
         const clientSelect = document.getElementById('id_client');
         const hubSelect = document.getElementById('id_hub');
         const hubUrl = "{% url 'ajax_load_hubs' %}";
-        const peopleUrl = "{% url 'ajax_load_client_people' %}";
+        const contactsUrl = "{% url 'ajax_load_os_contacts' %}";
 
         function setSelectOptions(selectEl, items, emptyLabel) {
             if (!selectEl) return;
@@ -456,6 +448,26 @@
         }
 
         if (clientSelect && hubSelect) {
+            function loadContacts(clientId, hubId) {
+                const requesterSelect = document.getElementById('id_contact_client_requester');
+                const responsibleSelect = document.getElementById('id_contact_jumper_responsible');
+
+                if (!clientId) {
+                    setSelectOptions(requesterSelect, [], 'Selecione um solicitante');
+                    setSelectOptions(responsibleSelect, [], 'Selecione um responsável');
+                    return;
+                }
+
+                const hubParam = hubId ? `&hub_id=${encodeURIComponent(hubId)}` : '';
+                fetch(`${contactsUrl}?client_id=${encodeURIComponent(clientId)}${hubParam}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        setSelectOptions(requesterSelect, data.requesters, 'Selecione um solicitante');
+                        setSelectOptions(responsibleSelect, data.responsibles, 'Selecione um responsável');
+                    })
+                    .catch(error => console.error('Error loading contacts:', error));
+            }
+
             clientSelect.addEventListener('change', function() {
                 const clientId = this.value;
                 
@@ -474,47 +486,16 @@
                             });
                         })
                         .catch(error => console.error('Error loading hubs:', error));
-
-                    fetch(`${peopleUrl}?client_id=${clientId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            const requesterSelection = document.getElementById('id_requester_selection');
-                            const requestersHidden = document.getElementById('id_requesters');
-                            const technicianSelection = document.getElementById('id_technician_selection');
-                            const techniciansHidden = document.getElementById('id_technicians');
-
-                            setSelectOptions(requesterSelection, data.requesters, 'Selecione um solicitante');
-                            setHiddenSelectOptions(requestersHidden, data.requesters);
-
-                            setSelectOptions(technicianSelection, data.technicians, 'Selecione um responsável');
-                            setHiddenSelectOptions(techniciansHidden, data.technicians);
-
-                            if (typeof updateRequestersBadges === 'function') {
-                                updateRequestersBadges();
-                            }
-                            if (typeof updateTechniciansBadges === 'function') {
-                                updateTechniciansBadges();
-                            }
-                        })
-                        .catch(error => console.error('Error loading people:', error));
+                    loadContacts(clientId, hubSelect.value);
                 } else {
-                    const requesterSelection = document.getElementById('id_requester_selection');
-                    const requestersHidden = document.getElementById('id_requesters');
-                    const technicianSelection = document.getElementById('id_technician_selection');
-                    const techniciansHidden = document.getElementById('id_technicians');
+                    loadContacts('', '');
+                }
+            });
 
-                    setSelectOptions(requesterSelection, [], 'Selecione um solicitante');
-                    setHiddenSelectOptions(requestersHidden, []);
-
-                    setSelectOptions(technicianSelection, [], 'Selecione um responsável');
-                    setHiddenSelectOptions(techniciansHidden, []);
-
-                    if (typeof updateRequestersBadges === 'function') {
-                        updateRequestersBadges();
-                    }
-                    if (typeof updateTechniciansBadges === 'function') {
-                        updateTechniciansBadges();
-                    }
+            hubSelect.addEventListener('change', function () {
+                const clientId = clientSelect.value;
+                if (clientId) {
+                    loadContacts(clientId, this.value);
                 }
             });
         }
@@ -710,8 +691,6 @@
             return update;
         }
 
-        const updateRequestersBadges = setupBadgeMultiSelect('id_requester_selection', 'id_requesters', 'selected-requesters-container');
-        const updateTechniciansBadges = setupBadgeMultiSelect('id_technician_selection', 'id_technicians', 'selected-technicians-container');
     });
 </script>
 {% endblock %}

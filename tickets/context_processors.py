@@ -60,6 +60,8 @@ def system_settings(request):
             'problemtype_list',
             'technician_list',
             'responsible_list',
+            'contactclient_list',
+            'contactjumper_list',
             'travel_list',
             'system_list',
             'user_list',

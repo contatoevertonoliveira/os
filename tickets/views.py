@@ -227,9 +227,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         systems = System.objects.all()
         system_labels = []
         system_resolved = []
-        system_unresolved = []
+        system_open = []
+        system_overdue = []
         system_volume = []
         system_colors = []
+        now = timezone.now()
         
         for system in systems:
             sys_tickets = tickets_qs.filter(systems=system)
@@ -237,11 +239,14 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             
             if count > 0:
                 resolved = sys_tickets.filter(status='finished').count()
-                unresolved = sys_tickets.filter(Q(status='open') | Q(status='pending')).count()
+                open_tickets = sys_tickets.filter(Q(status='open') | Q(status='pending'))
+                open = open_tickets.filter(deadline__gte=now).count()
+                overdue = open_tickets.filter(deadline__lt=now).count()
                 
                 system_labels.append(system.name)
                 system_resolved.append(resolved)
-                system_unresolved.append(unresolved)
+                system_open.append(open)
+                system_overdue.append(overdue)
                 system_volume.append(count)
                 system_colors.append(system.color if system.color else '#6c757d')
                 
@@ -251,7 +256,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         
         context['chart_sys_health_labels'] = system_labels
         context['chart_sys_resolved'] = system_resolved
-        context['chart_sys_unresolved'] = system_unresolved
+        context['chart_sys_open'] = system_open
+        context['chart_sys_overdue'] = system_overdue
         
         context['my_tickets'] = tickets_qs.filter(technicians=self.request.user).count()
         return context
@@ -341,13 +347,34 @@ class TicketListView(LoginRequiredMixin, ListView):
             return queryset.order_by('-created_at')
 
         if q:
-            queryset = queryset.filter(
+            status_lower = q.strip().lower()
+            status_map = {
+                'aberto': 'open',
+                'em andamento': 'in_progress',
+                'pendente': 'pending',
+                'finalizado': 'finished',
+                'cancelado': 'canceled',
+                'aberta': 'open',
+                'pendente': 'pending',
+                'finalizada': 'finished',
+                'cancelada': 'canceled'
+            }
+            status_filter = status_map.get(status_lower, None)
+            
+            q_filter = (
                 Q(client__name__icontains=q) |
                 Q(description__icontains=q) |
                 Q(id__icontains=q) |
                 Q(ticket_type__name__icontains=q) |
-                Q(leankeep_id__icontains=q)
+                Q(leankeep_id__icontains=q) |
+                Q(equipment__name__icontains=q) |
+                Q(equipments__name__icontains=q)
             )
+            
+            if status_filter is not None:
+                q_filter |= Q(status=status_filter)
+            
+            queryset = queryset.filter(q_filter)
 
         if leankeep_id:
             queryset = queryset.filter(leankeep_id__icontains=leankeep_id)
@@ -471,6 +498,7 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['today_date'] = today
         context['today_tickets_count'] = today_count
         context['can_daily_report_all'] = getattr(getattr(self.request.user, 'profile', None), 'role', None) in ['admin', 'super_admin']
+        context['all_tickets'] = Ticket.objects.all().select_related('client').order_by('-created_at')
         
         return context
 
@@ -1089,6 +1117,110 @@ class ResponsibleDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(self.request, "Responsável excluído com sucesso!")
         return super().form_valid(form)
 
+
+class ContactClientListView(LoginRequiredMixin, ListView):
+    model = ContactClient
+    template_name = "cadastros/contactclient_list.html"
+    context_object_name = "contacts"
+
+    def get_queryset(self):
+        return ContactClient.objects.all().order_by("client_name", "hub_name", "name")
+
+
+class ContactClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = ContactClient
+    form_class = ContactClientForm
+    template_name = "cadastros/generic_form.html"
+    success_url = reverse_lazy("contactclient_list")
+    success_message = "Contato do cliente cadastrado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Novo Contato do Cliente"
+        context["back_url"] = reverse_lazy("contactclient_list")
+        return context
+
+
+class ContactClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = ContactClient
+    form_class = ContactClientForm
+    template_name = "cadastros/generic_form.html"
+    success_url = reverse_lazy("contactclient_list")
+    success_message = "Contato do cliente atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title"] = f"Editar Contato do Cliente: {self.object.name}"
+        context["back_url"] = reverse_lazy("contactclient_list")
+        return context
+
+
+class ContactClientDeleteView(LoginRequiredMixin, DeleteView):
+    model = ContactClient
+    template_name = "cadastros/generic_confirm_delete.html"
+    success_url = reverse_lazy("contactclient_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["back_url"] = reverse_lazy("contactclient_list")
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Contato do cliente excluído com sucesso!")
+        return super().form_valid(form)
+
+
+class ContactJumperListView(LoginRequiredMixin, ListView):
+    model = ContactJumper
+    template_name = "cadastros/contactjumper_list.html"
+    context_object_name = "contacts"
+
+    def get_queryset(self):
+        return ContactJumper.objects.all().order_by("name")
+
+
+class ContactJumperCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = ContactJumper
+    form_class = ContactJumperForm
+    template_name = "cadastros/generic_form.html"
+    success_url = reverse_lazy("contactjumper_list")
+    success_message = "Contato JumperFour cadastrado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title"] = "Novo Contato JumperFour"
+        context["back_url"] = reverse_lazy("contactjumper_list")
+        return context
+
+
+class ContactJumperUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = ContactJumper
+    form_class = ContactJumperForm
+    template_name = "cadastros/generic_form.html"
+    success_url = reverse_lazy("contactjumper_list")
+    success_message = "Contato JumperFour atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["title"] = f"Editar Contato JumperFour: {self.object.name}"
+        context["back_url"] = reverse_lazy("contactjumper_list")
+        return context
+
+
+class ContactJumperDeleteView(LoginRequiredMixin, DeleteView):
+    model = ContactJumper
+    template_name = "cadastros/generic_confirm_delete.html"
+    success_url = reverse_lazy("contactjumper_list")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["back_url"] = reverse_lazy("contactjumper_list")
+        return context
+
+    def form_valid(self, form):
+        messages.success(self.request, "Contato JumperFour excluído com sucesso!")
+        return super().form_valid(form)
+
 class TravelSegmentCreateView(LoginRequiredMixin, CreateView):
     model = TravelSegment
     form_class = TravelSegmentForm
@@ -1678,19 +1810,18 @@ def load_client_people(request):
     if getattr(client, 'contact2_name', None) or getattr(client, 'contact2_email', None):
         importer.get_or_create_contact_user(client.contact2_name, client.contact2_email, client)
 
+    # Solicitante: apenas pessoas do cliente selecionado (role=operator)
     requesters_qs = (
-        User.objects.filter(is_active=True, profile__fixed_client=client)
+        User.objects.filter(is_active=True, profile__fixed_client=client, profile__role='operator')
         .select_related('profile')
         .order_by('first_name', 'last_name', 'username')
     )
-    allowed_roles = ['technician', 'standard', 'admin', 'super_admin']
+
+    # Responsável: todas as pessoas do cliente (operator) + TODOS os usuários da JumperFour (sem fixed_client, qualquer role)
     technicians_qs = (
         User.objects.filter(
-            Q(is_active=True, profile__fixed_client=client) | Q(
-                is_active=True,
-                client_allocations=client,
-                profile__role__in=allowed_roles,
-            )
+            Q(is_active=True, profile__fixed_client=client, profile__role='operator')  # pessoas do cliente selecionado
+            | Q(is_active=True, profile__fixed_client__isnull=True)  # TODOS os usuários da JumperFour (sem cliente fixo)
         )
         .select_related('profile')
         .distinct()
@@ -1699,19 +1830,61 @@ def load_client_people(request):
 
     requesters = []
     for u in requesters_qs:
+        name = u.first_name.strip() if u.first_name else u.username.strip()
+        if u.profile and u.profile.fixed_client:
+            client_abbr = u.profile.fixed_client.name.split()[0] if ' ' in u.profile.fixed_client.name else u.profile.fixed_client.name
+            label = f"[{client_abbr}] {name}"
+        else:
+            label = name
         requesters.append({
             'id': u.id,
-            'label': f"{u.get_full_name()} ({u.username})" if (u.first_name or u.last_name) else u.username,
+            'label': label,
         })
 
     technicians = []
     for u in technicians_qs:
+        name = u.first_name.strip() if u.first_name else u.username.strip()
+        if u.profile and u.profile.fixed_client:
+            client_abbr = u.profile.fixed_client.name.split()[0] if ' ' in u.profile.fixed_client.name else u.profile.fixed_client.name
+            label = f"[{client_abbr}] {name}"
+        else:
+            label = name
         technicians.append({
             'id': u.id,
-            'label': f"{u.get_full_name()} ({u.username})" if (u.first_name or u.last_name) else u.username,
+            'label': label,
         })
 
     return JsonResponse({'requesters': requesters, 'technicians': technicians})
+
+
+@login_required
+def load_os_contacts(request):
+    client_id = request.GET.get("client_id")
+    hub_id = request.GET.get("hub_id")
+
+    client_ref_id = None
+    hub_ref_id = None
+    try:
+        client_ref_id = int(client_id) if client_id else None
+    except (ValueError, TypeError):
+        client_ref_id = None
+    try:
+        hub_ref_id = int(hub_id) if hub_id else None
+    except (ValueError, TypeError):
+        hub_ref_id = None
+
+    requesters = []
+    if client_ref_id:
+        qs = ContactClient.objects.filter(is_active=True, client_ref_id=client_ref_id)
+        if hub_ref_id:
+            qs = qs.filter(Q(hub_ref_id=hub_ref_id) | Q(hub_ref_id__isnull=True))
+        qs = qs.order_by("hub_name", "name")
+        requesters = [{"id": c.id, "label": c.display_label} for c in qs]
+
+    responsibles_qs = ContactJumper.objects.filter(is_active=True).order_by("name")
+    responsibles = [{"id": c.id, "label": c.display_label} for c in responsibles_qs]
+
+    return JsonResponse({"requesters": requesters, "responsibles": responsibles})
 
 @login_required
 def mark_all_notifications_read(request):
@@ -2927,6 +3100,218 @@ class TicketsDailyReportPDFView(LoginRequiredMixin, View):
         except Exception as e:
             return HttpResponse(f'Error generating PDF: {str(e)}')
 
+        return response
+
+
+class TicketsWeeklyReportPDFView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        week_str = request.GET.get('week')
+        today = timezone.localdate()
+        
+        if week_str:
+            try:
+                year, week_num = map(int, week_str.split('-W'))
+                target_date = datetime.strptime(f'{year}-W{week_num}-1', '%Y-W%W-%w').date()
+            except ValueError:
+                target_date = today
+        else:
+            target_date = today
+        
+        days_to_subtract = (target_date.weekday() + 1) % 7
+        start_week = target_date - timedelta(days=days_to_subtract)
+        end_week = start_week + timedelta(days=6)
+        
+        start_of_week = timezone.make_aware(datetime.combine(start_week, datetime.min.time()))
+        end_of_week = timezone.make_aware(datetime.combine(end_week, datetime.max.time()))
+        
+        tickets_qs = Ticket.objects.select_related('client', 'hub', 'ticket_type').prefetch_related('systems', 'technicians').filter(
+            created_at__range=(start_of_week, end_of_week)
+        ).order_by('created_at', 'id')
+        
+        day_counts = {}
+        for i in range(7):
+            day = start_week + timedelta(days=i)
+            day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+            day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+            count = Ticket.objects.filter(created_at__range=(day_start, day_end)).count()
+            day_counts[day.strftime('%d/%m/%Y')] = count
+        
+        avg_week = sum(day_counts.values()) / len(day_counts) if day_counts else 0
+        
+        context = {
+            'user': request.user,
+            'start_date': start_week,
+            'end_date': end_week,
+            'tickets': tickets_qs,
+            'day_counts': day_counts,
+            'avg_week': round(avg_week, 1),
+            'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
+            'report_title': 'Relatório Semanal de Chamados',
+        }
+        
+        template_path = 'tickets/tickets_weekly_report_pdf.html'
+        response = HttpResponse(content_type='application/pdf')
+        response['X-Frame-Options'] = 'SAMEORIGIN'
+        download = str(request.GET.get('download') or '').strip() == '1'
+        disposition = 'attachment' if download else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="jumperfour_chamados_semanal.pdf"'
+        
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        def link_callback(uri, rel):
+            if uri.startswith('http://') or uri.startswith('https://'):
+                return uri
+
+            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                path = uri.replace(settings.STATIC_URL, '')
+                absolute_path = finders.find(path)
+                if absolute_path:
+                    return absolute_path
+
+            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                path = uri.replace(settings.MEDIA_URL, '')
+                absolute_path = os.path.join(settings.MEDIA_ROOT, path.replace('/', os.sep))
+                if os.path.exists(absolute_path):
+                    return absolute_path
+
+            if not uri.startswith('/'):
+                if 'media/' in uri:
+                    possible_path = os.path.join(settings.BASE_DIR, uri.replace('/', os.sep))
+                    if os.path.exists(possible_path):
+                        return possible_path
+
+            return uri
+        
+        try:
+            if pisa is None:
+                return HttpResponse('PDF indisponível.', status=500)
+            pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+            if pisa_status.err:
+                return HttpResponse(f'We had some errors <pre>{html}</pre>')
+        except Exception as e:
+            return HttpResponse(f'Error generating PDF: {str(e)}')
+        
+        return response
+
+
+class TicketsMonthlyReportPDFView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        month_str = request.GET.get('month')
+        today = timezone.localdate()
+        
+        if month_str:
+            try:
+                year, month_num = map(int, month_str.split('-'))
+                target_date = datetime(year, month_num, 1).date()
+            except ValueError:
+                target_date = today
+        else:
+            target_date = today
+        
+        start_month = target_date.replace(day=1)
+        if start_month.month == 12:
+            end_month = start_month.replace(year=start_month.year+1, day=1) - timedelta(days=1)
+        else:
+            end_month = start_month.replace(month=start_month.month+1, day=1) - timedelta(days=1)
+        
+        start_of_month = timezone.make_aware(datetime.combine(start_month, datetime.min.time()))
+        end_of_month = timezone.make_aware(datetime.combine(end_month, datetime.max.time()))
+        
+        tickets_qs = Ticket.objects.select_related('client', 'hub', 'ticket_type').prefetch_related('systems', 'technicians').filter(
+            created_at__range=(start_of_month, end_of_month)
+        ).order_by('created_at', 'id')
+        
+        day_counts = {}
+        day = start_month
+        while day <= end_month:
+            day_start = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+            day_end = timezone.make_aware(datetime.combine(day, datetime.max.time()))
+            count = Ticket.objects.filter(created_at__range=(day_start, day_end)).count()
+            day_counts[day.strftime('%d/%m/%Y')] = count
+            day += timedelta(days=1)
+        
+        avg_day = sum(day_counts.values()) / len(day_counts) if day_counts else 0
+        
+        week_counts = {}
+        current_week = 1
+        current_week_count = 0
+        for i, (day_str, count) in enumerate(day_counts.items()):
+            current_week_count += count
+            if (i + 1) % 7 == 0 or i == len(day_counts) - 1:
+                week_counts[f'Semana {current_week}'] = current_week_count
+                current_week += 1
+                current_week_count = 0
+        
+        avg_week = sum(week_counts.values()) / len(week_counts) if week_counts else 0
+        
+        client_counts = {}
+        for ticket in tickets_qs:
+            client_name = ticket.client.name
+            if client_name in client_counts:
+                client_counts[client_name] += 1
+            else:
+                client_counts[client_name] = 1
+        
+        avg_month = sum(client_counts.values()) / len(client_counts) if client_counts else 0
+        
+        context = {
+            'user': request.user,
+            'month': start_month,
+            'tickets': tickets_qs,
+            'day_counts': day_counts,
+            'avg_day': round(avg_day, 1),
+            'week_counts': week_counts,
+            'avg_week': round(avg_week, 1),
+            'client_counts': client_counts,
+            'avg_month': round(avg_month, 1),
+            'logo_path': os.path.join(settings.MEDIA_ROOT, 'images', 'logo_principal.png'),
+            'report_title': 'Relatório Mensal de Chamados',
+        }
+        
+        template_path = 'tickets/tickets_monthly_report_pdf.html'
+        response = HttpResponse(content_type='application/pdf')
+        response['X-Frame-Options'] = 'SAMEORIGIN'
+        download = str(request.GET.get('download') or '').strip() == '1'
+        disposition = 'attachment' if download else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="jumperfour_chamados_mensal.pdf"'
+        
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        def link_callback(uri, rel):
+            if uri.startswith('http://') or uri.startswith('https://'):
+                return uri
+
+            if settings.STATIC_URL and uri.startswith(settings.STATIC_URL):
+                path = uri.replace(settings.STATIC_URL, '')
+                absolute_path = finders.find(path)
+                if absolute_path:
+                    return absolute_path
+
+            if settings.MEDIA_URL and uri.startswith(settings.MEDIA_URL):
+                path = uri.replace(settings.MEDIA_URL, '')
+                absolute_path = os.path.join(settings.MEDIA_ROOT, path.replace('/', os.sep))
+                if os.path.exists(absolute_path):
+                    return absolute_path
+
+            if not uri.startswith('/'):
+                if 'media/' in uri:
+                    possible_path = os.path.join(settings.BASE_DIR, uri.replace('/', os.sep))
+                    if os.path.exists(possible_path):
+                        return possible_path
+
+            return uri
+        
+        try:
+            if pisa is None:
+                return HttpResponse('PDF indisponível.', status=500)
+            pisa_status = pisa.CreatePDF(html, dest=response, link_callback=link_callback)
+            if pisa_status.err:
+                return HttpResponse(f'We had some errors <pre>{html}</pre>')
+        except Exception as e:
+            return HttpResponse(f'Error generating PDF: {str(e)}')
+        
         return response
 
 

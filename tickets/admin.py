@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -72,6 +72,17 @@ class DailyChecklistAdmin(admin.ModelAdmin):
     list_filter = ('date', 'user', 'template', 'status')
     search_fields = ('user__username', 'template__name')
     inlines = [DailyChecklistItemInline]
+
+@admin.register(ContactPerson)
+class ContactPersonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'get_client', 'origin', 'email', 'phone', 'is_active')
+    list_filter = ('origin', 'is_active', 'client', 'created_at')
+    search_fields = ('name', 'email', 'phone', 'client__name')
+    readonly_fields = ('created_at', 'updated_at')
+
+    def get_client(self, obj):
+        return obj.client.name if obj.client else "Sem cliente"
+    get_client.short_description = 'Cliente'
 
 @admin.register(SystemSettings)
 class SystemSettingsAdmin(admin.ModelAdmin):

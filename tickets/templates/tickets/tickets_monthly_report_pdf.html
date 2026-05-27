@@ -1,8 +1,9 @@
+
 {% load static %}
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-    <title>{{ report_title|default:"Relatório Diário de Chamados" }} - {{ date|date:"d/m/Y" }}</title>
+    <title>{{ report_title|default:"Relatório Mensal de Chamados" }} - {{ month|date:"F/Y" }}</title>
     <style type="text/css">
         @page { size: A4; margin: 1.2cm; }
         body { font-family: Helvetica, Arial, sans-serif; font-size: 12px; color: #222; }
@@ -29,9 +30,8 @@
                     <img src="{{ logo_path }}" alt="Logo" style="height: 55px;">
                 </td>
                 <td width="50%" class="brand-title">
-                    {{ report_title|default:"Relatório Diário de Chamados" }}
-                    <div class="muted">Data: {{ date|date:"d/m/Y" }}</div>
-                    <div class="muted">Escopo: {% if scope == 'all' %}todas as OS{% else %}minhas OS{% endif %}</div>
+                    {{ report_title|default:"Relatório Mensal de Chamados" }}
+                    <div class="muted">Período: {{ month|date:"F/Y" }}</div>
                 </td>
             </tr>
         </table>
@@ -41,12 +41,54 @@
         <tr>
             <td><strong>Colaborador</strong><br>{{ user.get_full_name|default:user.username }}</td>
             <td><strong>Total de OS</strong><br>{{ tickets|length }}</td>
+            <td><strong>Média dia</strong><br>{{ avg_day }}</td>
+            <td><strong>Média semana</strong><br>{{ avg_week }}</td>
             <td><strong>Gerado em</strong><br>{% now "d/m/Y H:i" %}</td>
         </tr>
     </table>
 
     <div class="section">
-        <div class="section-title">Ordens de Serviço do Dia</div>
+        <div class="section-title">Resumo por Cliente</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Quantidade de OS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client_name, count in client_counts.items %}
+                <tr>
+                    <td>{{ client_name }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Resumo por Semana</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Semana</th>
+                    <th>Quantidade de OS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for week_str, count in week_counts.items %}
+                <tr>
+                    <td>{{ week_str }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Ordens de Serviço do Mês</div>
         {% if tickets %}
             <table>
                 <thead>
@@ -93,7 +135,7 @@
                 </tbody>
             </table>
         {% else %}
-            <p style="color: #666; font-style: italic; padding: 10px;">Nenhuma OS encontrada para este dia.</p>
+            <p style="color: #666; font-style: italic; padding: 10px;">Nenhuma OS encontrada para este mês.</p>
         {% endif %}
     </div>
 

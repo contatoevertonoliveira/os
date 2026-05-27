@@ -88,7 +88,9 @@
             </tr>
             <tr>
                 <td>
-                    {% if ticket.requesters.exists %}
+                    {% if ticket.contact_client_requester %}
+                        {{ ticket.contact_client_requester.name }}
+                    {% elif ticket.requesters.exists %}
                         {% for r in ticket.requesters.all %}{{ r.get_full_name|default:r.username }}{% if not forloop.last %}, {% endif %}{% endfor %}
                     {% elif ticket.requester %}
                         {{ ticket.requester.get_full_name|default:ticket.requester.username }}
@@ -97,7 +99,11 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% for t in ticket.technicians.all %}{{ t.get_full_name|default:t.username }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
+                    {% if ticket.contact_jumper_responsible %}
+                        {{ ticket.contact_jumper_responsible.name }}
+                    {% else %}
+                        {% for t in ticket.technicians.all %}{{ t.get_full_name|default:t.username }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
+                    {% endif %}
                 </td>
                 <td>{{ ticket.created_at|date:"d/m/Y H:i" }}</td>
                 <td>{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</td>

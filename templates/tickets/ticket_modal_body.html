@@ -158,19 +158,11 @@
                     <div class="row g-2 mb-3">
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
-                            {% render_field form.requester_selection class="form-select form-select-sm" %}
-                            <div id="modal-selected-requesters-container" class="mt-2 d-flex flex-wrap gap-1"></div>
-                            <div class="d-none">
-                                {% render_field form.requesters %}
-                            </div>
+                            {% render_field form.contact_client_requester class="form-select form-select-sm" %}
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Responsável</label>
-                            {% render_field form.technician_selection class="form-select form-select-sm" %}
-                            <div id="modal-selected-technicians-container" class="mt-2 d-flex flex-wrap gap-1"></div>
-                            <div class="d-none">
-                                {% render_field form.technicians %}
-                            </div>
+                            <label class="form-label small fw-bold text-muted mb-1">Responsável/Executor</label>
+                            {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
                         </div>
                         <div class="col-md-3">
                             <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
@@ -415,7 +407,7 @@
         const modalClientSelect = document.getElementById('ticketEditForm').querySelector('#id_client');
         const modalHubSelect = document.getElementById('ticketEditForm').querySelector('#id_hub');
         const hubUrl = "{% url 'ajax_load_hubs' %}";
-        const peopleUrl = "{% url 'ajax_load_client_people' %}";
+        const contactsUrl = "{% url 'ajax_load_os_contacts' %}";
 
         function setSelectOptions(selectEl, items, emptyLabel) {
             if (!selectEl) return;
@@ -445,6 +437,26 @@
         }
 
         if (modalClientSelect && modalHubSelect) {
+            function loadContacts(clientId, hubId) {
+                const requesterSelect = document.getElementById('ticketEditForm').querySelector('#id_contact_client_requester');
+                const responsibleSelect = document.getElementById('ticketEditForm').querySelector('#id_contact_jumper_responsible');
+
+                if (!clientId) {
+                    setSelectOptions(requesterSelect, [], 'Selecione um solicitante');
+                    setSelectOptions(responsibleSelect, [], 'Selecione um responsável');
+                    return;
+                }
+
+                const hubParam = hubId ? `&hub_id=${encodeURIComponent(hubId)}` : '';
+                fetch(`${contactsUrl}?client_id=${encodeURIComponent(clientId)}${hubParam}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        setSelectOptions(requesterSelect, data.requesters, 'Selecione um solicitante');
+                        setSelectOptions(responsibleSelect, data.responsibles, 'Selecione um responsável');
+                    })
+                    .catch(error => console.error('Error loading contacts:', error));
+            }
+
             modalClientSelect.addEventListener('change', function() {
                 const clientId = this.value;
                 
@@ -463,47 +475,16 @@
                             });
                         })
                         .catch(error => console.error('Error loading hubs:', error));
-
-                    fetch(`${peopleUrl}?client_id=${clientId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            const requesterSelection = document.getElementById('ticketEditForm').querySelector('#id_requester_selection');
-                            const requestersHidden = document.getElementById('ticketEditForm').querySelector('#id_requesters');
-                            const technicianSelection = document.getElementById('ticketEditForm').querySelector('#id_technician_selection');
-                            const techniciansHidden = document.getElementById('ticketEditForm').querySelector('#id_technicians');
-
-                            setSelectOptions(requesterSelection, data.requesters, 'Selecione um solicitante');
-                            setHiddenSelectOptions(requestersHidden, data.requesters);
-
-                            setSelectOptions(technicianSelection, data.technicians, 'Selecione um responsável');
-                            setHiddenSelectOptions(techniciansHidden, data.technicians);
-
-                            if (typeof updateRequestersBadges === 'function') {
-                                updateRequestersBadges();
-                            }
-                            if (typeof updateTechniciansBadges === 'function') {
-                                updateTechniciansBadges();
-                            }
-                        })
-                        .catch(error => console.error('Error loading people:', error));
+                    loadContacts(clientId, modalHubSelect.value);
                 } else {
-                    const requesterSelection = document.getElementById('ticketEditForm').querySelector('#id_requester_selection');
-                    const requestersHidden = document.getElementById('ticketEditForm').querySelector('#id_requesters');
-                    const technicianSelection = document.getElementById('ticketEditForm').querySelector('#id_technician_selection');
-                    const techniciansHidden = document.getElementById('ticketEditForm').querySelector('#id_technicians');
+                    loadContacts('', '');
+                }
+            });
 
-                    setSelectOptions(requesterSelection, [], 'Selecione um solicitante');
-                    setHiddenSelectOptions(requestersHidden, []);
-
-                    setSelectOptions(technicianSelection, [], 'Selecione um responsável');
-                    setHiddenSelectOptions(techniciansHidden, []);
-
-                    if (typeof updateRequestersBadges === 'function') {
-                        updateRequestersBadges();
-                    }
-                    if (typeof updateTechniciansBadges === 'function') {
-                        updateTechniciansBadges();
-                    }
+            modalHubSelect.addEventListener('change', function () {
+                const clientId = modalClientSelect.value;
+                if (clientId) {
+                    loadContacts(clientId, this.value);
                 }
             });
         }
@@ -666,9 +647,6 @@
              return update;
          }
 
-         const updateRequestersBadges = setupModalBadgeMultiSelect('id_requester_selection', 'id_requesters', 'modal-selected-requesters-container');
-         const updateTechniciansBadges = setupModalBadgeMultiSelect('id_technician_selection', 'id_technicians', 'modal-selected-technicians-container');
-
          // Evolution Image Paste Logic (Modal)
          const evolutionInput = document.getElementById('id_evolution_image');
          const previewContainer = document.getElementById('evolution-images-preview');
@@ -790,7 +768,7 @@
                                         <div class="card-body p-2">
                                             <div class="d-flex justify-content-between mb-1">
                                                 <span class="fw-bold small text-primary">
-                                                    {{ update.created_by.get_full_name|default:update.created_by.username }}
+                                                    {% if update.created_by %}{{ update.created_by.get_full_name|default:update.created_by.username }}{% else %}Sistema{% endif %}
                                                 </span>
                                                 <div class="d-flex align-items-center gap-2">
                                                     <small class="text-muted" style="font-size: 0.7rem;">

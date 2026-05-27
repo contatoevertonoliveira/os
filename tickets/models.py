@@ -222,6 +222,93 @@ class ProblemType(models.Model):
         verbose_name = "Tipo de Problema"
         verbose_name_plural = "Tipos de Problema"
 
+class ContactPerson(models.Model):
+    ORIGIN_CHOICES = (
+        ('client', 'Contato do Cliente'),
+        ('jumperfour', 'Planilha JumperFour'),
+        ('manual', 'Cadastro Manual'),
+    )
+    
+    name = models.CharField(max_length=200, verbose_name="Nome")
+    email = models.EmailField(verbose_name="Email", blank=True, null=True)
+    phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Cliente Associado", related_name='contact_persons')
+    origin = models.CharField(max_length=20, choices=ORIGIN_CHOICES, default='manual', verbose_name="Origem")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.name}" + (f" ({self.client.name})" if self.client else "")
+    
+    class Meta:
+        verbose_name = "Contato"
+        verbose_name_plural = "Contatos"
+        ordering = ['client', 'name']
+
+
+class ContactClient(models.Model):
+    name = models.CharField(max_length=200, verbose_name="Nome")
+    email = models.EmailField(verbose_name="Email", blank=True, null=True)
+    phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
+
+    client_ref_id = models.IntegerField(blank=True, null=True, db_index=True, verbose_name="ID Cliente (referência)")
+    client_name = models.CharField(max_length=200, blank=True, default="", verbose_name="Cliente")
+
+    hub_ref_id = models.IntegerField(blank=True, null=True, db_index=True, verbose_name="ID Hub/Loja (referência)")
+    hub_name = models.CharField(max_length=200, blank=True, default="", verbose_name="Hub/Loja")
+
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def display_label(self):
+        pieces = [self.name]
+        if self.email:
+            pieces.append(self.email)
+        if self.phone:
+            pieces.append(self.phone)
+        return " - ".join(pieces)
+
+    class Meta:
+        verbose_name = "Contato do Cliente"
+        verbose_name_plural = "Contatos dos Clientes"
+        ordering = ["client_name", "hub_name", "name"]
+
+
+class ContactJumper(models.Model):
+    name = models.CharField(max_length=200, verbose_name="Nome")
+    email = models.EmailField(verbose_name="Email", blank=True, null=True)
+    phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
+    department = models.CharField(max_length=120, blank=True, default="", verbose_name="Departamento")
+    role = models.CharField(max_length=120, blank=True, default="", verbose_name="Cargo/Função")
+
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def display_label(self):
+        pieces = [self.name]
+        if self.email:
+            pieces.append(self.email)
+        if self.phone:
+            pieces.append(self.phone)
+        return " - ".join(pieces)
+
+    class Meta:
+        verbose_name = "Contato JumperFour"
+        verbose_name_plural = "Contatos JumperFour"
+        ordering = ["name"]
+
+
 class TicketType(models.Model):
     name = models.CharField(max_length=100, verbose_name="Tipo de Chamado")
     
@@ -317,6 +404,12 @@ class Ticket(models.Model):
     technicians = models.ManyToManyField(User, verbose_name="Técnicos Responsáveis", blank=True, related_name='assigned_tickets')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante", related_name='requested_tickets')
     requesters = models.ManyToManyField(User, verbose_name="Solicitantes", blank=True, related_name='requested_tickets_multi')
+    
+    # Novos campos para contatos
+    contact_requester = models.ForeignKey(ContactPerson, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante (Contato)", related_name='tickets_as_requester')
+    contact_responsible = models.ForeignKey(ContactPerson, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Responsável/Executor (Contato)", related_name='tickets_as_responsible')
+    contact_client_requester = models.ForeignKey(ContactClient, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante (Contato do Cliente)", related_name='tickets_as_requester')
+    contact_jumper_responsible = models.ForeignKey(ContactJumper, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Responsável/Executor (Contato JumperFour)", related_name='tickets_as_responsible')
     
     systems = models.ManyToManyField(System, verbose_name="Sistemas", blank=True, related_name="tickets")
     area_group = models.CharField(max_length=100, verbose_name="Grupo de Áreas", blank=True, null=True)

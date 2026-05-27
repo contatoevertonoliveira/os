@@ -18,7 +18,7 @@ from .views import (
     TaskListView, TaskFavoriteView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
     load_hubs, ChecklistDailyView, ChecklistPDFView,
-    TicketsDailyReportPDFView,
+    TicketsDailyReportPDFView, TicketsWeeklyReportPDFView, TicketsMonthlyReportPDFView,
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
     TicketUpdateEditView, TicketUpdateDeleteView, TicketUpdateImageDeleteView,
     ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
@@ -26,7 +26,10 @@ from .views import (
     LocalView, LocalAgendaAPIView,
     PermissionsView,
     clients_sharepoint_sync_status, microsoft_connect_start, microsoft_connect_poll, clients_sharepoint_sync_run,
-    load_client_people
+    load_client_people,
+    load_os_contacts,
+    ContactClientListView, ContactClientCreateView, ContactClientUpdateView, ContactClientDeleteView,
+    ContactJumperListView, ContactJumperCreateView, ContactJumperUpdateView, ContactJumperDeleteView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -36,6 +39,7 @@ urlpatterns = [
     path('api/equipments/', EquipmentAPIView.as_view(), name='api_equipments'),
     path('ajax/load-hubs/', load_hubs, name='ajax_load_hubs'),
     path('ajax/load-client-people/', load_client_people, name='ajax_load_client_people'),
+    path('ajax/load-os-contacts/', load_os_contacts, name='ajax_load_os_contacts'),
     path('checklist/image/<int:pk>/toggle-report/', ChecklistImageToggleReportView.as_view(), name='checklist_image_toggle_report'),
     path('hub/', ServicesHubView.as_view(), name='services_hub'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
@@ -51,6 +55,8 @@ urlpatterns = [
     path('tickets/daily/pdf/', TicketsDailyReportPDFView.as_view(), name='tickets_daily_pdf'),
     path('tickets/daily/pdf/status/', TicketsDailyReportPDFStatusView.as_view(), name='tickets_daily_pdf_status'),
     path('tickets/daily/report/', TicketsDailyReportViewerView.as_view(), name='tickets_daily_report_view'),
+    path('tickets/weekly/pdf/', TicketsWeeklyReportPDFView.as_view(), name='tickets_weekly_report_view'),
+    path('tickets/monthly/pdf/', TicketsMonthlyReportPDFView.as_view(), name='tickets_monthly_report_view'),
     path('checklist/config/', ChecklistConfigView.as_view(), name='checklist_config'),
     path('checklist/config/new/', ChecklistTemplateCreateView.as_view(), name='checklist_template_create'),
     path('checklist/config/<int:pk>/edit/', ChecklistTemplateUpdateView.as_view(), name='checklist_template_edit'),
@@ -128,6 +134,16 @@ urlpatterns = [
     path('responsibles/new/', ResponsibleCreateView.as_view(), name='responsible_create'),
     path('responsibles/<int:pk>/edit/', ResponsibleUpdateView.as_view(), name='responsible_update'),
     path('responsibles/<int:pk>/delete/', ResponsibleDeleteView.as_view(), name='responsible_delete'),
+
+    path('contacts/clients/', ContactClientListView.as_view(), name='contactclient_list'),
+    path('contacts/clients/new/', ContactClientCreateView.as_view(), name='contactclient_create'),
+    path('contacts/clients/<int:pk>/edit/', ContactClientUpdateView.as_view(), name='contactclient_update'),
+    path('contacts/clients/<int:pk>/delete/', ContactClientDeleteView.as_view(), name='contactclient_delete'),
+
+    path('contacts/jumper/', ContactJumperListView.as_view(), name='contactjumper_list'),
+    path('contacts/jumper/new/', ContactJumperCreateView.as_view(), name='contactjumper_create'),
+    path('contacts/jumper/<int:pk>/edit/', ContactJumperUpdateView.as_view(), name='contactjumper_update'),
+    path('contacts/jumper/<int:pk>/delete/', ContactJumperDeleteView.as_view(), name='contactjumper_delete'),
 
     path('travels/', TechnicianTravelListView.as_view(), name='travel_list'),
     path('travels/<int:pk>/', TechnicianTravelDetailView.as_view(), name='travel_detail'),

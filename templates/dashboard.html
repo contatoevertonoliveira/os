@@ -731,16 +731,23 @@
             labels: {{ chart_sys_health_labels|safe }},
             datasets: [
                 {
-                    label: 'Resolvidos',
-                    data: {{ chart_sys_resolved|safe }},
-                    backgroundColor: '#26923B', // Success Green
+                    label: 'Vencidas',
+                    data: {{ chart_sys_overdue|safe }},
+                    backgroundColor: '#dc3545', // Vermelho - vencidas
                     borderRadius: 4,
                     maxBarThickness: 60,
                 },
                 {
-                    label: 'Pendentes/Abertos',
-                    data: {{ chart_sys_unresolved|safe }},
-                    backgroundColor: '#dc3545', // Danger Red
+                    label: 'Em Aberto',
+                    data: {{ chart_sys_open|safe }},
+                    backgroundColor: '#ffc107', // Amarelo - em aberto
+                    borderRadius: 4,
+                    maxBarThickness: 60,
+                },
+                {
+                    label: 'Resolvidos',
+                    data: {{ chart_sys_resolved|safe }},
+                    backgroundColor: '#198754', // Verde - resolvidos
                     borderRadius: 4,
                     maxBarThickness: 60,
                 }

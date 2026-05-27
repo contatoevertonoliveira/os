@@ -131,7 +131,9 @@
                         <small class="text-muted d-block">Solicitante</small>
                         <div class="d-flex align-items-center">
                             <span>
-                                {% if ticket.requesters.exists %}
+                                {% if ticket.contact_client_requester %}
+                                    {{ ticket.contact_client_requester.name }}
+                                {% elif ticket.requesters.exists %}
                                     {% for requester in ticket.requesters.all %}
                                         {{ requester.get_full_name|default:requester.username }}{% if not forloop.last %}, {% endif %}
                                     {% endfor %}
@@ -145,14 +147,18 @@
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <small class="text-muted d-block">Responsável</small>
+                        <small class="text-muted d-block">Responsável/Executor</small>
                         <div class="d-flex align-items-center">
                             <span>
-                                {% for tech in ticket.technicians.all %}
-                                    {{ tech.get_full_name|default:tech.username }}{% if not forloop.last %}, {% endif %}
-                                {% empty %}
-                                    -
-                                {% endfor %}
+                                {% if ticket.contact_jumper_responsible %}
+                                    {{ ticket.contact_jumper_responsible.name }}
+                                {% else %}
+                                    {% for tech in ticket.technicians.all %}
+                                        {{ tech.get_full_name|default:tech.username }}{% if not forloop.last %}, {% endif %}
+                                    {% empty %}
+                                        -
+                                    {% endfor %}
+                                {% endif %}
                             </span>
                             <a href="{% url 'ticket_update' ticket.id %}" class="text-muted ms-2 small" title="Editar Técnicos"><i class="fas fa-pencil-alt fa-xs"></i></a>
                         </div>

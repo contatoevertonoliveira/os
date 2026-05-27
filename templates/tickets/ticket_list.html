@@ -31,28 +31,9 @@
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         {% if 'tickets_daily_report_view' in allowed_url_names %}
-            {% if can_daily_report_all %}
-                <div class="btn-group me-2">
-                    <a href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary">
-                        <i class="fas fa-file-pdf"></i> Relatório Diário de Chamados
-                    </a>
-                    <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="visually-hidden">Opções</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li>
-                            <a class="dropdown-item" href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine">Minhas OS (hoje)</a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=all">Todas as OS (hoje)</a>
-                        </li>
-                    </ul>
-                </div>
-            {% else %}
-                <a href="{% url 'tickets_daily_report_view' %}?date={{ today_date|date:'Y-m-d' }}&scope=mine" class="btn btn-outline-secondary me-2">
-                    <i class="fas fa-file-pdf"></i> Relatório Diário de Chamados
-                </a>
-            {% endif %}
+            <button type="button" class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#pdfExportModal">
+                <i class="fas fa-file-pdf"></i> Exportar Relatório PDF
+            </button>
         {% endif %}
         <a href="{% url 'ticket_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Nova OS
@@ -65,7 +46,7 @@
     <div class="card-body p-3">
         <form method="get" class="row g-2 align-items-end" id="filterForm">
             <!-- Period Filters -->
-            <div class="col-md-auto">
+            <div class="col-md-5">
                 <label class="form-label small fw-bold mb-1">Período</label>
                 <div class="btn-group w-100" role="group">
                     <input type="radio" class="btn-check" name="period" id="period_all" value="all" {% if current_period == 'all' %}checked{% endif %} onchange="this.form.submit()">
@@ -120,20 +101,11 @@
                 </select>
             </div>
 
-            <!-- Leankeep ID Filter -->
-            <div class="col-md-2">
-                <label class="form-label small fw-bold mb-1">Nº Ocorrência Leankeep</label>
-                <input type="text" name="leankeep_id" class="form-control form-control-sm" value="{{ current_leankeep_id }}">
-            </div>
-
             <!-- Search -->
-            <div class="col">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold mb-1">Buscar</label>
                 <div class="input-group input-group-sm">
-                    <input type="text" name="q" class="form-control" placeholder="Cliente, descrição, Leankeep..." value="{{ current_q }}">
-                    <button class="btn btn-outline-secondary" type="submit" title="Aplicar Filtros">
-                        <i class="fas fa-search"></i> Filtrar
-                    </button>
+                    <input type="text" name="q" class="form-control" placeholder="ID, Leankeep, Cliente, Equipamento, Status..." value="{{ current_q }}">
                     {% if current_q or current_status or current_ticket_type or current_leankeep_id or current_period != 'today' %}
                     <a href="{% url 'ticket_list' %}" class="btn btn-outline-danger" title="Limpar Filtros">
                         <i class="fas fa-times"></i>
@@ -160,6 +132,13 @@
 </div>
 
 <script>
+    let debounceTimer;
+    
+    function debounce(func, wait) {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(func, wait);
+    }
+
     function toggleCustomDates(submitNow) {
         const isCustom = document.getElementById('period_custom').checked;
         const customInputs = document.querySelectorAll('.custom-date-range');
@@ -167,15 +146,24 @@
             el.style.display = isCustom ? 'block' : 'none';
         });
         
-        // Submit if requested (for non-custom periods)
         if (submitNow) {
             document.getElementById('filterForm').submit();
         }
     }
 
-    // Run on load
     document.addEventListener('DOMContentLoaded', function() {
         toggleCustomDates(false);
+        
+        const searchInput = document.querySelector('input[name="q"]');
+        const filterForm = document.getElementById('filterForm');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                debounce(function() {
+                    filterForm.submit();
+                }, 300);
+            });
+        }
     });
 </script>
 
@@ -190,7 +178,7 @@
                         <th>Cliente</th>
                         <th>Tipo de Chamado</th>
                         <th>Equipamento</th>
-                        <th>Técnico</th>
+                        <th>Responsável/Executor</th>
                         <th>Status</th>
                         <th>Data Ocorrência</th>
                         <th>Última Atualização</th>
@@ -230,11 +218,15 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% for tech in ticket.technicians.all %}
-                                <div class="technician-name">{{ tech.get_full_name|default:tech.username }}</div>
-                            {% empty %}
-                                <span class="text-muted">-</span>
-                            {% endfor %}
+                            {% if ticket.contact_jumper_responsible %}
+                                <div class="technician-name">{{ ticket.contact_jumper_responsible.name }}</div>
+                            {% else %}
+                                {% for tech in ticket.technicians.all %}
+                                    <div class="technician-name">{{ tech.get_full_name|default:tech.username }}</div>
+                                {% empty %}
+                                    <span class="text-muted">-</span>
+                                {% endfor %}
+                            {% endif %}
                         </td>
                         <td>
                             <span class="badge badge-{{ ticket.status }}">
@@ -1159,6 +1151,114 @@
                 }
             });
         }
+    });
+</script>
+
+<!-- Modal de Exportação PDF -->
+<div class="modal fade" id="pdfExportModal" tabindex="-1" aria-labelledby="pdfExportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pdfExportModalLabel">Exportar Relatório PDF</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="pdfExportType" class="form-label fw-bold">Tipo de Relatório</label>
+                    <select id="pdfExportType" class="form-select" onchange="togglePdfExportFields()">
+                        <option value="specific">OS Específica</option>
+                        <option value="day">Todas as OS do Dia</option>
+                        <option value="week">Todas as OS da Semana</option>
+                        <option value="month">Todas as OS do Mês</option>
+                    </select>
+                </div>
+                
+                <div id="pdfSpecificTicketField" class="mb-3">
+                    <label for="pdfSpecificTicket" class="form-label fw-bold">Selecionar OS</label>
+                    <select id="pdfSpecificTicket" class="form-select">
+                        {% for ticket in all_tickets %}
+                            <option value="{{ ticket.id }}">{{ ticket.formatted_id }} - {{ ticket.client.name }} - {{ ticket.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div id="pdfDateField" class="mb-3" style="display: none;">
+                    <label for="pdfDate" class="form-label fw-bold">Data</label>
+                    <input type="date" id="pdfDate" class="form-control" value="{{ today_date|date:'Y-m-d' }}">
+                </div>
+                
+                <div id="pdfWeekField" class="mb-3" style="display: none;">
+                    <label for="pdfWeek" class="form-label fw-bold">Semana</label>
+                    <input type="week" id="pdfWeek" class="form-control" value="{{ today_date|date:'Y-W' }}">
+                </div>
+                
+                <div id="pdfMonthField" class="mb-3" style="display: none;">
+                    <label for="pdfMonth" class="form-label fw-bold">Mês</label>
+                    <input type="month" id="pdfMonth" class="form-control" value="{{ today_date|date:'Y-m' }}">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="pdfExportButton" onclick="exportPdfReport()">
+                    <i class="fas fa-file-pdf"></i> Exportar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function togglePdfExportFields() {
+        const type = document.getElementById('pdfExportType').value;
+        const specificField = document.getElementById('pdfSpecificTicketField');
+        const dateField = document.getElementById('pdfDateField');
+        const weekField = document.getElementById('pdfWeekField');
+        const monthField = document.getElementById('pdfMonthField');
+        
+        specificField.style.display = 'none';
+        dateField.style.display = 'none';
+        weekField.style.display = 'none';
+        monthField.style.display = 'none';
+        
+        if (type === 'specific') {
+            specificField.style.display = 'block';
+        } else if (type === 'day') {
+            dateField.style.display = 'block';
+        } else if (type === 'week') {
+            weekField.style.display = 'block';
+        } else if (type === 'month') {
+            monthField.style.display = 'block';
+        }
+    }
+    
+    function exportPdfReport() {
+        const type = document.getElementById('pdfExportType').value;
+        let url = '';
+        
+        if (type === 'specific') {
+            const ticketId = document.getElementById('pdfSpecificTicket').value;
+            url = "{% url 'ticket_pdf_view' 0 %}".replace('0', ticketId);
+        } else if (type === 'day') {
+            const date = document.getElementById('pdfDate').value;
+            url = "{% url 'tickets_daily_report_view' %}?date=" + date + "&scope=all";
+        } else if (type === 'week') {
+            const week = document.getElementById('pdfWeek').value;
+            url = "{% url 'tickets_weekly_report_view' %}?week=" + week;
+        } else if (type === 'month') {
+            const month = document.getElementById('pdfMonth').value;
+            url = "{% url 'tickets_monthly_report_view' %}?month=" + month;
+        }
+        
+        if (url) {
+            window.open(url, '_blank');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('pdfExportModal'));
+            modal.hide();
+        }
+    }
+    
+    // Inicializar os campos
+    document.addEventListener('DOMContentLoaded', function() {
+        togglePdfExportFields();
     });
 </script>
 {% endblock %}
