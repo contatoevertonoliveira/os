@@ -1,6 +1,24 @@
 {% load widget_tweaks %}
 
-<div class="modal-header border-bottom py-2" style="cursor: move; background-color: #fff9c4;">
+<style>
+    .modal-status-tag {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        width: 110px;
+        height: 55px;
+        pointer-events: none;
+        z-index: 10;
+    }
+    .modal-status-tag img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4));
+    }
+</style>
+
+<div class="modal-header border-bottom py-2" style="cursor: move; background-color: #fff9c4; position: relative;">
     <div class="d-flex align-items-center gap-2">
         <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
             <i class="fas fa-ticket-alt fa-sm"></i>
@@ -26,6 +44,20 @@
         </button>
         <button type="button" class="btn-close btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
+    <!-- Status Tag -->
+    {% if ticket.status == 'finished' %}
+        <div class="modal-status-tag">
+            <img src="/media/images/solucionado.png" alt="Solucionado">
+        </div>
+    {% elif ticket.status in 'pending,open,in_progress' %}
+        {% with ticket.deadline|default:"" as dl %}
+        {% if dl and ticket.deadline < now %}
+            <div class="modal-status-tag">
+                <img src="/media/images/vencido.png" alt="Vencido">
+            </div>
+        {% endif %}
+        {% endwith %}
+    {% endif %}
 </div>
 
 <div class="modal-body p-0" style="overflow-y: auto; background-color: #fff9c4;">
