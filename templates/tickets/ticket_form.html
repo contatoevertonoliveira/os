@@ -683,7 +683,7 @@
                         }
                     }
                     update();
-                    this.value = '';
+                                        this.value = '';
                 }
             });
 
@@ -691,27 +691,12 @@
             return update;
         }
 
-    });
-</script>
-{% endblock %}
+        // === ENFORCE SINGLE SYSTEM SELECTION ===
+        const systemCheckboxes = document.querySelectorAll('input[name="systems"]');
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Define colors from template
-        const systemColors = {
-            {% for system in form.systems.field.queryset %}
-                "{{ system.id }}": "{{ system.color }}",
-            {% endfor %}
-        };
-
-        // Update badge visibility/opacity based on switch state
-        const checkboxes = document.querySelectorAll('input[name="systems"]');
-
-        function enforceSingleSystemSelection(checkedBox) {
-            if (!checkedBox || !checkedBox.checked) {
-                return;
-            }
-            checkboxes.forEach(cb => {
+        function enforceSingleSystem(checkedBox) {
+            if (!checkedBox || !checkedBox.checked) return;
+            systemCheckboxes.forEach(cb => {
                 if (cb !== checkedBox && cb.checked) {
                     cb.checked = false;
                     cb.dispatchEvent(new Event('change', { bubbles: true }));
@@ -719,28 +704,37 @@
             });
         }
 
-        const initiallyChecked = Array.from(checkboxes).filter(cb => cb.checked);
-        if (initiallyChecked.length > 1) {
-            initiallyChecked.slice(1).forEach(cb => {
+        // Fix initial state (if somehow multiple are checked)
+        const initChecked = Array.from(systemCheckboxes).filter(cb => cb.checked);
+        if (initChecked.length > 1) {
+            initChecked.slice(1).forEach(cb => {
                 cb.checked = false;
                 cb.dispatchEvent(new Event('change', { bubbles: true }));
             });
         }
 
-        checkboxes.forEach(checkbox => {
+        // Attach change event
+        systemCheckboxes.forEach(cb => {
+            cb.addEventListener('change', function() {
+                enforceSingleSystem(this);
+            });
+        });
+
+        // Set initial colors for badges
+        const systemColors = {
+            {% for system in form.systems.field.queryset %}
+                "{{ system.id }}": "{{ system.color }}",
+            {% endfor %}
+        };
+
+        systemCheckboxes.forEach(checkbox => {
             const badge = document.getElementById(`badge-${checkbox.id}`);
             const systemId = checkbox.value;
             const color = systemColors[systemId] || '#6c757d';
 
-            checkbox.addEventListener('change', function() {
-                enforceSingleSystemSelection(checkbox);
-            });
-            
-            // Set initial color
             if (badge) {
                 badge.style.backgroundColor = color;
                 
-                // Function to update style
                 const updateStyle = () => {
                     if (checkbox.checked) {
                         badge.style.opacity = '1';
@@ -751,12 +745,12 @@
                     }
                 };
 
-                // Add listener
                 checkbox.addEventListener('change', updateStyle);
-                
-                // Initial call
                 updateStyle();
             }
         });
+        // === END SINGLE SYSTEM ===
+
     });
 </script>
+{% endblock %}
