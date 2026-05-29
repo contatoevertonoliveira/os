@@ -856,6 +856,22 @@ class DailyChecklistItemImage(models.Model):
     def __str__(self):
         return f"Imagem do item {self.item.id}"
 
+class ActiveSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='active_sessions', verbose_name="Usuário")
+    session_key = models.CharField(max_length=40, unique=True, verbose_name="Chave da Sessão")
+    ip_address = models.CharField(max_length=45, verbose_name="Endereço IP")
+    user_agent = models.TextField(blank=True, null=True, verbose_name="User Agent")
+    last_activity = models.DateTimeField(auto_now=True, verbose_name="Última Atividade")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+
+    class Meta:
+        verbose_name = "Sessão Ativa"
+        verbose_name_plural = "Sessões Ativas"
+        ordering = ['-last_activity']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.ip_address}"
+
 class DailyChecklistItemDetail(models.Model):
     item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='details')
     client = models.ForeignKey(Client, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Cliente")

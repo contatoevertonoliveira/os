@@ -60,6 +60,7 @@ MIDDLEWARE = [
     'tickets.middleware.RolePageAccessMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'tickets.middleware.SingleSessionPerIpMiddleware',
     'tickets.middleware.SessionTimeoutMiddleware',
 ]
 

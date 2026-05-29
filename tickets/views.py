@@ -266,7 +266,15 @@ class TokenLoginView(LoginView):
     template_name = 'login.html'
     authentication_form = TokenLoginForm
     redirect_authenticated_user = True
-    
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+        return ip
+
     def form_valid(self, form):
         try:
             # Garante que o usuário está ativo
@@ -275,16 +283,47 @@ class TokenLoginView(LoginView):
                 if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
                     return JsonResponse({'success': False, 'errors': {'token': ['Usuário inativo.']}}, status=400)
                 return self.form_invalid(form)
-            
+
+            # Obtém o IP do cliente
+            ip = self.get_client_ip(self.request)
+
+            # Verifica se já existe uma ActiveSession para este usuário com IP diferente
+            from .models import ActiveSession
+            existing_sessions = ActiveSession.objects.filter(user=user)
+            for active in existing_sessions:
+                if active.ip_address != ip:
+                    # Sessão de outro IP - invalida as sessões do Django antigas
+                    from django.contrib.sessions.models import Session
+                    try:
+                        old_session = Session.objects.filter(session_key=active.session_key).first()
+                        if old_session:
+                            old_session.delete()
+                    except Exception:
+                        pass
+                    active.delete()
+
             # Realiza o login (chama auth_login internamente)
             response = super().form_valid(form)
-            
+
+            # Cria/atualiza ActiveSession para a nova sessão
+            try:
+                ActiveSession.objects.update_or_create(
+                    session_key=self.request.session.session_key,
+                    defaults={
+                        'user': user,
+                        'ip_address': ip,
+                        'user_agent': self.request.META.get('HTTP_USER_AGENT', '')[:500],
+                    }
+                )
+            except Exception:
+                pass
+
             # Se for AJAX, retorna JSON em vez de redirecionar
             # Check for both standard header and custom Django header
             if self.request.headers.get('x-requested-with') == 'XMLHttpRequest' or \
                self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
                 return JsonResponse({'success': True, 'redirect_url': str(self.get_success_url())})
-            
+
             return response
         except Exception as e:
             # Em caso de erro inesperado, retorna JSON se for AJAX para evitar "Erro de conexão" genérico no frontend

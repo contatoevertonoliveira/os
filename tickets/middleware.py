@@ -1,8 +1,66 @@
-from .models import SystemSettings
+from .models import SystemSettings, ActiveSession
 from django.core.exceptions import PermissionDenied
 from django.urls import resolve
 from .models import AppPage, RoleLevel, RolePagePermission
 from django.db.utils import OperationalError, ProgrammingError
+from django.utils import timezone
+from django.contrib.auth import logout
+
+class SingleSessionPerIpMiddleware:
+    """
+    Garante que um mesmo usuário não possa ter sessões ativas de IPs diferentes.
+    Se o usuário logar de um IP diferente, a sessão antiga é invalidada.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            ip = self.get_client_ip(request)
+            session_key = request.session.session_key
+
+            if session_key:
+                # Verifica/atualiza o registro ActiveSession para esta sessão
+                try:
+                    active, created = ActiveSession.objects.get_or_create(
+                        session_key=session_key,
+                        defaults={
+                            'user': request.user,
+                            'ip_address': ip,
+                            'user_agent': request.META.get('HTTP_USER_AGENT', '')[:500],
+                        }
+                    )
+
+                    if not created:
+                        # Sessão já existe, verificar se o IP mudou
+                        if active.ip_address != ip:
+                            # IP mudou! Pode ser alguém tentando usar a mesma sessão de outro lugar
+                            # ou o IP real do cliente mudou (ex: VPN). Vamos invalidar.
+                            logout(request)
+                            active.delete()
+                            return self.get_response(request)
+
+                        # Atualiza o usuário caso tenha mudado (não deveria)
+                        if active.user != request.user:
+                            active.user = request.user
+                            active.save()
+                except Exception:
+                    # Se der erro (ex: tabela não existe), ignora
+                    pass
+        else:
+            # Usuário não autenticado - não faz nada
+            pass
+
+        response = self.get_response(request)
+        return response
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR', '')
+        return ip
 
 class SessionTimeoutMiddleware:
     def __init__(self, get_response):
