@@ -538,12 +538,12 @@
                 {% endif %}
                 
                 <!-- Cadastros Dropdown -->
-                {% if 'client_list' in allowed_url_names or 'equipment_list' in allowed_url_names or 'ordertype_list' in allowed_url_names or 'problemtype_list' in allowed_url_names or 'technician_list' in allowed_url_names or 'responsible_list' in allowed_url_names or 'contactclient_list' in allowed_url_names or 'contactjumper_list' in allowed_url_names or 'travel_list' in allowed_url_names or 'system_list' in allowed_url_names or 'user_list' in allowed_url_names %}
+                {% if 'client_list' in allowed_url_names or 'equipment_list' in allowed_url_names or 'ordertype_list' in allowed_url_names or 'problemtype_list' in allowed_url_names or 'technician_list' in allowed_url_names or 'responsible_list' in allowed_url_names or 'contactclient_list' in allowed_url_names or 'contactjumper_list' in allowed_url_names or 'travel_list' in allowed_url_names or 'system_list' in allowed_url_names or 'ticketstatus_list' in allowed_url_names or 'user_list' in allowed_url_names %}
                 <li>
-                    <a href="#cadastrosSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'responsible' in request.resolver_match.url_name or 'contactclient' in request.resolver_match.url_name or 'contactjumper' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Cadastros">
+                    <a href="#cadastrosSubmenu" data-bs-toggle="collapse" aria-expanded="{% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'responsible' in request.resolver_match.url_name or 'contactclient' in request.resolver_match.url_name or 'contactjumper' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'ticketstatus' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}true{% else %}false{% endif %}" class="dropdown-toggle sidebar-link-tooltip" data-bs-toggle="tooltip" data-bs-placement="right" title="Cadastros">
                         <i class="fas fa-folder-open"></i> Cadastros
                     </a>
-                    <ul class="collapse sidebar-submenu {% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'responsible' in request.resolver_match.url_name or 'contactclient' in request.resolver_match.url_name or 'contactjumper' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}show{% endif %}" id="cadastrosSubmenu">
+                    <ul class="collapse sidebar-submenu {% if 'client' in request.resolver_match.url_name or 'equipment' in request.resolver_match.url_name or 'ordertype' in request.resolver_match.url_name or 'problemtype' in request.resolver_match.url_name or 'technician' in request.resolver_match.url_name or 'responsible' in request.resolver_match.url_name or 'contactclient' in request.resolver_match.url_name or 'contactjumper' in request.resolver_match.url_name or 'travel' in request.resolver_match.url_name or 'system' in request.resolver_match.url_name or 'ticketstatus' in request.resolver_match.url_name or 'user' in request.resolver_match.url_name %}show{% endif %}" id="cadastrosSubmenu">
                         {% if 'client_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'client_list' %}" class="{% if 'client' in request.resolver_match.url_name %}active{% endif %}">
@@ -607,10 +607,17 @@
                             </a>
                         </li>
                         {% endif %}
-                        {% if 'system_list' in allowed_url_names %}
+                                                {% if 'system_list' in allowed_url_names %}
                         <li>
                             <a href="{% url 'system_list' %}" class="{% if 'system' in request.resolver_match.url_name %}active{% endif %}">
                                 <i class="fas fa-server"></i> Sistemas
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if 'ticketstatus_list' in allowed_url_names %}
+                        <li>
+                            <a href="{% url 'ticketstatus_list' %}" class="{% if 'ticketstatus' in request.resolver_match.url_name %}active{% endif %}">
+                                <i class="fas fa-tag"></i> Status de OS
                             </a>
                         </li>
                         {% endif %}

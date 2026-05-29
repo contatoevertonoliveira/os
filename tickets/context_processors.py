@@ -64,6 +64,7 @@ def system_settings(request):
             'contactjumper_list',
             'travel_list',
             'system_list',
+            'ticketstatus_list',
             'user_list',
             'ticket_list',
             'task_list',
