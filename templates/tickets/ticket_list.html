@@ -260,28 +260,28 @@
                         </td>
                                                                                                 <td class="text-center">
                             {% if ticket.status == 'finished' %}
-                                <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'pending' %}
-                                <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'canceled' %}
-                                <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'in_progress' %}
-                                <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'open' %}
-                                <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'delayed' %}
-                                <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'aguardando' %}
-                                <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 28px; width: auto; object-fit: contain;">
+                                <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
                             {% else %}
                                 {% if 'aguard' in ticket.status or 'pend' in ticket.status %}
-                                    <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 28px; width: auto; object-fit: contain;">
+                                    <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
                                 {% elif 'andament' in ticket.status %}
-                                    <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 28px; width: auto; object-fit: contain;">
+                                    <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
                                 {% elif 'venc' in ticket.status or 'atras' in ticket.status %}
-                                    <img src="/media/images/vencido.png" alt="Vencido" style="height: 28px; width: auto; object-fit: contain;">
+                                    <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                                 {% elif 'cancel' in ticket.status %}
-                                    <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 28px; width: auto; object-fit: contain;">
+                                    <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
                                 {% else %}
                                     <span class="badge badge-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
                                 {% endif %}
@@ -291,7 +291,7 @@
                             {% if ticket.status == 'open' or ticket.status == 'in_progress' %}
                                 {% with ticket.deadline|default:"" as dl %}
                                                                         {% if dl and ticket.deadline < now %}
-                                        <img src="/media/images/vencido.png" alt="Vencido" style="height: 28px; width: auto; object-fit: contain;">
+                                        <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                                     {% endif %}
                                 {% endwith %}
                             {% endif %}
