@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h5 mb-0">{{ title }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ back_url }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card card-custom">
+            <div class="card-body">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Código</label>
+                        {% render_field form.code class="form-control" placeholder="Ex: finished, in_progress" %}
+                        <small class="text-muted">Identificador único (apenas letras, números, hífen e underscore).</small>
+                        <div class="text-danger small">{{ form.code.errors }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Nome do Status</label>
+                        {% render_field form.name class="form-control" placeholder="Ex: Finalizado, Em Andamento" %}
+                        <div class="text-danger small">{{ form.name.errors }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Cor (Bootstrap)</label>
+                        {% render_field form.color class="form-control" placeholder="Ex: success, warning, danger, info, primary" %}
+                        <small class="text-muted">Use as cores do Bootstrap: primary, secondary, success, danger, warning, info, dark.</small>
+                        <div class="text-danger small">{{ form.color.errors }}</div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Ordem</label>
+                            {% render_field form.order class="form-control" type="number" %}
+                            <div class="text-danger small">{{ form.order.errors }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Ativo</label>
+                            <div class="form-check form-switch mt-2">
+                                {% render_field form.is_active class="form-check-input" role="switch" %}
+                            </div>
+                            <div class="text-danger small">{{ form.is_active.errors }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ back_url }}" class="btn btn-light border btn-sm">Cancelar</a>
+                        <button type="submit" class="btn btn-primary-custom btn-sm fw-bold">
+                            <i class="fas fa-save me-1"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

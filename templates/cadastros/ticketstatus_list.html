@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h5 mb-0">Status de OS</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{% url 'ticketstatus_create' %}" class="btn btn-primary-custom">
+            <i class="fas fa-plus"></i> Novo Status
+        </a>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nome</th>
+                        <th>Cor</th>
+                        <th>Ordem</th>
+                        <th>Ativo</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for status in status_list %}
+                    <tr>
+                        <td><code>{{ status.code }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ status.color }}">{{ status.name }}</span>
+                        </td>
+                        <td><code>{{ status.color }}</code></td>
+                        <td>{{ status.order }}</td>
+                        <td>
+                            {% if status.is_active %}
+                            <span class="badge bg-success">Sim</span>
+                            {% else %}
+                            <span class="badge bg-danger">Não</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'ticketstatus_update' status.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'ticketstatus_delete' status.pk %}" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">Nenhum status cadastrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

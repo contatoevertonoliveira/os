@@ -496,6 +496,7 @@ class TicketListView(LoginRequiredMixin, ListView):
         end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         today_count = Ticket.objects.filter(created_at__range=(start_of_day, end_of_day)).count()
         context['today_date'] = today
+        context['now'] = timezone.now()
         context['today_tickets_count'] = today_count
         context['can_daily_report_all'] = getattr(getattr(self.request.user, 'profile', None), 'role', None) in ['admin', 'super_admin']
         context['all_tickets'] = Ticket.objects.all().select_related('client').order_by('-created_at')
@@ -1347,6 +1348,48 @@ class SystemDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('system_list')
+        return context
+
+# TicketStatus Views
+class TicketStatusListView(LoginRequiredMixin, ListView):
+    model = TicketStatus
+    template_name = 'cadastros/ticketstatus_list.html'
+    context_object_name = 'status_list'
+
+class TicketStatusCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
+    model = TicketStatus
+    fields = ['code', 'name', 'color', 'order', 'is_active']
+    template_name = 'cadastros/ticketstatus_form.html'
+    success_url = reverse_lazy('ticketstatus_list')
+    success_message = "Status de OS criado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Novo Status de OS"
+        context['back_url'] = reverse_lazy('ticketstatus_list')
+        return context
+
+class TicketStatusUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+    model = TicketStatus
+    fields = ['code', 'name', 'color', 'order', 'is_active']
+    template_name = 'cadastros/ticketstatus_form.html'
+    success_url = reverse_lazy('ticketstatus_list')
+    success_message = "Status de OS atualizado com sucesso!"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = "Editar Status de OS"
+        context['back_url'] = reverse_lazy('ticketstatus_list')
+        return context
+
+class TicketStatusDeleteView(LoginRequiredMixin, DeleteView):
+    model = TicketStatus
+    template_name = 'cadastros/generic_confirm_delete.html'
+    success_url = reverse_lazy('ticketstatus_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['back_url'] = reverse_lazy('ticketstatus_list')
         return context
 
 # Profile & Settings

@@ -376,6 +376,22 @@ class ClientSyncState(models.Model):
     def __str__(self):
         return self.source
 
+class TicketStatus(models.Model):
+    code = models.SlugField(max_length=50, unique=True, verbose_name="Código")
+    name = models.CharField(max_length=100, verbose_name="Nome do Status")
+    color = models.CharField(max_length=20, verbose_name="Cor (Bootstrap)", default="secondary",
+                             help_text="Ex: primary, warning, success, danger, info")
+    order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
+    is_active = models.BooleanField(default=True, verbose_name="Ativo")
+
+    class Meta:
+        verbose_name = "Status de OS"
+        verbose_name_plural = "Status de OS"
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
 class Ticket(models.Model):
     STATUS_CHOICES = (
         ('open', 'Em Aberto'),

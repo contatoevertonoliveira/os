@@ -12,6 +12,7 @@ from .views import (
     TechnicianTravelListView, TechnicianTravelDetailView, TechnicianTravelCreateView, TechnicianTravelUpdateView, TechnicianTravelDeleteView, TechnicianTravelCompleteView,
     TravelSegmentCreateView, TravelSegmentUpdateView, TravelSegmentDeleteView,
     SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
+    TicketStatusListView, TicketStatusCreateView, TicketStatusUpdateView, TicketStatusDeleteView,
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     UserAccessUpdateView,
     ProfileView, SettingsView,
@@ -157,10 +158,15 @@ urlpatterns = [
     path('segments/<int:pk>/edit/', TravelSegmentUpdateView.as_view(), name='travel_segment_update'),
     path('segments/<int:pk>/delete/', TravelSegmentDeleteView.as_view(), name='travel_segment_delete'),
 
-    path('systems/', SystemListView.as_view(), name='system_list'),
+        path('systems/', SystemListView.as_view(), name='system_list'),
     path('systems/new/', SystemCreateView.as_view(), name='system_create'),
     path('systems/<int:pk>/edit/', SystemUpdateView.as_view(), name='system_update'),
     path('systems/<int:pk>/delete/', SystemDeleteView.as_view(), name='system_delete'),
+
+    path('ticketstatus/', TicketStatusListView.as_view(), name='ticketstatus_list'),
+    path('ticketstatus/new/', TicketStatusCreateView.as_view(), name='ticketstatus_create'),
+    path('ticketstatus/<int:pk>/edit/', TicketStatusUpdateView.as_view(), name='ticketstatus_update'),
+    path('ticketstatus/<int:pk>/delete/', TicketStatusDeleteView.as_view(), name='ticketstatus_delete'),
 
     path('users/', UserListView.as_view(), name='user_list'),
     path('users/new/', UserCreateView.as_view(), name='user_create'),
