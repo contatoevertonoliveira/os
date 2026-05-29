@@ -220,29 +220,68 @@
                     <tr class="ticket-row {% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
-                                                {% if ticket.status == 'finished' %}
-                        <td class="ticket-id" style="position: relative;">
-                            <span class="ticket-status-tag">
-                                <img src="/media/images/solucionado.png" alt="Solucionado">
-                            </span>
+                                                                                                <td class="ticket-id" style="position: relative;">
+                            {% if ticket.status == 'finished' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/solucionado.png" alt="Solucionado">
+                                </span>
+                            {% elif ticket.status == 'pending' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação">
+                                </span>
+                            {% elif ticket.status == 'canceled' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/cancelado.png" alt="Cancelado">
+                                </span>
+                            {% elif ticket.status == 'in_progress' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/emandamento.png" alt="Em Andamento">
+                                </span>
+                            {% elif ticket.status == 'open' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/emaberto.png" alt="Em Aberto">
+                                </span>
+                            {% elif ticket.status == 'delayed' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/vencido.png" alt="Atrasado/Vencido">
+                                </span>
+                            {% elif ticket.status == 'aguardando' %}
+                                <span class="ticket-status-tag">
+                                    <img src="/media/images/aguardando.png" alt="Aguardando">
+                                </span>
+                            {% else %}
+                                {% if 'aguard' in ticket.status or 'pend' in ticket.status %}
+                                    <span class="ticket-status-tag">
+                                                                        <img src="/media/images/aguardando.png" alt="Aguardando">
+                                    </span>
+                                {% elif 'andament' in ticket.status %}
+                                    <span class="ticket-status-tag">
+                                                                        <img src="/media/images/emandamento.png" alt="Em Andamento">
+                                    </span>
+                                {% elif 'venc' in ticket.status or 'atras' in ticket.status %}
+                                    <span class="ticket-status-tag">
+                                                                        <img src="/media/images/vencido.png" alt="Vencido">
+                                    </span>
+                                {% elif 'cancel' in ticket.status %}
+                                    <span class="ticket-status-tag">
+                                                                        <img src="/media/images/cancelado.png" alt="Cancelado">
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {# Se estiver em aberto ou andamento, mas com o prazo vencido na data, sobrepõe com etiqueta 'vencido' #}
+                            {% if ticket.status == 'open' or ticket.status == 'in_progress' %}
+                                {% with ticket.deadline|default:"" as dl %}
+                                    {% if dl and ticket.deadline < now %}
+                                                                        <span class="ticket-status-tag">
+                                                                            <img src="/media/images/vencido.png" alt="Vencido">
+                                                                        </span>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endif %}
+                            
                             {{ ticket.formatted_id }}
                         </td>
-                        {% elif ticket.status == 'pending' or ticket.status == 'open' or ticket.status == 'in_progress' %}
-                        {% with ticket.deadline|default:"" as dl %}
-                        {% if dl and ticket.deadline < now %}
-                        <td class="ticket-id" style="position: relative;">
-                            <span class="ticket-status-tag">
-                                <img src="/media/images/vencido.png" alt="Vencido">
-                            </span>
-                            {{ ticket.formatted_id }}
-                        </td>
-                        {% else %}
-                        <td class="ticket-id">{{ ticket.formatted_id }}</td>
-                        {% endif %}
-                        {% endwith %}
-                        {% else %}
-                        <td class="ticket-id">{{ ticket.formatted_id }}</td>
-                        {% endif %}
                         <td class="leankeep-id">{{ ticket.leankeep_id|default:"-" }}</td>
                         <td>
                             <div class="d-flex align-items-center">
