@@ -735,9 +735,12 @@ class TicketDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy('ticket_list')
 
     def dispatch(self, request, *args, **kwargs):
-        # Permissão por nível (via AppPage/RolePagePermission)
+        # Esta view é "delete direto". Mantemos restrito a Admin/Super Admin,
+        # pois outros níveis usam o fluxo de solicitação/aprovação.
         try:
             from django.core.exceptions import PermissionDenied
+            if not _is_admin_or_super(request.user):
+                raise PermissionDenied
             role_code = getattr(getattr(request.user, 'profile', None), 'role', None)
             if role_code != 'super_admin':
                 page = AppPage.objects.filter(url_name='ticket_delete').first()
@@ -2048,6 +2051,216 @@ def load_os_contacts(request):
     responsibles = [{"id": c.id, "label": c.display_label} for c in responsibles_qs]
 
     return JsonResponse({"requesters": requesters, "responsibles": responsibles})
+
+
+def _role_code(user):
+    return getattr(getattr(user, 'profile', None), 'role', None)
+
+
+def _is_admin_or_super(user):
+    return _role_code(user) in {'admin', 'super_admin'}
+
+
+def _is_operator(user):
+    return _role_code(user) in {'operator'}
+
+
+def _is_analyst(user):
+    # Compatível com possíveis códigos diferentes (ajuste se necessário)
+    return _role_code(user) in {'analista', 'analyst'}
+
+
+def _is_basic(user):
+    # Compatível com possíveis códigos diferentes (ajuste se necessário)
+    return _role_code(user) in {'standard', 'basico', 'basic'}
+
+
+def _notify_users(sender, recipients, title, message, related_ticket=None, notification_type='alert'):
+    if not recipients:
+        return
+    try:
+        for u in recipients:
+            if not u:
+                continue
+            Notification.objects.create(
+                recipient=u,
+                sender=sender,
+                title=title,
+                message=message,
+                notification_type=notification_type,
+                related_ticket=related_ticket,
+            )
+    except Exception:
+        # Não quebra o fluxo por falha de notificação
+        pass
+
+
+@login_required
+def ticket_delete_request(request, pk):
+    """
+    Fluxo de exclusão:
+    - Admin/Super Admin: exclui imediatamente.
+    - Operador: só exclui imediatamente as OS que ele criou. Caso contrário, bloqueia.
+    - Analista: solicita exclusão (aprovação do criador ou admin).
+    - Básico: solicita exclusão (aprovação dos admins).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    actor = request.user
+    now = timezone.now()
+    reason = (request.POST.get('reason') or '').strip()
+
+    creator = getattr(ticket, 'creator_user', None) or getattr(ticket, 'created_by', None) or getattr(ticket, 'requester', None)
+
+    # Admin/Super Admin: exclusão imediata
+    if _is_admin_or_super(actor):
+        ticket_id = ticket.id
+        ticket_label = ticket.formatted_id
+        ticket.delete()
+        return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+
+    # Operador: só exclui sua própria OS
+    if _is_operator(actor):
+        if creator and creator.id == actor.id:
+            ticket_id = ticket.id
+            ticket_label = ticket.formatted_id
+            ticket.delete()
+            return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+        return JsonResponse({'status': 'error', 'message': 'Operador só pode excluir a própria OS.'}, status=403)
+
+    # Se já existe solicitação pendente, não recria
+    if ticket.delete_status == 'pending':
+        return JsonResponse({'status': 'ok', 'mode': 'already_pending'})
+
+    # Solicitação (Analista ou Básico/outros)
+    ticket.delete_status = 'pending'
+    ticket.delete_requested_by = actor
+    ticket.delete_requested_at = now
+    ticket.delete_request_reason = reason
+    ticket.delete_decided_by = None
+    ticket.delete_decided_at = None
+    ticket.delete_decision_note = ''
+    ticket.save(update_fields=[
+        'delete_status',
+        'delete_requested_by',
+        'delete_requested_at',
+        'delete_request_reason',
+        'delete_decided_by',
+        'delete_decided_at',
+        'delete_decision_note',
+    ])
+
+    # Define destinatários
+    admins = list(User.objects.filter(is_active=True, profile__role__in=['admin', 'super_admin']).select_related('profile'))
+
+    if _is_analyst(actor):
+        # Aprovação: criador OU admins (fallback)
+        recipients = []
+        if creator and creator.is_active:
+            recipients.append(creator)
+        recipients += [u for u in admins if (not creator) or u.id != creator.id]
+        msg = f"{actor.get_full_name() or actor.username} solicitou a exclusão da OS {ticket.formatted_id}."
+        if reason:
+            msg += f"\nMotivo: {reason}"
+        _notify_users(
+            sender=actor,
+            recipients=recipients,
+            title=f"Solicitação de exclusão: OS {ticket.formatted_id}",
+            message=msg,
+            related_ticket=ticket,
+            notification_type='alert',
+        )
+    else:
+        # Básico/outros: aprova admins
+        msg = f"{actor.get_full_name() or actor.username} solicitou a exclusão da OS {ticket.formatted_id}."
+        if reason:
+            msg += f"\nMotivo: {reason}"
+        _notify_users(
+            sender=actor,
+            recipients=admins,
+            title=f"Solicitação de exclusão: OS {ticket.formatted_id}",
+            message=msg,
+            related_ticket=ticket,
+            notification_type='alert',
+        )
+
+    return JsonResponse({'status': 'ok', 'mode': 'requested'})
+
+
+def _can_decide_delete(user, ticket):
+    if _is_admin_or_super(user):
+        return True
+    creator = getattr(ticket, 'creator_user', None) or getattr(ticket, 'created_by', None) or getattr(ticket, 'requester', None)
+    return bool(creator and creator.id == user.id)
+
+
+@login_required
+def ticket_delete_approve(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if ticket.delete_status != 'pending':
+        return JsonResponse({'status': 'error', 'message': 'Não há solicitação pendente.'}, status=400)
+
+    if not _can_decide_delete(request.user, ticket):
+        return JsonResponse({'status': 'error', 'message': 'Sem permissão para aprovar.'}, status=403)
+
+    requester = ticket.delete_requested_by
+    ticket_id = ticket.id
+    ticket_label = ticket.formatted_id
+
+    # Notifica quem solicitou antes de excluir (porque depois some o related_ticket)
+    if requester and requester.is_active:
+        _notify_users(
+            sender=request.user,
+            recipients=[requester],
+            title=f"Exclusão aprovada: OS {ticket_label}",
+            message=f"A exclusão da OS {ticket_label} foi aprovada por {request.user.get_full_name() or request.user.username}.",
+            related_ticket=None,
+            notification_type='alert',
+        )
+
+    ticket.delete()
+    return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+
+
+@login_required
+def ticket_delete_reject(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    if ticket.delete_status != 'pending':
+        return JsonResponse({'status': 'error', 'message': 'Não há solicitação pendente.'}, status=400)
+
+    if not _can_decide_delete(request.user, ticket):
+        return JsonResponse({'status': 'error', 'message': 'Sem permissão para rejeitar.'}, status=403)
+
+    note = (request.POST.get('note') or '').strip()
+    ticket.delete_status = 'rejected'
+    ticket.delete_decided_by = request.user
+    ticket.delete_decided_at = timezone.now()
+    ticket.delete_decision_note = note
+    ticket.save(update_fields=['delete_status', 'delete_decided_by', 'delete_decided_at', 'delete_decision_note'])
+
+    requester = ticket.delete_requested_by
+    if requester and requester.is_active:
+        msg = f"A solicitação de exclusão da OS {ticket.formatted_id} foi rejeitada."
+        if note:
+            msg += f"\nMotivo: {note}"
+        _notify_users(
+            sender=request.user,
+            recipients=[requester],
+            title=f"Exclusão rejeitada: OS {ticket.formatted_id}",
+            message=msg,
+            related_ticket=ticket,
+            notification_type='alert',
+        )
+
+    return JsonResponse({'status': 'ok', 'mode': 'rejected'})
 
 
 @login_required

@@ -30,6 +30,9 @@ from .views import (
     load_client_people,
     load_os_contacts,
     ticket_set_creator,
+    ticket_delete_request,
+    ticket_delete_approve,
+    ticket_delete_reject,
     ContactClientListView, ContactClientCreateView, ContactClientUpdateView, ContactClientDeleteView,
     ContactJumperListView, ContactJumperCreateView, ContactJumperUpdateView, ContactJumperDeleteView
 )
@@ -43,6 +46,9 @@ urlpatterns = [
     path('ajax/load-client-people/', load_client_people, name='ajax_load_client_people'),
     path('ajax/load-os-contacts/', load_os_contacts, name='ajax_load_os_contacts'),
     path('tickets/<int:pk>/creator/', ticket_set_creator, name='ticket_set_creator'),
+    path('tickets/<int:pk>/delete/request/', ticket_delete_request, name='ticket_delete_request'),
+    path('tickets/<int:pk>/delete/approve/', ticket_delete_approve, name='ticket_delete_approve'),
+    path('tickets/<int:pk>/delete/reject/', ticket_delete_reject, name='ticket_delete_reject'),
     path('checklist/image/<int:pk>/toggle-report/', ChecklistImageToggleReportView.as_view(), name='checklist_image_toggle_report'),
     path('hub/', ServicesHubView.as_view(), name='services_hub'),
     path('dashboard/', DashboardView.as_view(), name='dashboard'),

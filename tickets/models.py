@@ -401,6 +401,12 @@ class Ticket(models.Model):
         ('canceled', 'Cancelado'),
     )
 
+    DELETE_STATUS_CHOICES = (
+        ('none', 'Nenhuma'),
+        ('pending', 'Solicitada'),
+        ('rejected', 'Rejeitada'),
+    )
+
     CALL_TYPE_CHOICES = (
         ('acidente_com_afastamento', 'Acidente com Afastamento'),
         ('acidente_sem_afastamento', 'Acidente sem Afastamento'),
@@ -460,6 +466,35 @@ class Ticket(models.Model):
     estimated_time = models.DurationField(null=True, blank=True, verbose_name="Tempo Estimado")
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open', verbose_name="Status")
+
+    # Fluxo de exclusão com aprovação
+    delete_status = models.CharField(
+        max_length=20,
+        choices=DELETE_STATUS_CHOICES,
+        default='none',
+        verbose_name="Status de Exclusão",
+    )
+    delete_requested_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ticket_delete_requests',
+        verbose_name="Exclusão solicitada por",
+    )
+    delete_requested_at = models.DateTimeField(null=True, blank=True, verbose_name="Exclusão solicitada em")
+    delete_request_reason = models.CharField(max_length=250, blank=True, default="", verbose_name="Motivo da solicitação (opcional)")
+
+    delete_decided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ticket_delete_decisions',
+        verbose_name="Solicitação decidida por",
+    )
+    delete_decided_at = models.DateTimeField(null=True, blank=True, verbose_name="Solicitação decidida em")
+    delete_decision_note = models.CharField(max_length=250, blank=True, default="", verbose_name="Observação da decisão (opcional)")
     
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")

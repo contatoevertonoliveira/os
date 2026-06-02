@@ -6,6 +6,7 @@
     .row-pending { background-color: rgba(255, 193, 7, 0.06); }
     .row-canceled { background-color: rgba(220, 53, 69, 0.06); }
     .row-in-progress { background-color: rgba(13, 110, 253, 0.06); }
+    .row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
     .ticket-row { transition: background-color 0.2s; font-size: 0.82rem; }
     .table-hover > tbody > tr.ticket-row:hover > * { background-color: rgba(255, 204, 0, 0.22) !important; }
     .ticket-row td { padding-top: 0.4rem; padding-bottom: 0.4rem; vertical-align: middle; }
@@ -99,6 +100,11 @@
         line-height: 1.15;
         margin-top: 2px;
     }
+
+    /* Alertas (modal exclusão) com tons mais suaves */
+    .alert-soft-success { background: rgba(25, 135, 84, 0.12); color: #0f5132; border-color: rgba(25,135,84,0.25); }
+    .alert-soft-danger { background: rgba(220, 53, 69, 0.12); color: #842029; border-color: rgba(220,53,69,0.25); }
+    .alert-soft-warning { background: rgba(255, 193, 7, 0.30); color: #000; border-color: rgba(255,193,7,0.35); }
 
         /* Etiquetas de canto solucionado/vencido */
     .ticket-row {
@@ -284,7 +290,7 @@
                 </thead>
                 <tbody>
                                         {% for ticket in tickets %}
-                    <tr class="ticket-row {% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                    <tr class="ticket-row {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
                         <td class="text-center">
@@ -431,10 +437,34 @@
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                             {% endif %}
-                            {% if 'ticket_delete' in allowed_url_names or request.user.profile.role == 'super_admin' %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'ticket_delete' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}')">
+                            <button
+                                type="button"
+                                class="btn btn-sm {% if ticket.delete_status == 'pending' %}btn-outline-warning{% else %}btn-outline-danger{% endif %}"
+                                title="{% if ticket.delete_status == 'pending' %}Solicitação de exclusão pendente{% else %}Excluir / Solicitar exclusão{% endif %}"
+                                onclick="event.stopPropagation(); requestTicketDeletion('{% url 'ticket_delete_request' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}', {{ ticket.id }}, '{{ ticket.creator_display_name|default:'Administradores'|escapejs }}', '{{ request.user.profile.role|escapejs }}', {% if ticket.creator_user and ticket.creator_user.id == request.user.id %}true{% else %}false{% endif %});"
+                            >
                                 <i class="fas fa-trash"></i>
                             </button>
+
+                            {% if ticket.delete_status == 'pending' %}
+                            {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or ticket.creator_user.id == request.user.id %}
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-success"
+                                    title="Aprovar exclusão"
+                                    onclick="event.stopPropagation(); decideTicketDeletion('{% url 'ticket_delete_approve' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');"
+                                >
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-secondary"
+                                    title="Rejeitar exclusão"
+                                    onclick="event.stopPropagation(); decideTicketDeletion('{% url 'ticket_delete_reject' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');"
+                                >
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            {% endif %}
                             {% endif %}
                         </td>
                     </tr>
@@ -1631,4 +1661,253 @@
     });
 </script>
 {% endif %}
+
+<!-- Modal: Exclusão / Solicitação de exclusão de OS -->
+<div class="modal fade" id="ticketDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ticketDeleteModalTitle">Excluir OS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="flex-shrink-0" style="width: 40px;">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center"
+                             style="width: 40px; height: 40px; background: rgba(220,53,69,0.12); color: #dc3545;">
+                            <i class="fas fa-trash"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold mb-1" id="ticketDeleteModalLabel">OS</div>
+                        <div class="alert py-2 small mb-3" id="ticketDeleteModalAlert">
+                            Confirme a ação.
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label small fw-bold mb-1" for="ticketDeleteReason">Motivo (opcional)</label>
+                            <textarea id="ticketDeleteReason" class="form-control" rows="2"
+                                      placeholder="Ex.: OS duplicada / lançada por engano"></textarea>
+                        </div>
+
+                        <div id="ticketDeleteModalError" class="text-danger small d-none"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary-custom" id="ticketDeleteConfirmBtn">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function _getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    }
+
+    function _showToast(bgClass, message) {
+        const toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer || !window.bootstrap || !window.bootstrap.Toast) {
+            alert(message);
+            return;
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${bgClass} border-0 mb-2`;
+        toast.role = 'alert';
+        toast.ariaLive = 'assertive';
+        toast.ariaAtomic = 'true';
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        toastContainer.appendChild(toast);
+        const bsToast = new bootstrap.Toast(toast, { delay: 4500 });
+        bsToast.show();
+        toast.addEventListener('hidden.bs.toast', () => toast.remove());
+    }
+
+    async function _postForm(url, formData) {
+        const csrfToken = _getCookie('csrftoken');
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data || data.status !== 'ok') {
+            const msg = (data && data.message) ? data.message : 'Falha na operação.';
+            throw new Error(msg);
+        }
+        return data;
+    }
+
+    // IMPORTANTE: este template é renderizado ANTES do bootstrap.bundle ser carregado no base.html.
+    // Por isso, a inicialização precisa acontecer após DOMContentLoaded (quando bootstrap já existe).
+    document.addEventListener('DOMContentLoaded', function () {
+        const modalEl = document.getElementById('ticketDeleteModal');
+        if (!modalEl) return;
+        if (!window.bootstrap || !window.bootstrap.Modal) return;
+
+        const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+
+        const titleEl = document.getElementById('ticketDeleteModalTitle');
+        const labelEl = document.getElementById('ticketDeleteModalLabel');
+        const alertEl = document.getElementById('ticketDeleteModalAlert');
+        const reasonEl = document.getElementById('ticketDeleteReason');
+        const errorEl = document.getElementById('ticketDeleteModalError');
+        const confirmBtn = document.getElementById('ticketDeleteConfirmBtn');
+
+        let state = { mode: 'request', url: '', ticketId: null, label: '', recipient: '' };
+
+        function showError(msg) {
+            errorEl.textContent = msg || 'Erro.';
+            errorEl.classList.remove('d-none');
+        }
+        function clearError() {
+            errorEl.textContent = '';
+            errorEl.classList.add('d-none');
+        }
+
+        function openDeleteModal({ mode, url, ticketId, label, actorRole, creatorName, isOwn }) {
+            clearError();
+            const recipient = creatorName || 'Administradores';
+            state = { mode, url, ticketId, label, recipient };
+
+            reasonEl.value = '';
+
+            if (mode === 'approve') {
+                titleEl.textContent = 'Aprovar exclusão';
+                labelEl.textContent = label;
+                if (alertEl) {
+                    alertEl.className = 'alert alert-success py-2 small mb-3';
+                    alertEl.textContent = 'Ao aprovar, a OS será excluída definitivamente.';
+                }
+                confirmBtn.className = 'btn btn-success';
+                confirmBtn.textContent = 'Aprovar e excluir';
+            } else if (mode === 'reject') {
+                titleEl.textContent = 'Rejeitar solicitação';
+                labelEl.textContent = label;
+                if (alertEl) {
+                    alertEl.className = 'alert alert-secondary py-2 small mb-3';
+                    alertEl.textContent = 'A OS voltará ao estado normal e a solicitação será marcada como rejeitada.';
+                }
+                confirmBtn.className = 'btn btn-outline-secondary';
+                confirmBtn.textContent = 'Rejeitar solicitação';
+            } else {
+                titleEl.textContent = 'Excluir OS';
+                labelEl.textContent = label;
+                if (alertEl) {
+                    const role = (actorRole || '').toLowerCase();
+
+                    // Cores:
+                    // - Verde: exclusão da própria OS (ou exclusão imediata permitida)
+                    // - Vermelho: tentando excluir OS de outra pessoa (bloqueado)
+                    // - Amarelo: vira solicitação (alerta)
+                    if (role === 'admin' || role === 'super_admin') {
+                        alertEl.className = 'alert alert-soft-success py-2 small mb-3';
+                        alertEl.textContent = 'Você tem permissão para excluir esta OS imediatamente.';
+                    } else if (role === 'operator') {
+                        if (isOwn) {
+                            alertEl.className = 'alert alert-soft-success py-2 small mb-3';
+                            alertEl.textContent = 'Esta é uma OS sua. A exclusão será imediata.';
+                        } else {
+                            alertEl.className = 'alert alert-soft-danger py-2 small mb-3';
+                            alertEl.textContent = 'Operador só pode excluir a própria OS. Esta ação será bloqueada.';
+                        }
+                    } else {
+                        alertEl.className = 'alert alert-soft-warning py-2 small mb-3';
+                        alertEl.textContent = `Ao confirmar, será enviada uma solicitação de exclusão para ${recipient}.`;
+                    }
+                }
+                confirmBtn.className = 'btn btn-primary-custom';
+                confirmBtn.textContent = 'Confirmar';
+            }
+
+            modal.show();
+        }
+
+        async function handleConfirm() {
+            clearError();
+            if (!state.url) {
+                showError('URL inválida.');
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            const originalText = confirmBtn.textContent;
+            confirmBtn.textContent = 'Processando...';
+
+            try {
+                const formData = new FormData();
+                const reason = (reasonEl.value || '').trim();
+                if (reason) {
+                    formData.append('reason', reason);
+                    formData.append('note', reason);
+                }
+
+                const data = await _postForm(state.url, formData);
+
+                const row = document.querySelector(`tr[data-ticket-id="${state.ticketId}"]`);
+
+                if (data.mode === 'deleted') {
+                    if (row) row.remove();
+                    modal.hide();
+                    _showToast('success', `${state.label}: excluída com sucesso.`);
+                    return;
+                }
+
+                if (data.mode === 'requested' || data.mode === 'already_pending') {
+                    if (row) row.classList.add('row-delete-requested');
+                    modal.hide();
+                    _showToast('warning', `Solicitação de exclusão enviada para ${state.recipient}.`);
+                    return;
+                }
+
+                if (data.mode === 'rejected') {
+                    if (row) row.classList.remove('row-delete-requested');
+                    modal.hide();
+                    _showToast('secondary', `Solicitação de exclusão rejeitada: ${state.label}.`);
+                    return;
+                }
+
+                modal.hide();
+            } catch (e) {
+                const msg = e && e.message ? e.message : 'Falha ao processar.';
+                showError(msg);
+                _showToast('danger', msg);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = originalText;
+            }
+        }
+
+        confirmBtn.addEventListener('click', function () {
+            handleConfirm();
+        });
+
+        // Expostos globalmente (usados no onclick dos botões da tabela)
+        window.requestTicketDeletion = function (url, label, ticketId, creatorName, actorRole, isOwn) {
+            openDeleteModal({ mode: 'request', url, ticketId, label, creatorName, actorRole, isOwn });
+        };
+
+        window.decideTicketDeletion = function (url, ticketId, label) {
+            label = label || `OS #${ticketId}`;
+            const mode = (url || '').includes('/reject/') ? 'reject' : 'approve';
+            openDeleteModal({ mode, url, ticketId, label });
+        };
+    });
+</script>
 {% endblock %}
