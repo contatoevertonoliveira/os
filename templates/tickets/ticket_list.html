@@ -308,7 +308,7 @@
                                             data-bs-custom-class="ticket-creator-tooltip"
                                             data-bs-placement="right"
                                             data-bs-html="true"
-                                            data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Nível: {{ ticket.creator_role_label|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
+                                            data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Cargo: {{ ticket.creator_job_title|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
                                             {% if can_edit_ticket_creator %}
                                                 data-ticket-id="{{ ticket.id }}"
                                                 data-set-url="{% url 'ticket_set_creator' ticket.id %}"
@@ -338,7 +338,7 @@
                                         data-bs-custom-class="ticket-creator-tooltip"
                                         data-bs-placement="right"
                                         data-bs-html="true"
-                                        data-bs-title="<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>Criador não informado</div><div class='ticket-creator-tooltip-meta'>Nível: -</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
+                                        data-bs-title="<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>Criador não informado</div><div class='ticket-creator-tooltip-meta'>Cargo: -</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
                                         {% if can_edit_ticket_creator %}
                                             data-ticket-id="{{ ticket.id }}"
                                             data-set-url="{% url 'ticket_set_creator' ticket.id %}"
@@ -1611,8 +1611,8 @@
                     const role = creator ? (creator.role || '-') : '-';
                     const photoUrl = creator ? (creator.photo_url || '') : '';
                     const tooltipHtml = photoUrl
-                        ? `<div class='ticket-creator-tooltip-wrap'><img class='ticket-creator-tooltip-photo' src='${photoUrl}' alt='${name}'><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Nível: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`
-                        : `<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Nível: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`;
+                        ? `<div class='ticket-creator-tooltip-wrap'><img class='ticket-creator-tooltip-photo' src='${photoUrl}' alt='${name}'><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Cargo: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`
+                        : `<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Cargo: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`;
 
                     activeTriggerEl.setAttribute('data-bs-html', 'true');
                     activeTriggerEl.setAttribute('data-bs-title', tooltipHtml);

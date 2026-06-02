@@ -564,6 +564,22 @@ class Ticket(models.Model):
         return ""
 
     @property
+    def creator_job_title(self):
+        """
+        Cargo (job_title) do usuário criador. Retorna '' se não existir.
+        """
+        u = self.creator_user
+        if not u:
+            return ""
+        try:
+            profile = getattr(u, "profile", None)
+            if not profile:
+                return ""
+            return (getattr(profile, "job_title", "") or "").strip()
+        except Exception:
+            return ""
+
+    @property
     def calculated_hours(self):
         if not self.start_date or not self.deadline:
             return None
