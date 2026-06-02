@@ -254,10 +254,19 @@
                                 {% if creator %}
                                     {% with creator_name=ticket.creator_display_name %}
                                         <span
+                                            class="{% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
                                             data-bs-toggle="tooltip"
                                             data-bs-custom-class="ticket-creator-tooltip"
                                             data-bs-placement="right"
                                             title="{{ creator_name }}&#10;Nível: {{ ticket.creator_role_label|default:'-' }}&#10;Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                            {% if can_edit_ticket_creator %}
+                                                data-ticket-id="{{ ticket.id }}"
+                                                data-set-url="{% url 'ticket_set_creator' ticket.id %}"
+                                                data-current-creator-id="{{ creator.id }}"
+                                                data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                                style="cursor: pointer;"
+                                                onclick="event.stopPropagation();"
+                                            {% endif %}
                                         >
                                             {% if ticket.creator_photo_url %}
                                                 <img
@@ -1383,4 +1392,171 @@
         togglePdfExportFields();
     });
 </script>
+
+{% if can_edit_ticket_creator %}
+<!-- Modal: Ajustar Criador da OS -->
+<div class="modal fade" id="ticketCreatorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajustar criador da OS</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2 text-muted small">
+                    Selecione o colaborador que deve ficar como <strong>criador</strong> desta OS.
+                </div>
+                <input type="hidden" id="ticketCreatorModalTicketId" value="">
+                <input type="hidden" id="ticketCreatorModalSetUrl" value="">
+                <div class="mb-3">
+                    <label class="form-label small fw-bold mb-1" for="ticketCreatorSelect">Criado por</label>
+                    <select id="ticketCreatorSelect" class="form-select">
+                        <option value="">(Sem criador definido)</option>
+                        {% for u in creator_candidates %}
+                            <option value="{{ u.id }}">
+                                {{ u.get_full_name|default:u.username }} ({{ u.username }})
+                                {% if u.profile and u.profile.role %} - {{ u.profile.get_role_display|default:u.profile.role }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="ticketCreatorModalError" class="text-danger small d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary-custom" id="ticketCreatorSaveBtn">Salvar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalEl = document.getElementById('ticketCreatorModal');
+        if (!modalEl) return;
+        const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: true });
+
+        const ticketIdInput = document.getElementById('ticketCreatorModalTicketId');
+        const setUrlInput = document.getElementById('ticketCreatorModalSetUrl');
+        const selectEl = document.getElementById('ticketCreatorSelect');
+        const saveBtn = document.getElementById('ticketCreatorSaveBtn');
+        const errorEl = document.getElementById('ticketCreatorModalError');
+
+        let activeTriggerEl = null;
+
+        function showError(msg) {
+            errorEl.textContent = msg || 'Erro.';
+            errorEl.classList.remove('d-none');
+        }
+        function clearError() {
+            errorEl.textContent = '';
+            errorEl.classList.add('d-none');
+        }
+
+        document.querySelectorAll('.ticket-creator-trigger').forEach((el) => {
+            el.addEventListener('click', function(evt) {
+                evt.stopPropagation();
+                clearError();
+
+                activeTriggerEl = el;
+                ticketIdInput.value = el.dataset.ticketId || '';
+                setUrlInput.value = el.dataset.setUrl || '';
+                const currentId = el.dataset.currentCreatorId || '';
+                selectEl.value = currentId;
+
+                modal.show();
+            });
+        });
+
+        async function saveCreator() {
+            clearError();
+            const setUrl = setUrlInput.value;
+            if (!setUrl) {
+                showError('URL de atualização não encontrada.');
+                return;
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Salvando...';
+
+            try {
+                const formData = new FormData();
+                formData.append('user_id', selectEl.value || '');
+
+                const resp = await fetch(setUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData
+                });
+
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || !data || data.status !== 'ok') {
+                    throw new Error((data && data.message) ? data.message : 'Falha ao salvar.');
+                }
+
+                // Atualiza a bolinha na lista sem precisar recarregar
+                if (activeTriggerEl) {
+                    const launched = activeTriggerEl.dataset.launched || '';
+                    const creator = data.creator;
+
+                    activeTriggerEl.dataset.currentCreatorId = creator ? String(creator.id) : '';
+
+                    const name = creator ? (creator.name || '-') : '-';
+                    const role = creator ? (creator.role || '-') : '-';
+                    const title = `${name}\nNível: ${role}\nLançado: ${launched}`;
+                    activeTriggerEl.setAttribute('title', title);
+                    activeTriggerEl.setAttribute('data-bs-original-title', title);
+
+                    const existingImg = activeTriggerEl.querySelector('img.ticket-creator-avatar');
+                    const existingFallback = activeTriggerEl.querySelector('.ticket-creator-avatar-fallback');
+                    const photoUrl = creator ? (creator.photo_url || '') : '';
+
+                    if (photoUrl) {
+                        if (existingFallback) existingFallback.remove();
+                        if (existingImg) {
+                            existingImg.src = photoUrl;
+                            existingImg.alt = name;
+                        } else {
+                            const img = document.createElement('img');
+                            img.className = 'ticket-creator-avatar';
+                            img.src = photoUrl;
+                            img.alt = name;
+                            activeTriggerEl.appendChild(img);
+                        }
+                    } else {
+                        if (existingImg) existingImg.remove();
+                        if (!existingFallback) {
+                            const span = document.createElement('span');
+                            span.className = 'ticket-creator-avatar-fallback';
+                            span.innerHTML = '<i class="fas fa-user"></i>';
+                            activeTriggerEl.appendChild(span);
+                        }
+                    }
+
+                    // Recria tooltip (bootstrap)
+                    try {
+                        const inst = bootstrap.Tooltip.getInstance(activeTriggerEl);
+                        if (inst) inst.dispose();
+                        new bootstrap.Tooltip(activeTriggerEl);
+                    } catch (e) {}
+                }
+
+                modal.hide();
+            } catch (e) {
+                showError(e && e.message ? e.message : 'Erro ao salvar.');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Salvar';
+            }
+        }
+
+        saveBtn.addEventListener('click', function() {
+            saveCreator();
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}

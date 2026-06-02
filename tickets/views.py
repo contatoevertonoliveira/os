@@ -552,6 +552,16 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['today_tickets_count'] = today_count
         context['can_daily_report_all'] = getattr(getattr(self.request.user, 'profile', None), 'role', None) in ['admin', 'super_admin']
         context['all_tickets'] = Ticket.objects.all().select_related('client').order_by('-created_at')
+
+        # Permitir que admin/super_admin ajuste o "criador" da OS direto na lista
+        role = getattr(getattr(self.request.user, 'profile', None), 'role', None)
+        context['can_edit_ticket_creator'] = role in ['admin', 'super_admin']
+        if context['can_edit_ticket_creator']:
+            context['creator_candidates'] = (
+                User.objects.filter(is_active=True)
+                .select_related('profile')
+                .order_by('first_name', 'last_name', 'username')
+            )
         
         return context
 
@@ -2017,6 +2027,61 @@ def load_os_contacts(request):
     responsibles = [{"id": c.id, "label": c.display_label} for c in responsibles_qs]
 
     return JsonResponse({"requesters": requesters, "responsibles": responsibles})
+
+
+@login_required
+def ticket_set_creator(request, pk):
+    """
+    Admin/Super Admin: define/ajusta quem criou a OS (Ticket.created_by).
+    Usado pela tela de lista de OS (edição rápida).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    if role not in ['admin', 'super_admin']:
+        return JsonResponse({'status': 'error', 'message': 'Sem permissão.'}, status=403)
+
+    ticket = get_object_or_404(Ticket, pk=pk)
+    user_id = (request.POST.get('user_id') or '').strip()
+
+    if not user_id:
+        ticket.created_by = None
+        ticket.save(update_fields=['created_by'])
+        return JsonResponse({'status': 'ok', 'creator': None})
+
+    try:
+        uid = int(user_id)
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'user_id inválido.'}, status=400)
+
+    creator = User.objects.filter(pk=uid, is_active=True).select_related('profile').first()
+    if not creator:
+        return JsonResponse({'status': 'error', 'message': 'Usuário não encontrado.'}, status=404)
+
+    ticket.created_by = creator
+    ticket.save(update_fields=['created_by'])
+
+    profile = getattr(creator, 'profile', None)
+    photo_url = profile.photo.url if profile and getattr(profile, 'photo', None) else ''
+    role_label = ''
+    try:
+        role_label = (profile.get_role_display() or '').strip() if profile else ''
+    except Exception:
+        role_label = ''
+    if not role_label and profile:
+        role_label = (getattr(profile, 'role', '') or '').strip()
+
+    name = (creator.get_full_name() or '').strip() or (creator.username or '').strip()
+    return JsonResponse({
+        'status': 'ok',
+        'creator': {
+            'id': creator.id,
+            'name': name,
+            'role': role_label,
+            'photo_url': photo_url,
+        }
+    })
 
 @login_required
 def mark_all_notifications_read(request):
