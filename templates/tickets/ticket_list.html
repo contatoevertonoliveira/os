@@ -295,7 +295,7 @@
                 </thead>
                 <tbody>
                                         {% for ticket in tickets %}
-                    <tr class="ticket-row {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                    <tr class="ticket-row {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
                         <td class="text-center">
@@ -394,7 +394,12 @@
                             {% endif %}
                         </td>
                                                                                                 <td class="text-center">
-                            {% if ticket.status == 'finished' %}
+                            {# Se estiver em aberto ou andamento, mas com prazo vencido, mostra SOMENTE "vencido" #}
+                            {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
+                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
+                            {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
+                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
+                            {% elif ticket.status == 'finished' %}
                                 <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 26px; width: 100px; object-fit: contain;">
                             {% elif ticket.status == 'pending' %}
                                 <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 26px; width: 100px; object-fit: contain;">
@@ -420,15 +425,6 @@
                                 {% else %}
                                     <span class="badge badge-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
                                 {% endif %}
-                            {% endif %}
-                            
-                            {# Se estiver em aberto ou andamento, mas com o prazo vencido na data, sobrepõe com etiqueta 'vencido' #}
-                            {% if ticket.status == 'open' or ticket.status == 'in_progress' %}
-                                {% with ticket.deadline|default:"" as dl %}
-                                                                        {% if dl and ticket.deadline < now %}
-                                        <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                                    {% endif %}
-                                {% endwith %}
                             {% endif %}
                         </td>
                         <td>{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</td>
