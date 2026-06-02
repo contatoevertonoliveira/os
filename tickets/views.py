@@ -733,6 +733,27 @@ class TicketDeleteView(LoginRequiredMixin, DeleteView):
     model = Ticket
     template_name = 'ticket_confirm_delete.html'
     success_url = reverse_lazy('ticket_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        # Permissão por nível (via AppPage/RolePagePermission)
+        try:
+            from django.core.exceptions import PermissionDenied
+            role_code = getattr(getattr(request.user, 'profile', None), 'role', None)
+            if role_code != 'super_admin':
+                page = AppPage.objects.filter(url_name='ticket_delete').first()
+                if page and not page.is_enabled:
+                    raise PermissionDenied
+
+                if page and role_code:
+                    role = RoleLevel.objects.filter(code=role_code, is_active=True).first()
+                    if role:
+                        perm = RolePagePermission.objects.filter(role=role, page=page).first()
+                        if perm and not perm.allowed:
+                            raise PermissionDenied
+        except (OperationalError, ProgrammingError):
+            # Se tabelas de permissão ainda não existirem, não bloqueia aqui
+            pass
+        return super().dispatch(request, *args, **kwargs)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -431,7 +431,7 @@
                                 <i class="fas fa-file-pdf"></i>
                             </a>
                             {% endif %}
-                            {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                            {% if 'ticket_delete' in allowed_url_names or request.user.profile.role == 'super_admin' %}
                             <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'ticket_delete' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}')">
                                 <i class="fas fa-trash"></i>
                             </button>

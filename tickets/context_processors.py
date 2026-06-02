@@ -81,6 +81,7 @@ def system_settings(request):
             'tickets_daily_report_view',
             'tickets_daily_pdf',
             'checklist_pdf',
+            'ticket_delete',
         }
 
         ui_url_names = sidebar_url_names | feature_url_names
