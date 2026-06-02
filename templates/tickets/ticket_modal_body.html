@@ -166,7 +166,7 @@
                                                 {% endif %}
                                             {% endfor %}
                                             <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
-                                                <span class="badge rounded-pill" id="modal-badge-{{ checkbox.id_for_label }}" style="background-color: #6c757d; font-weight: normal; font-size: 0.75rem; min-width: 50px;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system_description|default:'Sem descrição' }}">
+                                                <span class="badge rounded-pill" id="modal-badge-{{ checkbox.id_for_label }}" style="background-color: #dc3545; font-weight: normal; font-size: 0.75rem; min-width: 50px;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system_description|default:'Sem descrição' }}">
                                                     {{ checkbox.choice_label }}
                                                 </span>
                                             </label>
@@ -336,12 +336,13 @@
             
 <script>
     (function() {
-        // Define colors from template
+        // Cores dos sistemas (cadastro) + cor padrão "desligado"
         const systemColors = {
             {% for system in form.systems.field.queryset %}
                 "{{ system.id }}": "{{ system.color }}",
             {% endfor %}
         };
+        const SYSTEM_OFF_COLOR = '#dc3545';
 
         // Update badge visibility/opacity based on switch state
         const checkboxes = document.querySelectorAll('#ticketEditForm input[name="systems"]');
@@ -377,15 +378,15 @@
             
             // Set initial color
             if (badge) {
-                badge.style.backgroundColor = color;
-                
                 // Function to update style
                 const updateStyle = () => {
                     if (checkbox.checked) {
+                        badge.style.backgroundColor = color;
                         badge.style.opacity = '1';
                         badge.classList.add('shadow-sm');
                     } else {
-                        badge.style.opacity = '0.5';
+                        badge.style.backgroundColor = SYSTEM_OFF_COLOR;
+                        badge.style.opacity = '0.85';
                         badge.classList.remove('shadow-sm');
                     }
                 };
