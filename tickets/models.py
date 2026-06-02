@@ -420,6 +420,15 @@ class Ticket(models.Model):
     technicians = models.ManyToManyField(User, verbose_name="Técnicos Responsáveis", blank=True, related_name='assigned_tickets')
     requester = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante", related_name='requested_tickets')
     requesters = models.ManyToManyField(User, verbose_name="Solicitantes", blank=True, related_name='requested_tickets_multi')
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_tickets',
+        verbose_name="Criado por",
+    )
     
     # Novos campos para contatos
     contact_requester = models.ForeignKey(ContactPerson, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Solicitante (Contato)", related_name='tickets_as_requester')
@@ -460,6 +469,64 @@ class Ticket(models.Model):
     @property
     def formatted_id(self):
         return f"JMP{self.id:05d}"
+
+    @property
+    def creator_user(self):
+        """
+        Usuário que abriu/criou a OS.
+        Preferência: created_by (novo) -> requester (legado).
+        """
+        return self.created_by or self.requester
+
+    @property
+    def creator_display_name(self):
+        u = self.creator_user
+        if not u:
+            return ""
+        full = (u.get_full_name() or "").strip()
+        if full:
+            return full
+        return (u.username or "").strip()
+
+    @property
+    def creator_role_label(self):
+        """
+        Retorna o nível/role do usuário criador, sem quebrar template se o perfil não existir.
+        """
+        u = self.creator_user
+        if not u:
+            return ""
+        try:
+            profile = getattr(u, "profile", None)
+            if not profile:
+                return ""
+            label = ""
+            try:
+                label = (profile.get_role_display() or "").strip()
+            except Exception:
+                label = ""
+            if label:
+                return label
+            return (getattr(profile, "role", "") or "").strip()
+        except Exception:
+            return ""
+
+    @property
+    def creator_photo_url(self):
+        """
+        URL da foto do perfil do criador. Retorna '' se não existir.
+        """
+        u = self.creator_user
+        if not u:
+            return ""
+        try:
+            profile = getattr(u, "profile", None)
+            photo = getattr(profile, "photo", None) if profile else None
+            if photo and getattr(photo, "url", None):
+                return photo.url
+        except Exception:
+            return ""
+        return ""
 
     @property
     def calculated_hours(self):

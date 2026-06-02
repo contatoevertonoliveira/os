@@ -367,7 +367,20 @@ class TicketListView(LoginRequiredMixin, ListView):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Ticket.objects.all().select_related('client', 'hub', 'equipment', 'ticket_type').prefetch_related('technicians', 'equipments')
+        queryset = (
+            Ticket.objects.all()
+            .select_related(
+                'client',
+                'hub',
+                'equipment',
+                'ticket_type',
+                'created_by',
+                'created_by__profile',
+                'requester',
+                'requester__profile',
+            )
+            .prefetch_related('technicians', 'equipments')
+        )
         
         today = timezone.localtime(timezone.now()).date()
 
@@ -664,6 +677,9 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         return context
 
     def form_valid(self, form):
+        # Garante que a OS sempre registre quem abriu/criou.
+        if not getattr(form.instance, "created_by_id", None):
+            form.instance.created_by = self.request.user
         response = super().form_valid(form)
         files = self.request.FILES.getlist('ticket_images')
         if files:
@@ -924,7 +940,41 @@ class ClientDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('client_list')
+
+        # Verifica OSs vinculadas a este cliente
+        client = self.get_object()
+        from .models import Ticket
+        open_tickets = Ticket.objects.filter(client=client).exclude(status='finished')
+        total_tickets = Ticket.objects.filter(client=client).count()
+        context['related_tickets_count'] = total_tickets
+        context['related_open_tickets'] = open_tickets
+
+        # Verifica outros vínculos importantes
+        context['related_hubs_count'] = client.hubs.count()
+        context['related_contacts_count'] = client.contact_persons.count()
+
         return context
+
+    def delete(self, request, *args, **kwargs):
+        client = self.get_object()
+
+        # Verifica se há OSs em aberto (não finalizadas)
+        from .models import Ticket
+        open_tickets = Ticket.objects.filter(client=client).exclude(status='finished')
+
+        if open_tickets.exists():
+            messages.error(request, 
+                f'Não é possível excluir este cliente pois existem {open_tickets.count()} OS(s) em aberto vinculadas a ele. '
+                f'Finalize ou cancele as OSs antes de excluir o cliente.')
+            return redirect('client_list')
+
+        total_tickets = Ticket.objects.filter(client=client).count()
+        if total_tickets > 0:
+            messages.warning(request, 
+                f'Atenção: Todas as {total_tickets} OS(s) deste cliente também serão excluídas permanentemente!')
+
+        return super().delete(request, *args, **kwargs)
+
 
 # Equipment Views
 class EquipmentListView(LoginRequiredMixin, ListView):

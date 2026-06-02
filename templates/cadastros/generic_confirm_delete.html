@@ -13,12 +13,49 @@
                     Você tem certeza que deseja excluir o item: <br>
                     <strong>{{ object }}</strong>?
                 </p>
-                
+
+                {% if related_tickets_count %}
+                    <div class="alert alert-danger text-start mb-4">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>Atenção!</strong> Este cliente possui:
+                        <ul class="mb-0 mt-2">
+                            <li>{{ related_tickets_count }} OS(s) vinculada(s)</li>
+                            {% if related_open_tickets %}
+                                <li class="text-danger fw-bold">{{ related_open_tickets.count }} OS(s) em aberto</li>
+                            {% endif %}
+                            {% if related_hubs_count %}
+                                <li>{{ related_hubs_count }} Hub(s)/Loja(s)</li>
+                            {% endif %}
+                            {% if related_contacts_count %}
+                                <li>{{ related_contacts_count }} Contato(s)</li>
+                            {% endif %}
+                        </ul>
+                        <hr class="my-2">
+                        <small>Todos esses registros também serão excluídos permanentemente!</small>
+                    </div>
+                {% endif %}
+
+                {% if related_open_tickets %}
+                    <div class="alert alert-warning mb-4">
+                        <i class="fas fa-lock me-2"></i>
+                        <strong>Exclusão bloqueada!</strong><br>
+                        <span>Finalize ou cancele as {{ related_open_tickets.count }} OS(s) em aberto primeiro.</span>
+                    </div>
+                {% endif %}
+
                 <form method="post">
                     {% csrf_token %}
                     <div class="d-flex justify-content-center gap-3">
                         <a href="{{ back_url }}" class="btn btn-secondary px-4">Cancelar</a>
-                        <button type="submit" class="btn btn-danger px-4">Sim, Excluir</button>
+                        {% if not related_open_tickets %}
+                            <button type="submit" class="btn btn-danger px-4">
+                                <i class="fas fa-trash me-2"></i>Sim, Excluir
+                            </button>
+                        {% else %}
+                            <button type="button" class="btn btn-secondary px-4" disabled>
+                                <i class="fas fa-lock me-2"></i>Exclusão Bloqueada
+                            </button>
+                        {% endif %}
                     </div>
                 </form>
             </div>

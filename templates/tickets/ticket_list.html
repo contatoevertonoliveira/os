@@ -11,12 +11,14 @@
     .ticket-row td { padding-top: 0.4rem; padding-bottom: 0.4rem; vertical-align: middle; }
     .ticket-row td:nth-child(1),
     .ticket-row td:nth-child(2),
-    .ticket-row td:nth-child(7),
-    .ticket-row td:nth-child(8),
-    .ticket-row td:nth-child(9) { white-space: nowrap; }
     .ticket-row td:nth-child(3),
+    .ticket-row td:nth-child(8),
+    .ticket-row td:nth-child(9),
+    .ticket-row td:nth-child(10),
+    .ticket-row td:nth-child(11) { white-space: nowrap; }
     .ticket-row td:nth-child(4),
-    .ticket-row td:nth-child(5) { max-width: 260px; }
+    .ticket-row td:nth-child(5),
+    .ticket-row td:nth-child(6) { max-width: 260px; }
     .ticket-row .badge { 
         font-size: 1rem; 
         padding: 0.5em 0.75em; 
@@ -33,6 +35,32 @@
     .ticket-row .leankeep-id { font-family: monospace; font-size: 0.78rem; }
         .ticket-row .ticket-id { font-family: monospace; font-weight: 500; }
     thead th { font-size: 0.8rem; font-weight: 500; white-space: nowrap; }
+
+    .ticket-creator-avatar,
+    .ticket-creator-avatar-fallback {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,0.12);
+    }
+    .ticket-creator-avatar {
+        object-fit: cover;
+        background: #fff;
+    }
+    .ticket-creator-avatar-fallback {
+        background: rgba(0,0,0,0.06);
+        color: rgba(0,0,0,0.55);
+        font-size: 0.75rem;
+    }
+    .ticket-creator-tooltip .tooltip-inner {
+        white-space: pre-line;
+        text-align: left;
+        max-width: 320px;
+    }
 
         /* Etiquetas de canto solucionado/vencido */
     .ticket-row {
@@ -203,6 +231,7 @@
             <table class="table table-hover mb-0">
                 <thead>
                     <tr>
+                        <th title="Criador" style="width: 40px;"></th>
                         <th>#</th>
                         <th>Leankeep</th>
                         <th>Cliente</th>
@@ -220,7 +249,37 @@
                     <tr class="ticket-row {% if ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                         style="cursor: pointer;"
                         data-ticket-id="{{ ticket.id }}">
-                                                                                                <td class="ticket-id">{{ ticket.formatted_id }}</td>
+                        <td class="text-center">
+                            {% with creator=ticket.creator_user %}
+                                {% if creator %}
+                                    {% with creator_name=ticket.creator_display_name %}
+                                        <span
+                                            data-bs-toggle="tooltip"
+                                            data-bs-custom-class="ticket-creator-tooltip"
+                                            data-bs-placement="right"
+                                            title="{{ creator_name }}&#10;Nível: {{ ticket.creator_role_label|default:'-' }}&#10;Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                        >
+                                            {% if ticket.creator_photo_url %}
+                                                <img
+                                                    class="ticket-creator-avatar"
+                                                    src="{{ ticket.creator_photo_url }}"
+                                                    alt="{{ creator_name }}"
+                                                >
+                                            {% else %}
+                                                <span class="ticket-creator-avatar-fallback">
+                                                    <i class="fas fa-user"></i>
+                                                </span>
+                                            {% endif %}
+                                        </span>
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="ticket-creator-avatar-fallback" title="Criador não informado">
+                                        <i class="fas fa-user"></i>
+                                    </span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="ticket-id">{{ ticket.formatted_id }}</td>
                         <td class="leankeep-id">{{ ticket.leankeep_id|default:"-" }}</td>
                         <td>
                             <div class="d-flex align-items-center">
@@ -316,7 +375,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
+                        <td colspan="11" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
