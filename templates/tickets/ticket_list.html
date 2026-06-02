@@ -57,9 +57,47 @@
         font-size: 0.75rem;
     }
     .ticket-creator-tooltip .tooltip-inner {
-        white-space: pre-line;
+        padding: 0.5rem 0.6rem;
+        white-space: normal;
         text-align: left;
         max-width: 320px;
+    }
+    .ticket-creator-tooltip .ticket-creator-tooltip-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .ticket-creator-tooltip .ticket-creator-tooltip-photo {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 1px solid rgba(0,0,0,0.15);
+        background: #fff;
+        display: block;
+    }
+    .ticket-creator-tooltip .ticket-creator-tooltip-photo-fallback {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.15);
+        background: rgba(0,0,0,0.04);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(0,0,0,0.55);
+        font-size: 1.1rem;
+        flex: 0 0 auto;
+    }
+    .ticket-creator-tooltip .ticket-creator-tooltip-name {
+        font-weight: 600;
+        line-height: 1.1;
+    }
+    .ticket-creator-tooltip .ticket-creator-tooltip-meta {
+        font-size: 0.82rem;
+        opacity: 0.9;
+        line-height: 1.15;
+        margin-top: 2px;
     }
 
         /* Etiquetas de canto solucionado/vencido */
@@ -240,7 +278,7 @@
                         <th>Responsável/Executor</th>
                         <th>Status</th>
                         <th>Data Ocorrência</th>
-                        <th>Última Atualização</th>
+                        <th>Prazo</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
@@ -254,11 +292,12 @@
                                 {% if creator %}
                                     {% with creator_name=ticket.creator_display_name %}
                                         <span
-                                            class="{% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
+                                            class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
                                             data-bs-toggle="tooltip"
                                             data-bs-custom-class="ticket-creator-tooltip"
                                             data-bs-placement="right"
-                                            title="{{ creator_name }}&#10;Nível: {{ ticket.creator_role_label|default:'-' }}&#10;Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                            data-bs-html="true"
+                                            data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Nível: {{ ticket.creator_role_label|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
                                             {% if can_edit_ticket_creator %}
                                                 data-ticket-id="{{ ticket.id }}"
                                                 data-set-url="{% url 'ticket_set_creator' ticket.id %}"
@@ -282,8 +321,25 @@
                                         </span>
                                     {% endwith %}
                                 {% else %}
-                                    <span class="ticket-creator-avatar-fallback" title="Criador não informado">
-                                        <i class="fas fa-user"></i>
+                                    <span
+                                        class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-custom-class="ticket-creator-tooltip"
+                                        data-bs-placement="right"
+                                        data-bs-html="true"
+                                        data-bs-title="<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>Criador não informado</div><div class='ticket-creator-tooltip-meta'>Nível: -</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
+                                        {% if can_edit_ticket_creator %}
+                                            data-ticket-id="{{ ticket.id }}"
+                                            data-set-url="{% url 'ticket_set_creator' ticket.id %}"
+                                            data-current-creator-id=""
+                                            data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                            style="cursor: pointer;"
+                                            onclick="event.stopPropagation();"
+                                        {% endif %}
+                                    >
+                                        <span class="ticket-creator-avatar-fallback">
+                                            <i class="fas fa-user"></i>
+                                        </span>
                                     </span>
                                 {% endif %}
                             {% endwith %}
@@ -365,7 +421,7 @@
                             {% endif %}
                         </td>
                         <td>{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</td>
-                        <td>{{ ticket.updated_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
                                 <i class="fas fa-eye"></i>
@@ -1468,6 +1524,9 @@
             });
         });
 
+        // Observação: o base.html já inicializa tooltips, e ele lê data-bs-html/data-bs-title.
+        // Aqui evitamos reconfigurar globalmente para não interferir em outros tooltips.
+
         function getCookie(name) {
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
@@ -1515,13 +1574,17 @@
 
                     const name = creator ? (creator.name || '-') : '-';
                     const role = creator ? (creator.role || '-') : '-';
-                    const title = `${name}\nNível: ${role}\nLançado: ${launched}`;
-                    activeTriggerEl.setAttribute('title', title);
-                    activeTriggerEl.setAttribute('data-bs-original-title', title);
+                    const photoUrl = creator ? (creator.photo_url || '') : '';
+                    const tooltipHtml = photoUrl
+                        ? `<div class='ticket-creator-tooltip-wrap'><img class='ticket-creator-tooltip-photo' src='${photoUrl}' alt='${name}'><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Nível: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`
+                        : `<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>${name}</div><div class='ticket-creator-tooltip-meta'>Nível: ${role}</div><div class='ticket-creator-tooltip-meta'>Lançado: ${launched}</div></div></div>`;
+
+                    activeTriggerEl.setAttribute('data-bs-html', 'true');
+                    activeTriggerEl.setAttribute('data-bs-title', tooltipHtml);
+                    activeTriggerEl.setAttribute('data-bs-original-title', tooltipHtml);
 
                     const existingImg = activeTriggerEl.querySelector('img.ticket-creator-avatar');
                     const existingFallback = activeTriggerEl.querySelector('.ticket-creator-avatar-fallback');
-                    const photoUrl = creator ? (creator.photo_url || '') : '';
 
                     if (photoUrl) {
                         if (existingFallback) existingFallback.remove();
@@ -1549,7 +1612,7 @@
                     try {
                         const inst = bootstrap.Tooltip.getInstance(activeTriggerEl);
                         if (inst) inst.dispose();
-                        new bootstrap.Tooltip(activeTriggerEl);
+                        new bootstrap.Tooltip(activeTriggerEl, { html: true, trigger: 'hover focus', placement: 'right' });
                     } catch (e) {}
                 }
 
