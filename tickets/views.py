@@ -30,6 +30,7 @@ from .views_checklist_config import ChecklistConfigView, ChecklistTemplateCreate
 from django.utils import timezone
 from datetime import timedelta, datetime
 from django.db.models import Count, Q
+from django.db.models.functions import Coalesce
 from collections import defaultdict
 
 class DashboardView(LoginRequiredMixin, TemplateView):
@@ -39,7 +40,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         
         # Period handling
-        period = self.request.GET.get('period', 'week')
+        # Período dos cards/gráficos principais (mantém opção de filtro)
+        period = self.request.GET.get('period', 'month')
         now = timezone.now()
         
         # Set default range (week)
@@ -56,7 +58,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             start_date = now - timedelta(days=7)
             end_date = now
         elif period == 'month':
-            start_date = now - timedelta(days=30)
+            # Mês corrente (do dia 1 até agora)
+            start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             end_date = now
         elif period == 'year':
             start_date = now - timedelta(days=365)
@@ -98,16 +101,30 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['chart_status_labels'] = status_labels
         context['chart_status_data'] = status_counts
         
-        # Charts Data - Tech Productivity (Line Chart with Photos)
-        # We need data grouped by day for each tech
-        techs = User.objects.filter(profile__role='technician')
+        # Charts Data - Produtividade Recente (Criadores de OS)
+        # Janela fixa: últimos 15 dias (inclui hoje) + próximos 15 dias = 30 dias no gráfico.
+        # Assim o gráfico fica sempre preenchido visualmente, mesmo no início do mês.
+        prod_start = (now - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
+        prod_end = (now + timedelta(days=15)).replace(hour=23, minute=59, second=59, microsecond=999999)
+        prod_data_end = now  # não existe produção no futuro
+
+        prod_tickets_qs = Ticket.objects.filter(created_at__range=(prod_start, prod_data_end))
+
+        # Observação: algumas OS podem estar sem created_by (legado), usando requester.
+        creator_ids = (
+            prod_tickets_qs.annotate(_creator_id=Coalesce('created_by_id', 'requester_id'))
+            .exclude(_creator_id__isnull=True)
+            .values_list('_creator_id', flat=True)
+            .distinct()
+        )
+        creators = User.objects.filter(is_active=True, id__in=creator_ids).select_related('profile')
         tech_chart_datasets = []
         
-        # Generate date labels for the X-axis (all days in range)
+        # Labels do gráfico (30 dias: 15 para trás + 15 para frente)
         date_labels = []
         date_labels_objs = []
-        current_d = start_date
-        while current_d <= end_date:
+        current_d = prod_start
+        while current_d <= prod_end:
             date_labels.append(current_d.strftime('%d/%m'))
             date_labels_objs.append(current_d)
             current_d += timedelta(days=1)
@@ -120,106 +137,86 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             '#858796', '#5a5c69', '#6610f2', '#fd7e14', '#20c997'
         ]
         
-        for idx, tech in enumerate(techs):
-            # Get ALL tickets for this tech to calculate historical backlog
-            # We don't restrict by created_at here because we need to know about tickets created before start_date
-            all_tech_tickets = Ticket.objects.filter(technicians=tech).exclude(status='canceled')
-            
-            # Global open tickets for this tech (for the legend/tooltip)
-            open_tickets_count = all_tech_tickets.filter(status='open').count()
-            
-            # Calculate ACTIVE WORKLOAD (Backlog) for each day
-            # This shows "Demanda" (Demand) - rising means more work assigned, falling means work completed
-            data_points = []
-            point_colors = [] # To show status (e.g. Red if overdue tickets existed on that day)
-            
-            has_activity_in_period = False
-            
-            for label_date in date_labels_objs: # We need the actual date objects corresponding to labels
-                d_end = label_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-                
-                # Active tickets on this day:
-                # Created before/on this day AND (Not finished yet OR Finished after this day)
-                active_on_day = all_tech_tickets.filter(
-                    Q(created_at__lte=d_end) & 
-                    (Q(finished_at__gt=d_end) | Q(finished_at__isnull=True))
+        for idx, user in enumerate(creators):
+            user_tickets = (
+                prod_tickets_qs.filter(
+                    Q(created_by=user) | (Q(created_by__isnull=True) & Q(requester=user))
                 )
-                
-                count_today = active_on_day.count()
-                data_points.append(count_today)
-                
-                if count_today > 0:
-                    has_activity_in_period = True
-                    
-                # Check for delays on this specific day
-                # Any active ticket on this day that had a deadline BEFORE this day
-                has_overdue = active_on_day.filter(deadline__lt=d_end).exists()
-                if has_overdue:
-                    point_colors.append('#dc3545') # Red for overdue
-                else:
-                    point_colors.append(colors[idx % len(colors)]) # Default color
-            
-            # Only include tech if they have some activity (open tickets OR active in period)
-            if open_tickets_count > 0 or has_activity_in_period:
-                # Tech Photo URL
-                photo_url = None
-                job_title = "Técnico"
-                station = ""
-                email = tech.email
-                personal_phone = ""
-                company_phone = ""
-                department = ""
-                supervisor_name = ""
-                profile_id = None
-                
-                if hasattr(tech, 'profile'):
-                    if tech.profile.photo:
-                        photo_url = tech.profile.photo.url
-                    job_title = tech.profile.job_title or "Técnico"
-                    station = tech.profile.station or ""
-                    personal_phone = tech.profile.personal_phone or ""
-                    company_phone = tech.profile.company_phone or ""
-                    department = tech.profile.department or ""
-                    profile_id = tech.profile.id
-                    if tech.profile.supervisor and tech.profile.supervisor.user:
-                        supervisor_name = f"{tech.profile.supervisor.user.get_full_name()}"
-                
-                # Build hierarchy string: "Diretoria / Serviços / Santander-SP"
-                hierarchy_parts = []
-                if department: hierarchy_parts.append(department)
-                if job_title: hierarchy_parts.append(job_title)
-                if station: hierarchy_parts.append(station)
-                hierarchy_str = " / ".join(hierarchy_parts)
-                
-                # Determine Current Status Color (for the final point/legend)
-                now = timezone.now()
-                unfinished_tickets = all_tech_tickets.exclude(status='finished')
-                has_overdue = unfinished_tickets.filter(deadline__lt=now).exists()
-                has_warning = unfinished_tickets.filter(deadline__range=(now, now + timedelta(days=1))).exists()
-                
-                if has_overdue:
-                    status_color = '#dc3545' # Red
-                elif has_warning:
-                    status_color = '#ffc107' # Yellow
-                else:
-                    status_color = '#198754' # Green
+                .exclude(status='canceled')
+            )
 
-                tech_chart_datasets.append({
-                    'label': f"{tech.first_name} {tech.last_name} ({tech.username}) - Backlog Atual: {count_today}", # count_today is the last one
-                    'data': data_points,
-                    'photo': photo_url,
-                    'borderColor': colors[idx % len(colors)],
-                    'open_tickets': open_tickets_count,
-                    'status_color': status_color,
-                    'pointBorderColors': point_colors, # Custom colors per point
-                    # Extra info for Modal
-                    'full_name': tech.get_full_name() or tech.username,
-                    'email': email,
-                    'hierarchy': hierarchy_str,
-                    'phones': [p for p in [personal_phone, company_phone] if p],
-                    'profile_id': tech.id, # Using User ID for edit link
-                    'supervisor': supervisor_name
-                })
+            data_points = []
+            has_activity_in_period = False
+            for label_date in date_labels_objs:
+                # Futuro: mantém 0 (para completar 30 dias no gráfico)
+                if label_date.date() > now.date():
+                    data_points.append(0)
+                    continue
+
+                d_start = label_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                d_end = label_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+                count_day = user_tickets.filter(created_at__range=(d_start, d_end)).count()
+                data_points.append(count_day)
+                if count_day > 0:
+                    has_activity_in_period = True
+
+            if not has_activity_in_period:
+                continue
+
+            total_in_period = sum(data_points)
+            last_day_count = data_points[-1] if data_points else 0
+
+            photo_url = None
+            job_title = ""
+            email = user.email
+            personal_phone = ""
+            company_phone = ""
+            department = ""
+            station = ""
+            supervisor_name = ""
+
+            profile = getattr(user, 'profile', None)
+            if profile:
+                if getattr(profile, 'photo', None):
+                    try:
+                        photo_url = profile.photo.url
+                    except Exception:
+                        photo_url = None
+                job_title = (getattr(profile, 'job_title', '') or '').strip()
+                station = (getattr(profile, 'station', '') or '').strip()
+                personal_phone = (getattr(profile, 'personal_phone', '') or '').strip()
+                company_phone = (getattr(profile, 'company_phone', '') or '').strip()
+                department = (getattr(profile, 'department', '') or '').strip()
+                try:
+                    if profile.supervisor and profile.supervisor.user:
+                        supervisor_name = f"{profile.supervisor.user.get_full_name()}"
+                except Exception:
+                    supervisor_name = ""
+
+            hierarchy_parts = []
+            if department: hierarchy_parts.append(department)
+            if job_title: hierarchy_parts.append(job_title)
+            if station: hierarchy_parts.append(station)
+            hierarchy_str = " / ".join(hierarchy_parts)
+
+            tech_chart_datasets.append({
+                'label': f"{user.get_full_name() or user.username} ({user.username}) - Produção: {total_in_period}",
+                'data': data_points,
+                'photo': photo_url,
+                'borderColor': colors[idx % len(colors)],
+                'open_tickets': total_in_period,
+                'status_color': colors[idx % len(colors)],
+                'pointBorderColors': [],  # mantido por compatibilidade do template/JS
+                # Extra info para tooltip/modal
+                'full_name': user.get_full_name() or user.username,
+                'job_title': job_title,
+                'email': email,
+                'hierarchy': hierarchy_str,
+                'phones': [p for p in [personal_phone, company_phone] if p],
+                'profile_id': user.id,
+                'supervisor': supervisor_name,
+                'last_day': last_day_count,
+            })
         
         context['chart_tech_datasets'] = tech_chart_datasets
         

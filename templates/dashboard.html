@@ -283,12 +283,12 @@
     </div>
 </div>
 
-<!-- Tech Details Modal -->
+<!-- User Details Modal -->
 <div class="modal fade" id="techDetailsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
             <div class="modal-header bg-gradient-primary text-white border-0">
-                <h5 class="modal-title fw-bold"><i class="fas fa-user-circle me-2"></i>Perfil do Técnico</h5>
+                <h5 class="modal-title fw-bold"><i class="fas fa-user-circle me-2"></i>Perfil do Colaborador</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
@@ -494,23 +494,23 @@
         }]
     });
 
-    // Tech Chart (Line with Photos)
+    // Produtividade Recente (Line with Photos)
     const ctxTech = document.getElementById('techChart').getContext('2d');
     
     const techDatasets = [];
     const techDetailsMap = {}; // Map to store details for click event
     
     {% for dataset in chart_tech_datasets %}
-        // Store details for this tech (using label as key or index)
-        // We will store by dataset index since that's what we get on click
+        // Detalhes do usuário (para tooltip/modal) - armazenamos por índice do dataset
         techDetailsMap[{{ forloop.counter0 }}] = {
             photo: '{{ dataset.photo|default:"" }}',
             fullName: '{{ dataset.full_name }}',
-            hierarchy: '{{ dataset.hierarchy }}',
+            jobTitle: '{{ dataset.job_title|default:"" }}',
+            hierarchy: '{{ dataset.hierarchy|default:"" }}',
             email: '{{ dataset.email }}',
             phones: {{ dataset.phones|safe }},
             supervisor: '{{ dataset.supervisor }}',
-            profileUrl: "{% url 'technician_update' dataset.profile_id %}", // Assuming technician_update uses User PK or Profile PK? View uses User PK.
+            profileUrl: "{% url 'user_update' dataset.profile_id %}",
             openTickets: {{ dataset.open_tickets }}
         };
 
@@ -552,15 +552,7 @@
         var pointStyles_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('circle');
         var pointRadii_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(3); // Small dots for history
         
-        // Use custom point colors from backend if available (for historical overdue/delays)
-        var customColors = {{ dataset.pointBorderColors|default:"[]"|safe }};
-        var pointBorderColors_{{ forloop.counter }};
-        
-        if (customColors.length === dataLength_{{ forloop.counter }}) {
-            pointBorderColors_{{ forloop.counter }} = customColors;
-        } else {
-            pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
-        }
+        var pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
 
         var pointBorderWidths_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(1);
         
@@ -586,6 +578,8 @@
             borderColor: '{{ dataset.borderColor }}',
             backgroundColor: '{{ dataset.borderColor }}',
             borderWidth: 3,
+            // Evita cortar a foto quando o último ponto fica na borda do gráfico
+            clip: false,
             
             // Point Styling Arrays
             pointStyle: pointStyles_{{ forloop.counter }},
@@ -609,6 +603,10 @@
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            layout: {
+                // Dá espaço para a bolinha/foto e evita ficar encostado nas bordas
+                padding: { top: 10, right: 40, bottom: 28, left: 10 }
+            },
             onClick: (e) => {
                 const points = techChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
                 if (points.length) {
@@ -634,7 +632,7 @@
                     ticks: { stepSize: 1, padding: 5, font: { size: 10 } },
                     title: {
                         display: true,
-                        text: 'Volume de Trabalho Ativo (Backlog)'
+                        text: 'OS criadas (Produção)'
                     }
                 },
                 x: {
@@ -648,11 +646,87 @@
                     labels: { usePointStyle: true, boxWidth: 10, padding: 20 }
                 },
                 tooltip: {
-                    usePointStyle: true,
-                    callbacks: {
-                        label: function(context) {
-                            return context.dataset.label + ': ' + context.parsed.y;
+                    enabled: false,
+                    external: function(context) {
+                        // Custom tooltip com foto + nome + cargo + produção
+                        const tooltipModel = context.tooltip;
+                        let tooltipEl = document.getElementById('techChartExternalTooltip');
+
+                        if (!tooltipEl) {
+                            tooltipEl = document.createElement('div');
+                            tooltipEl.id = 'techChartExternalTooltip';
+                            tooltipEl.style.position = 'absolute';
+                            tooltipEl.style.pointerEvents = 'none';
+                            tooltipEl.style.zIndex = '2000';
+                            tooltipEl.innerHTML = `
+                                <div style="
+                                    background: rgba(255,255,255,0.98);
+                                    border: 1px solid rgba(0,0,0,0.12);
+                                    box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.15);
+                                    border-radius: 12px;
+                                    padding: 10px 12px;
+                                    min-width: 220px;
+                                ">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img id="techChartTooltipImg" src="" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.15);background:#fff;">
+                                        <div style="line-height: 1.1;">
+                                            <div id="techChartTooltipName" style="font-weight:700;"></div>
+                                            <div id="techChartTooltipRole" style="font-size:0.82rem;opacity:0.85;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2" style="font-size:0.85rem;">
+                                        <div><strong>Produção:</strong> <span id="techChartTooltipValue"></span></div>
+                                        <div style="opacity:0.75;"><span id="techChartTooltipDate"></span></div>
+                                    </div>
+                                </div>
+                            `;
+                            document.body.appendChild(tooltipEl);
                         }
+
+                        if (tooltipModel.opacity === 0) {
+                            tooltipEl.style.opacity = 0;
+                            return;
+                        }
+
+                        const dp = tooltipModel.dataPoints && tooltipModel.dataPoints[0] ? tooltipModel.dataPoints[0] : null;
+                        if (!dp) return;
+
+                        const details = techDetailsMap[dp.datasetIndex] || {};
+                        const imgSrc = (details.photo && details.photo !== 'None') ? details.photo : '/static/images/user.png';
+                        const name = details.fullName || dp.dataset.label || '';
+                        const cargo = details.jobTitle ? `Cargo: ${details.jobTitle}` : 'Cargo: -';
+
+                        tooltipEl.querySelector('#techChartTooltipImg').src = imgSrc;
+                        tooltipEl.querySelector('#techChartTooltipName').textContent = name;
+                        tooltipEl.querySelector('#techChartTooltipRole').textContent = cargo;
+                        tooltipEl.querySelector('#techChartTooltipValue').textContent = `${dp.parsed.y} OS`;
+                        tooltipEl.querySelector('#techChartTooltipDate').textContent = `Dia: ${dp.label}`;
+
+                        const canvasRect = context.chart.canvas.getBoundingClientRect();
+                        tooltipEl.style.opacity = 1;
+
+                        // Posicionamento com "anti-corte" (clamp no viewport)
+                        let left = canvasRect.left + window.pageXOffset + tooltipModel.caretX + 12;
+                        let top = canvasRect.top + window.pageYOffset + tooltipModel.caretY - 12;
+                        tooltipEl.style.left = left + 'px';
+                        tooltipEl.style.top = top + 'px';
+
+                        const rect = tooltipEl.getBoundingClientRect();
+                        const margin = 10;
+
+                        // Se estourar à direita, joga para a esquerda do ponto
+                        if (rect.right > window.innerWidth - margin) {
+                            left = left - rect.width - 24;
+                        }
+                        // Se estourar embaixo, sobe
+                        if (rect.bottom > window.innerHeight - margin) {
+                            top = top - rect.height - 24;
+                        }
+                        // Clamp final para não sair da tela
+                        left = Math.max(margin, Math.min(left, window.pageXOffset + window.innerWidth - rect.width - margin));
+                        top = Math.max(margin, Math.min(top, window.pageYOffset + window.innerHeight - rect.height - margin));
+                        tooltipEl.style.left = left + 'px';
+                        tooltipEl.style.top = top + 'px';
                     }
                 }
             }
