@@ -5,7 +5,12 @@
     .row-finished { background-color: rgba(25, 135, 84, 0.06); }
     .row-pending { background-color: rgba(255, 193, 7, 0.06); }
     .row-canceled { background-color: rgba(220, 53, 69, 0.06); }
-    .row-in-progress { background-color: rgba(13, 110, 253, 0.06); }
+    /* Em Andamento: destacar em amarelo (override do base.html que pinta de azul) */
+    .row-in-progress,
+    .row-in-progress > td,
+    .row-in-progress > th { background-color: rgba(255, 193, 7, 0.18) !important; }
+    .row-in-progress:hover > td,
+    .row-in-progress:hover > th { background-color: rgba(255, 193, 7, 0.22) !important; }
     .row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
     .ticket-row { transition: background-color 0.2s; font-size: 0.82rem; }
     .table-hover > tbody > tr.ticket-row:hover > * { background-color: rgba(255, 204, 0, 0.22) !important; }
