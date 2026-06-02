@@ -500,7 +500,8 @@
 
 <style>
     #ticketModal .modal-content {
-        background-color: #fff9c4;
+        --ticket-modal-bg: #ffffff;
+        background-color: var(--ticket-modal-bg) !important;
         border: 0;
         box-shadow: 0 1rem 3rem rgba(0,0,0,.175);
         max-height: 85vh;
@@ -510,12 +511,27 @@
     #ticketModal .modal-header {
         border-bottom: 1px solid rgba(0,0,0,0.12);
         cursor: move;
+        background-color: var(--ticket-modal-bg) !important;
     }
     #ticketModal .modal-body {
         flex: 1;
         overflow-y: auto;
-        background-color: #fff9c4;
+        background-color: var(--ticket-modal-bg) !important;
     }
+    #ticketModal .modal-footer {
+        background-color: var(--ticket-modal-bg) !important;
+        border-top: 1px solid rgba(0,0,0,0.08);
+    }
+
+    /* Fundo da modal alinhado ao estado da OS */
+    #ticketModalContent.ticket-modal-open { --ticket-modal-bg: #ffffff; }
+    /* Tons pastéis (claros) para não ofuscar a leitura */
+    #ticketModalContent.ticket-modal-pending { --ticket-modal-bg: #fff8dd; }          /* amarelo bem claro */
+    #ticketModalContent.ticket-modal-in-progress { --ticket-modal-bg: #fff4cf; }      /* amarelo claro */
+    #ticketModalContent.ticket-modal-delete-requested { --ticket-modal-bg: #fff1bf; } /* amarelo um pouco mais forte */
+    #ticketModalContent.ticket-modal-finished { --ticket-modal-bg: #eaf7ee; }         /* verde claro */
+    #ticketModalContent.ticket-modal-delayed { --ticket-modal-bg: #fdecec; }          /* vermelho claro */
+    #ticketModalContent.ticket-modal-canceled { --ticket-modal-bg: #f2f3f5; }         /* cinza claro */
     .resizer {
         position: absolute;
         background-color: rgba(0,0,0,0.0);
@@ -563,6 +579,37 @@
         let activeTicketId = null;
         let ticketsUpdated = false;
         const STORAGE_KEY = 'OS_SYSTEM_OPEN_TICKETS';
+
+        const TICKET_MODAL_THEME_CLASSES = [
+            'ticket-modal-open',
+            'ticket-modal-pending',
+            'ticket-modal-finished',
+            'ticket-modal-canceled',
+            'ticket-modal-in-progress',
+            'ticket-modal-delayed',
+            'ticket-modal-delete-requested',
+        ];
+
+        function getThemeClassFromRow(ticketId) {
+            const row = document.querySelector(`tr[data-ticket-id="${ticketId}"]`);
+            if (!row) return 'ticket-modal-open';
+
+            if (row.classList.contains('row-delete-requested')) return 'ticket-modal-delete-requested';
+            if (row.classList.contains('row-delayed')) return 'ticket-modal-delayed';
+            if (row.classList.contains('row-finished')) return 'ticket-modal-finished';
+            if (row.classList.contains('row-canceled')) return 'ticket-modal-canceled';
+            if (row.classList.contains('row-pending')) return 'ticket-modal-pending';
+            if (row.classList.contains('row-in-progress')) return 'ticket-modal-in-progress';
+            return 'ticket-modal-open';
+        }
+
+        function applyTicketModalTheme(ticketId, explicitThemeClass) {
+            const themeClass = explicitThemeClass || getThemeClassFromRow(ticketId);
+            TICKET_MODAL_THEME_CLASSES.forEach(c => modalContent.classList.remove(c));
+            modalContent.classList.add(themeClass);
+            modalContent.dataset.themeClass = themeClass;
+            return themeClass;
+        }
 
         // --- Persistence Logic ---
 
@@ -732,6 +779,7 @@
             const dialog = getDialog();
             const titleEl = modalContent.querySelector('.modal-title');
             const title = titleEl ? titleEl.textContent : `OS ${formatTicketId(activeTicketId)}`;
+            const themeClass = modalContent.dataset.themeClass || getThemeClassFromRow(activeTicketId);
             
             // Sync values to attributes for HTML serialization
             modalContent.querySelectorAll('input, textarea, select').forEach(input => {
@@ -754,7 +802,8 @@
                 html: modalContent.innerHTML,
                 dialogClass: dialog ? dialog.className : 'modal-dialog modal-xl modal-dialog-centered',
                 dialogStyle: dialog ? dialog.getAttribute('style') : '',
-                title: title
+                title: title,
+                themeClass: themeClass
             });
         }
 
@@ -790,6 +839,7 @@
 
             activeTicketId = id;
             modalContent.innerHTML = state.html;
+            applyTicketModalTheme(id, state.themeClass);
             
             const dialog = getDialog();
             if (dialog) {
@@ -824,6 +874,8 @@
             activeTicketId = ticketId;
             renderDock();
 
+            const themeClass = applyTicketModalTheme(ticketId);
+
             modalContent.innerHTML = `
                 <div class="modal-body text-center p-5">
                     <div class="spinner-border text-primary" role="status">
@@ -850,7 +902,8 @@
                         html: html,
                         dialogClass: 'modal-dialog modal-xl modal-dialog-centered',
                         dialogStyle: '',
-                        title: title
+                        title: title,
+                        themeClass: themeClass
                     });
                     
                     executeScripts(modalContent);
