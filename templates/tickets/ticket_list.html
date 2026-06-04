@@ -230,6 +230,19 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
+        <!-- Filtro por Cliente (Unidade) -->
+        <div class="me-2 d-flex align-items-center gap-2">
+            <select id="clientFilterSelect" class="form-select form-select-sm" style="min-width: 260px;">
+                <option value="">Filtrar por Cliente...</option>
+                {% for c in clients_filter_list %}
+                    <option value="{{ c.id }}" {% if current_client|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" id="clearClientFilterBtn" class="btn btn-outline-secondary btn-sm" title="Limpar filtro de cliente">
+                Limpar
+            </button>
+        </div>
+
         {% if 'tickets_daily_report_view' in allowed_url_names %}
             <button type="button" class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#pdfExportModal">
                 <i class="fas fa-file-pdf"></i> Exportar Relatório PDF
@@ -265,6 +278,9 @@
 <div class="card card-custom mb-3">
     <div class="card-body p-3">
         <form method="get" class="row g-2 align-items-end" id="filterForm">
+            <!-- Preserva filtro de cliente -->
+            <input type="hidden" name="client" value="{{ current_client|default:'' }}">
+
             <!-- Period Filters -->
             <div class="col-md-5">
                 <label class="form-label small fw-bold mb-1">Período</label>
@@ -292,17 +308,17 @@
             <!-- Custom Date Range (Hidden by default) -->
             <div class="col-md-auto custom-date-range" style="display: none;">
                 <label class="form-label small fw-bold mb-1">De</label>
-                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ current_start_date }}">
+                <input type="date" class="form-control form-control-sm" name="start_date" value="{{ current_start_date }}" onchange="this.form.submit()">
             </div>
             <div class="col-md-auto custom-date-range" style="display: none;">
                 <label class="form-label small fw-bold mb-1">Até</label>
-                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ current_end_date }}">
+                <input type="date" class="form-control form-control-sm" name="end_date" value="{{ current_end_date }}" onchange="this.form.submit()">
             </div>
 
             <!-- Status Filter -->
             <div class="col-md-2">
                 <label class="form-label small fw-bold mb-1">Status</label>
-                <select name="status" class="form-select form-select-sm">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">Todos</option>
                     {% for key, label in status_choices %}
                     <option value="{{ key }}" {% if current_status == key %}selected{% endif %}>{{ label }}</option>
@@ -313,7 +329,7 @@
             <!-- Ticket Type Filter -->
             <div class="col-md-2">
                 <label class="form-label small fw-bold mb-1">Tipo de Chamado</label>
-                <select name="ticket_type" class="form-select form-select-sm">
+                <select name="ticket_type" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">Todos</option>
                     {% for type in ticket_types %}
                     <option value="{{ type.id }}" {% if current_ticket_type == type.id|stringformat:"s" %}selected{% endif %}>{{ type.name }}</option>
@@ -1930,6 +1946,31 @@
                 }
             });
         }
+
+        // Filtro por Cliente (select na toolbar)
+        (function () {
+            const select = document.getElementById('clientFilterSelect');
+            const clearBtn = document.getElementById('clearClientFilterBtn');
+            if (!select) return;
+
+            function navigateWithClient(clientIdOrEmpty) {
+                const url = new URL(window.location.href);
+                if (clientIdOrEmpty) url.searchParams.set('client', clientIdOrEmpty);
+                else url.searchParams.delete('client');
+                url.searchParams.delete('page');
+                window.location.href = url.toString();
+            }
+
+            select.addEventListener('change', function () {
+                navigateWithClient(this.value);
+            });
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function () {
+                    select.value = '';
+                    navigateWithClient('');
+                });
+            }
+        })();
 
         // Deep-link: abrir modal de criação / abrir uma OS específica via querystring
         try {

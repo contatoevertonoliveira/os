@@ -391,12 +391,21 @@ class TicketListView(LoginRequiredMixin, ListView):
         start_date = self.request.GET.get('start_date') or None
         end_date = self.request.GET.get('end_date') or None
         leankeep_id = self.request.GET.get('leankeep_id') or None
+        client_id = self.request.GET.get('client') or None
 
-        if not any([q, status, ticket_type, period, start_date, end_date, leankeep_id]):
+        # Mantém comportamento padrão: se nenhum filtro "principal" foi informado,
+        # lista apenas as OS de hoje (mesmo que o filtro de cliente esteja ativo).
+        has_main_filters = any([q, status, ticket_type, period, start_date, end_date, leankeep_id])
+        if not has_main_filters:
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
             end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
             queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
-            return queryset.order_by('-created_at')
+
+        if client_id:
+            try:
+                queryset = queryset.filter(client_id=int(client_id))
+            except (TypeError, ValueError):
+                pass
 
         if q:
             status_lower = q.strip().lower()
@@ -492,6 +501,10 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['current_start_date'] = self.request.GET.get('start_date', '')
         context['current_end_date'] = self.request.GET.get('end_date', '')
         context['current_leankeep_id'] = self.request.GET.get('leankeep_id', '')
+        context['current_client'] = self.request.GET.get('client', '')
+
+        # Lista de clientes para filtro (select)
+        context['clients_filter_list'] = Client.objects.all().order_by('name').only('id', 'name')
         
         # Alerts (Toasts) for open/delayed tickets
         # Logic: Check for ANY ticket (not just filtered ones) that requires attention
