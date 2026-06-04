@@ -79,7 +79,7 @@
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         <span class="text-muted">Ordem de Serviço</span>
                         {% if travel.service_order %}
-                            <a href="{% url 'ticket_detail' travel.service_order.pk %}" class="text-decoration-none">
+                            <a href="{% url 'ticket_list' %}?period=all&open={{ travel.service_order.pk }}" class="text-decoration-none">
                                 #{{ travel.service_order.formatted_id|default:travel.service_order.pk }}
                             </a>
                         {% else %}

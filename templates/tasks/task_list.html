@@ -53,7 +53,7 @@
                             
                             <div class="position-absolute top-0 end-0 p-2 d-flex gap-1" style="z-index: 10;">
                                 <!-- Edit Button -->
-                                <a href="{% url 'ticket_detail' ticket.id %}" 
+                                <a href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}" 
                                    class="btn btn-link p-1 text-muted action-btn" 
                                    onclick="event.stopPropagation();"
                                    title="Editar Ocorrência">
@@ -127,7 +127,7 @@
                                     </div>
                                 </div>
                                 
-                                <a href="{% url 'ticket_detail' ticket.id %}" class="d-none"></a>
+                                <a href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}" class="d-none"></a>
                             </div>
                         </div>
                         {% endfor %}

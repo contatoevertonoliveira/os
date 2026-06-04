@@ -133,6 +133,99 @@
         object-fit: contain;
         filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.4));
     }
+
+    /* ===== Lista em Accordion (mantendo "cara" de tabela) ===== */
+    #ticketsAccordion .accordion-item { border-radius: 10px; overflow: hidden; }
+    #ticketsAccordion .accordion-button { box-shadow: none !important; }
+    /* Remove a setinha padrão do accordion para não deslocar as colunas (alinhamento com o cabeçalho) */
+    #ticketsAccordion .accordion-button::after { display: none !important; }
+    #ticketsAccordion .accordion-button:focus { box-shadow: none !important; }
+
+    /* Hover: iluminar o card inteiro para destacar */
+    #ticketsAccordion .accordion-item:hover {
+        box-shadow: 0 0.75rem 2rem rgba(13, 110, 253, 0.16) !important;
+        /* Evita "flicker" (especialmente no branco) ao mover o elemento no hover */
+        transform: none;
+        transition: box-shadow 140ms ease;
+        /* Borda/contorno leve para aparecer mesmo no fundo branco */
+        outline: 1px solid rgba(13, 110, 253, 0.28);
+        outline-offset: -1px;
+    }
+    #ticketsAccordion .accordion-item:hover .accordion-button.ticket-acc-toggle,
+    #ticketsAccordion .accordion-item:hover .ticket-acc-actions {
+        /* Overlay claro para "acender" sem perder a cor de status */
+        /* Em branco, o overlay branco não aparece; então aplicamos também um leve "tint" azul */
+        background-image:
+            linear-gradient(rgba(13,110,253,0.06), rgba(13,110,253,0.06)),
+            linear-gradient(rgba(255,255,255,0.18), rgba(255,255,255,0.18));
+        filter: brightness(1.02);
+    }
+    #ticketsAccordion .accordion-button.ticket-acc-toggle,
+    #ticketsAccordion .ticket-acc-actions {
+        background-image: none;
+        transition: filter 140ms ease, background-image 140ms ease;
+    }
+    #ticketsAccordion .accordion-item { transition: box-shadow 140ms ease; }
+
+    /* Faz o header do accordion se comportar como "linha" com colunas */
+    .ticket-acc-toggle {
+        padding: 0.45rem 0.75rem;
+    }
+    .ticket-acc-grid {
+        width: 100%;
+        display: grid;
+        align-items: center;
+        gap: 10px;
+        grid-template-columns: 40px 90px 90px 1.4fr 1fr 1fr 1fr 120px 140px 140px;
+        font-size: 0.82rem;
+    }
+    .ticket-acc-cell { min-width: 0; }
+    .ticket-acc-mono { font-family: monospace; }
+    .ticket-acc-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ticket-acc-actions {
+        padding: 0.45rem 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-left: 1px solid rgba(0,0,0,0.08);
+        /* largura fixa para alinhar com o cabeçalho */
+        width: 155px;
+        flex: 0 0 155px;
+        cursor: pointer;
+    }
+    .ticket-acc-actions-header {
+        /* alinha o texto "Ações" na mesma direção do início dos botões */
+        justify-content: flex-start;
+        color: rgba(0,0,0,0.70);
+        cursor: default;
+    }
+
+    /* As classes row-* eram para <tr>. Aqui aplicamos também no header do accordion */
+    .accordion-button.row-open { background-color: #ffffff !important; }
+    .accordion-button.row-pending { background-color: rgba(255, 193, 7, 0.25) !important; }
+    .accordion-button.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
+    .accordion-button.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
+    .accordion-button.row-delayed { background-color: rgba(220, 53, 69, 0.25) !important; }
+    .accordion-button.row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
+    .accordion-button.row-in-progress { background-color: rgba(255, 193, 7, 0.18) !important; }
+
+    /* Ações com a mesma cor do header */
+    .ticket-acc-actions.row-open { background-color: #ffffff !important; }
+    .ticket-acc-actions.row-pending { background-color: rgba(255, 193, 7, 0.25) !important; }
+    .ticket-acc-actions.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
+    .ticket-acc-actions.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
+    .ticket-acc-actions.row-delayed { background-color: rgba(220, 53, 69, 0.25) !important; }
+    .ticket-acc-actions.row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
+    .ticket-acc-actions.row-in-progress { background-color: rgba(255, 193, 7, 0.18) !important; }
+
+    @media (max-width: 1200px) {
+        .ticket-acc-grid { grid-template-columns: 40px 90px 90px 1.4fr 1fr 1fr 120px 140px; }
+        .ticket-acc-hide-xl { display: none; }
+    }
+    @media (max-width: 992px) {
+        .ticket-acc-grid { grid-template-columns: 40px 90px 1.5fr 120px 140px; }
+        .ticket-acc-hide-lg { display: none; }
+    }
 </style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
@@ -142,9 +235,29 @@
                 <i class="fas fa-file-pdf"></i> Exportar Relatório PDF
             </button>
         {% endif %}
-        <a href="{% url 'ticket_create' %}" class="btn btn-primary-custom">
+        <button type="button" id="openCreateTicketBtn" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Nova OS
-        </a>
+        </button>
+    </div>
+</div>
+
+<!-- Modal: Criar Nova OS -->
+<div class="modal fade" id="createTicketModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+            <div class="modal-header bg-gradient-primary text-white border-0">
+                <h6 class="modal-title fw-bold mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>Nova Ordem de Serviço
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="createTicketModalContent">
+                <div class="text-center p-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small mt-2">Carregando formulário...</div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -227,7 +340,7 @@
 <!-- Persistent Alerts Container (Bottom Right) -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
     {% for alert in alerts %}
-    <div class="toast show align-items-center text-white bg-{{ alert.type }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="cursor: pointer;" onclick="window.location.href='{% url 'ticket_detail' alert.ticket_id %}'">
+                <div class="toast show align-items-center text-white bg-{{ alert.type }} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" style="cursor: pointer;" onclick="window.location.href='{% url 'ticket_list' %}?period=all&open={{ alert.ticket_id }}'">
         <div class="d-flex">
             <div class="toast-body">
                 <i class="fas fa-{{ alert.icon }} me-2"></i> {{ alert.message }}
@@ -276,206 +389,199 @@
 
 <div class="card card-custom">
     <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th title="Criador" style="width: 40px;"></th>
-                        <th>#</th>
-                        <th>Leankeep</th>
-                        <th>Cliente</th>
-                        <th>Tipo de Chamado</th>
-                        <th>Equipamento</th>
-                        <th>Responsável/Executor</th>
-                        <th>Status</th>
-                        <th>Data Ocorrência</th>
-                        <th>Prazo</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                                        {% for ticket in tickets %}
-                    <tr class="ticket-row {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
-                        style="cursor: pointer;"
-                        data-ticket-id="{{ ticket.id }}">
-                        <td class="text-center">
-                            {% with creator=ticket.creator_user %}
-                                {% if creator %}
-                                    {% with creator_name=ticket.creator_display_name %}
-                                        <span
-                                            class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
-                                            data-bs-toggle="tooltip"
-                                            data-bs-custom-class="ticket-creator-tooltip"
-                                            data-bs-placement="right"
-                                            data-bs-html="true"
-                                            data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Cargo: {{ ticket.creator_job_title|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
-                                            {% if can_edit_ticket_creator %}
-                                                data-ticket-id="{{ ticket.id }}"
-                                                data-set-url="{% url 'ticket_set_creator' ticket.id %}"
-                                                data-current-creator-id="{{ creator.id }}"
-                                                data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
-                                                style="cursor: pointer;"
-                                                onclick="event.stopPropagation();"
-                                            {% endif %}
-                                        >
-                                            {% if ticket.creator_photo_url %}
-                                                <img
-                                                    class="ticket-creator-avatar"
-                                                    src="{{ ticket.creator_photo_url }}"
-                                                    alt="{{ creator_name }}"
-                                                >
-                                            {% else %}
-                                                <span class="ticket-creator-avatar-fallback">
-                                                    <i class="fas fa-user"></i>
-                                                </span>
-                                            {% endif %}
-                                        </span>
-                                    {% endwith %}
-                                {% else %}
-                                    <span
-                                        class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
-                                        data-bs-toggle="tooltip"
-                                        data-bs-custom-class="ticket-creator-tooltip"
-                                        data-bs-placement="right"
-                                        data-bs-html="true"
-                                        data-bs-title="<div class='ticket-creator-tooltip-wrap'><div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div><div><div class='ticket-creator-tooltip-name'>Criador não informado</div><div class='ticket-creator-tooltip-meta'>Cargo: -</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
-                                        {% if can_edit_ticket_creator %}
-                                            data-ticket-id="{{ ticket.id }}"
-                                            data-set-url="{% url 'ticket_set_creator' ticket.id %}"
-                                            data-current-creator-id=""
-                                            data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
-                                            style="cursor: pointer;"
-                                            onclick="event.stopPropagation();"
-                                        {% endif %}
-                                    >
-                                        <span class="ticket-creator-avatar-fallback">
-                                            <i class="fas fa-user"></i>
-                                        </span>
-                                    </span>
-                                {% endif %}
-                            {% endwith %}
-                        </td>
-                        <td class="ticket-id">{{ ticket.formatted_id }}</td>
-                        <td class="leankeep-id">{{ ticket.leankeep_id|default:"-" }}</td>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                {% if ticket.client.logo %}
-                                    <img src="{{ ticket.client.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 18px; height: 18px; object-fit: cover;">
-                                {% endif %}
-                                <div class="d-flex flex-column">
-                                    {% if ticket.hub %}
-                                        <span class="badge bg-light text-secondary border mb-1 align-self-start" style="font-size: 0.65rem; font-weight: normal;">
-                                            <i class="fas fa-store me-1" style="font-size: 0.6rem;"></i>{{ ticket.hub.name }}
-                                        </span>
-                                    {% endif %}
-                                    <span class="client-name">{{ ticket.client.name }}</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td>{{ ticket.ticket_type.name|default:"-" }}</td>
-                        <td>
-                            {% if ticket.equipments.exists %}
-                                {% for eq in ticket.equipments.all %}
-                                    {{ eq.name }}{% if not forloop.last %}, {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                {{ ticket.equipment|default:"-" }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if ticket.contact_jumper_responsible %}
-                                <div class="technician-name">{{ ticket.contact_jumper_responsible.name }}</div>
-                            {% else %}
-                                {% for tech in ticket.technicians.all %}
-                                    <div class="technician-name">{{ tech.get_full_name|default:tech.username }}</div>
-                                {% empty %}
-                                    <span class="text-muted">-</span>
-                                {% endfor %}
-                            {% endif %}
-                        </td>
-                                                                                                <td class="text-center">
-                            {# Se estiver em aberto ou andamento, mas com prazo vencido, mostra SOMENTE "vencido" #}
-                            {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
-                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
-                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'finished' %}
-                                <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'pending' %}
-                                <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'canceled' %}
-                                <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'in_progress' %}
-                                <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'open' %}
-                                <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'delayed' %}
-                                <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% elif ticket.status == 'aguardando' %}
-                                <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
-                            {% else %}
-                                {% if 'aguard' in ticket.status or 'pend' in ticket.status %}
-                                    <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
-                                {% elif 'andament' in ticket.status %}
-                                    <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
-                                {% elif 'venc' in ticket.status or 'atras' in ticket.status %}
-                                    <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                                {% elif 'cancel' in ticket.status %}
-                                    <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
-                                {% else %}
-                                    <span class="badge badge-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        <td>{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</td>
-                        <td>{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</td>
-                        <td>
-                            <button type="button" class="btn btn-sm btn-outline-info view-ticket-btn" title="Ver/Editar Detalhes">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            {% if 'ticket_pdf_view' in allowed_url_names %}
-                            <a href="{% url 'ticket_pdf_view' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Gerar PDF" onclick="event.stopPropagation();">
-                                <i class="fas fa-file-pdf"></i>
-                            </a>
-                            {% endif %}
-                            <button
+        <!-- Cabeçalho fixo (títulos das colunas) -->
+        <div class="d-none d-lg-block mb-2">
+            <div class="d-flex align-items-stretch bg-light border rounded-3 overflow-hidden" style="font-weight: 700;">
+                <div class="ticket-acc-toggle" style="background: transparent; flex: 1 1 auto;">
+                    <div class="ticket-acc-grid">
+                        <div class="ticket-acc-cell text-center"></div>
+                        <div class="ticket-acc-cell">#</div>
+                        <div class="ticket-acc-cell">Leankeep</div>
+                        <div class="ticket-acc-cell">Cliente</div>
+                        <div class="ticket-acc-cell ticket-acc-hide-lg">Tipo de Chamado</div>
+                        <div class="ticket-acc-cell ticket-acc-hide-lg">Equipamento</div>
+                        <div class="ticket-acc-cell ticket-acc-hide-xl">Responsável/Executor</div>
+                        <div class="ticket-acc-cell text-center">Status</div>
+                        <div class="ticket-acc-cell ticket-acc-hide-xl">Data Ocorrência</div>
+                        <div class="ticket-acc-cell ticket-acc-hide-xl">Prazo</div>
+                    </div>
+                </div>
+                <div class="ticket-acc-actions ticket-acc-actions-header">
+                    Ações
+                </div>
+            </div>
+        </div>
+
+        <div id="ticketsAccordion" class="accordion">
+            {% for ticket in tickets %}
+            <div class="accordion-item border-0 mb-2 shadow-sm">
+                <h2 class="accordion-header" id="heading{{ ticket.id }}">
+                    <div class="d-flex align-items-stretch">
+                        <button
+                                class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                                 type="button"
-                                class="btn btn-sm {% if ticket.delete_status == 'pending' %}btn-outline-warning{% else %}btn-outline-danger{% endif %}"
-                                title="{% if ticket.delete_status == 'pending' %}Solicitação de exclusão pendente{% else %}Excluir / Solicitar exclusão{% endif %}"
-                                onclick="event.stopPropagation(); requestTicketDeletion('{% url 'ticket_delete_request' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}', {{ ticket.id }}, '{{ ticket.creator_display_name|default:'Administradores'|escapejs }}', '{{ request.user.profile.role|escapejs }}', {% if ticket.creator_user and ticket.creator_user.id == request.user.id %}true{% else %}false{% endif %});"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#collapse{{ ticket.id }}"
+                                aria-expanded="false"
+                                aria-controls="collapse{{ ticket.id }}"
+                                data-ticket-id="{{ ticket.id }}"
+                                data-inline-url="{% url 'ticket_inline' ticket.id %}"
                             >
-                                <i class="fas fa-trash"></i>
+                                <div class="ticket-acc-grid">
+                                    <div class="ticket-acc-cell text-center">
+                                        {% with creator=ticket.creator_user %}
+                                            {% if creator %}
+                                                {% with creator_name=ticket.creator_display_name %}
+                                                    <span
+                                                        class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
+                                                        data-bs-toggle="tooltip"
+                                                        data-bs-custom-class="ticket-creator-tooltip"
+                                                        data-bs-placement="right"
+                                                        data-bs-html="true"
+                                                        data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Cargo: {{ ticket.creator_job_title|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
+                                                        {% if can_edit_ticket_creator %}
+                                                            data-ticket-id="{{ ticket.id }}"
+                                                            data-set-url="{% url 'ticket_set_creator' ticket.id %}"
+                                                            data-current-creator-id="{{ creator.id }}"
+                                                            data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                                            style="cursor: pointer;"
+                                                            onclick="event.stopPropagation();"
+                                                        {% endif %}
+                                                    >
+                                                        {% if ticket.creator_photo_url %}
+                                                            <img class="ticket-creator-avatar" src="{{ ticket.creator_photo_url }}" alt="{{ creator_name }}">
+                                                        {% else %}
+                                                            <span class="ticket-creator-avatar-fallback"><i class="fas fa-user"></i></span>
+                                                        {% endif %}
+                                                    </span>
+                                                {% endwith %}
+                                            {% else %}
+                                                <span class="ticket-creator-avatar-fallback"><i class="fas fa-user"></i></span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </div>
+
+                                    <div class="ticket-acc-cell ticket-acc-mono fw-semibold ticket-acc-truncate">{{ ticket.formatted_id }}</div>
+                                    <div class="ticket-acc-cell ticket-acc-mono text-muted ticket-acc-truncate">{{ ticket.leankeep_id|default:"-" }}</div>
+
+                                    <div class="ticket-acc-cell ticket-acc-truncate">
+                                        <div class="d-flex align-items-center gap-2">
+                                            {% if ticket.client.logo %}
+                                                <img src="{{ ticket.client.logo.url }}" alt="Logo" class="rounded" style="width: 18px; height: 18px; object-fit: cover;">
+                                            {% endif %}
+                                            <div class="d-flex flex-column ticket-acc-truncate">
+                                                <div class="ticket-acc-truncate fw-semibold">{{ ticket.client.name }}</div>
+                                                {% if ticket.hub %}
+                                                    <div class="small text-muted ticket-acc-truncate">{{ ticket.hub.name }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-lg">{{ ticket.ticket_type.name|default:"-" }}</div>
+
+                                    <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-lg">
+                                        {% if ticket.equipments.exists %}
+                                            {% for eq in ticket.equipments.all %}
+                                                {{ eq.name }}{% if not forloop.last %}, {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            {{ ticket.equipment|default:"-" }}
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">
+                                        {% if ticket.contact_jumper_responsible %}
+                                            {{ ticket.contact_jumper_responsible.name }}
+                                        {% else %}
+                                            {% for tech in ticket.technicians.all %}
+                                                {{ tech.get_full_name|default:tech.username }}{% if not forloop.last %}, {% endif %}
+                                            {% empty %}
+                                                -
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="ticket-acc-cell text-center">
+                                        {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
+                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
+                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'finished' %}
+                                            <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'pending' %}
+                                            <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'canceled' %}
+                                            <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'in_progress' %}
+                                            <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'open' %}
+                                            <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'delayed' %}
+                                            <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% elif ticket.status == 'aguardando' %}
+                                            <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 24px; width: 90px; object-fit: contain;">
+                                        {% else %}
+                                            <span class="badge bg-light text-dark border">{{ ticket.get_status_display }}</span>
+                                        {% endif %}
+                                    </div>
+
+                                    <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</div>
+                                    <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</div>
+                                </div>
                             </button>
 
-                            {% if ticket.delete_status == 'pending' %}
-                            {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or ticket.creator_user.id == request.user.id %}
+                        <div class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-success"
-                                    title="Aprovar exclusão"
-                                    onclick="event.stopPropagation(); decideTicketDeletion('{% url 'ticket_delete_approve' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');"
+                                    class="btn btn-sm btn-outline-info"
+                                    title="Ver/Editar"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#collapse{{ ticket.id }}"
+                                    aria-controls="collapse{{ ticket.id }}"
                                 >
-                                    <i class="fas fa-check"></i>
+                                    <i class="fas fa-eye"></i>
                                 </button>
+
+                                {% if 'ticket_pdf_view' in allowed_url_names %}
+                                    <a href="{% url 'ticket_pdf_view' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Gerar PDF">
+                                        <i class="fas fa-file-pdf"></i>
+                                    </a>
+                                {% endif %}
+
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    title="Rejeitar exclusão"
-                                    onclick="event.stopPropagation(); decideTicketDeletion('{% url 'ticket_delete_reject' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');"
+                                    class="btn btn-sm {% if ticket.delete_status == 'pending' %}btn-outline-warning{% else %}btn-outline-danger{% endif %}"
+                                    title="{% if ticket.delete_status == 'pending' %}Solicitação de exclusão pendente{% else %}Excluir / Solicitar exclusão{% endif %}"
+                                    onclick="requestTicketDeletion('{% url 'ticket_delete_request' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}', {{ ticket.id }}, '{{ ticket.creator_display_name|default:'Administradores'|escapejs }}', '{{ request.user.profile.role|escapejs }}', {% if ticket.creator_user and ticket.creator_user.id == request.user.id %}true{% else %}false{% endif %});"
                                 >
-                                    <i class="fas fa-times"></i>
+                                    <i class="fas fa-trash"></i>
                                 </button>
-                            {% endif %}
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="11" class="text-center py-4">Nenhuma ordem de serviço encontrada.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+                                {% if ticket.delete_status == 'pending' %}
+                                {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or ticket.creator_user.id == request.user.id %}
+                                    <button type="button" class="btn btn-sm btn-success" title="Aprovar exclusão"
+                                            onclick="decideTicketDeletion('{% url 'ticket_delete_approve' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Rejeitar exclusão"
+                                            onclick="decideTicketDeletion('{% url 'ticket_delete_reject' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                {% endif %}
+                                {% endif %}
+                        </div>
+                    </div>
+                </h2>
+                <div id="collapse{{ ticket.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ ticket.id }}" data-bs-parent="#ticketsAccordion">
+                    <div class="accordion-body p-0">
+                        <div class="ticket-inline-container" id="ticketInlineContainer{{ ticket.id }}" data-loaded="0"></div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+                <div class="text-center py-4 text-muted">Nenhuma ordem de serviço encontrada.</div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -1569,6 +1675,343 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Lista de OS em modo "card collapse" (sem modal)
+    document.addEventListener('DOMContentLoaded', function () {
+        const accordionEl = document.getElementById('ticketsAccordion');
+        if (!accordionEl || !window.bootstrap) return;
+
+        function scrollToTicket(ticketId) {
+            try {
+                const header = document.getElementById(`heading${ticketId}`);
+                if (!header) return;
+
+                // Compensa barra superior fixa (se existir)
+                const offset = 90;
+                const top = header.getBoundingClientRect().top + window.pageYOffset - offset;
+                window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            } catch (e) {}
+        }
+
+        function execScripts(container) {
+            const scripts = container.querySelectorAll('script');
+            scripts.forEach(script => {
+                const newScript = document.createElement('script');
+                Array.from(script.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+                newScript.appendChild(document.createTextNode(script.innerHTML));
+                script.parentNode.replaceChild(newScript, script);
+            });
+        }
+
+        function initTooltips(scopeEl) {
+            if (!window.bootstrap || !window.bootstrap.Tooltip) return;
+            (scopeEl || document).querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
+                try { bootstrap.Tooltip.getOrCreateInstance(el); } catch (e) {}
+            });
+        }
+
+        function bindCollapseEvents(collapseEl) {
+            if (!collapseEl || collapseEl.dataset.bound === '1') return;
+            collapseEl.dataset.bound = '1';
+
+            // Quando abrir um card, carrega o HTML inline via AJAX (1 por vez)
+            collapseEl.addEventListener('show.bs.collapse', async function () {
+                const btn = accordionEl.querySelector(`[data-inline-url][data-bs-target="#${collapseEl.id}"]`);
+                const ticketId = btn ? btn.getAttribute('data-ticket-id') : null;
+                const url = btn ? btn.getAttribute('data-inline-url') : null;
+                if (!ticketId || !url) return;
+
+                const container = document.getElementById(`ticketInlineContainer${ticketId}`);
+                if (!container) return;
+
+                if (container.dataset.loaded === '1') return;
+                container.dataset.loaded = '1';
+                container.innerHTML = `
+                    <div class="p-4 text-center text-muted">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <div class="small mt-2">Carregando OS...</div>
+                    </div>
+                `;
+
+                try {
+                    const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const html = await resp.text();
+                    container.innerHTML = html;
+                    execScripts(container);
+                    initTooltips(container);
+
+                    // Depois de renderizar, garante que a OS continue enquadrada (o conteúdo pode aumentar a altura)
+                    setTimeout(() => scrollToTicket(ticketId), 50);
+                } catch (e) {
+                    container.dataset.loaded = '0';
+                    container.innerHTML = `<div class="p-3 text-danger">Erro ao carregar a OS.</div>`;
+                }
+            });
+
+            // Após o collapse abrir (fim da animação), faz o scroll para enquadrar
+            collapseEl.addEventListener('shown.bs.collapse', function () {
+                const btn = accordionEl.querySelector(`[data-inline-url][data-bs-target="#${collapseEl.id}"]`);
+                const ticketId = btn ? btn.getAttribute('data-ticket-id') : null;
+                if (!ticketId) return;
+                scrollToTicket(ticketId);
+            });
+
+            // Ao fechar, limpa conteúdo para evitar conflito de IDs (#ticketEditForm)
+            collapseEl.addEventListener('hidden.bs.collapse', function () {
+                const btn = accordionEl.querySelector(`[data-inline-url][data-bs-target="#${collapseEl.id}"]`);
+                const ticketId = btn ? btn.getAttribute('data-ticket-id') : null;
+                if (!ticketId) return;
+                const container = document.getElementById(`ticketInlineContainer${ticketId}`);
+                if (!container) return;
+                container.dataset.loaded = '0';
+                container.innerHTML = '';
+            });
+        }
+
+        // Bind inicial
+        accordionEl.querySelectorAll('.accordion-collapse').forEach(bindCollapseEvents);
+        window.bindTicketCollapseEvents = bindCollapseEvents;
+
+        // Submit inline (AJAX) - substitui o conteúdo do card com o HTML retornado
+        accordionEl.addEventListener('submit', async function (e) {
+            const form = e.target;
+            if (!form || !form.classList || !form.classList.contains('ticket-inline-form')) return;
+            e.preventDefault();
+
+            const collapseEl = form.closest('.accordion-collapse');
+            const btn = collapseEl ? accordionEl.querySelector(`[data-inline-url][data-bs-target="#${collapseEl.id}"]`) : null;
+            const ticketId = btn ? btn.getAttribute('data-ticket-id') : null;
+            const container = ticketId ? document.getElementById(`ticketInlineContainer${ticketId}`) : null;
+            if (!container) return;
+
+            const fd = new FormData(form);
+            if (e.submitter && e.submitter.name) {
+                fd.set(e.submitter.name, e.submitter.value);
+            }
+
+            try {
+                const resp = await fetch(form.action, {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const html = await resp.text();
+                container.innerHTML = html;
+                execScripts(container);
+                initTooltips(container);
+
+                // Se clicou em "Salvar e recolher" (somente no form principal)
+                if (e.submitter && e.submitter.value === 'collapse' && collapseEl) {
+                    try { bootstrap.Collapse.getOrCreateInstance(collapseEl).hide(); } catch (err) {}
+                }
+            } catch (err) {
+                // fallback simples
+                alert('Erro ao salvar a OS.');
+            }
+        }, true);
+
+        // Edição de evolução (histórico) via AJAX (inline)
+        accordionEl.addEventListener('click', async function (e) {
+            const btn = e.target.closest('.inline-update-save');
+            if (!btn) return;
+
+            const updateId = btn.getAttribute('data-update-id');
+            const url = btn.getAttribute('data-action');
+            if (!updateId || !url) return;
+
+            const container = btn.closest('.ticket-inline-container');
+            if (!container) return;
+
+            const descEl = container.querySelector(`#update-desc-${updateId}`);
+            const desc = descEl ? descEl.value : '';
+
+            const fd = new FormData();
+            fd.set('description', desc);
+
+            // CSRF do form principal (quando existir)
+            const csrfEl = container.querySelector('input[name="csrfmiddlewaretoken"]');
+            if (csrfEl && csrfEl.value) fd.set('csrfmiddlewaretoken', csrfEl.value);
+
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    body: fd,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Ticket-Inline': '1'
+                    }
+                });
+                const html = await resp.text();
+                container.innerHTML = html;
+                execScripts(container);
+                initTooltips(container);
+            } catch (err) {
+                alert('Erro ao salvar a evolução.');
+            }
+        }, true);
+
+        // === Criar Nova OS via Modal (sem sair da página) ===
+        const openCreateBtn = document.getElementById('openCreateTicketBtn');
+        const createModalEl = document.getElementById('createTicketModal');
+        const createModalContent = document.getElementById('createTicketModalContent');
+        const createModalUrl = "{% url 'ticket_create_modal' %}";
+        const accordionItemUrlTpl = "{% url 'ticket_accordion_item' 999999 %}";
+
+        let createModal;
+        if (createModalEl && window.bootstrap && window.bootstrap.Modal) {
+            createModal = new bootstrap.Modal(createModalEl, { backdrop: 'static', keyboard: true });
+        }
+
+        function ticketAccordionItemUrl(ticketId) {
+            return accordionItemUrlTpl.replace('999999', String(ticketId));
+        }
+
+        async function insertNewTicket(ticketId) {
+            const resp = await fetch(ticketAccordionItemUrl(ticketId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const html = await resp.text();
+            accordionEl.insertAdjacentHTML('afterbegin', html);
+
+            const collapseEl = document.getElementById(`collapse${ticketId}`);
+            if (collapseEl) {
+                bindCollapseEvents(collapseEl);
+                try { bootstrap.Collapse.getOrCreateInstance(collapseEl).show(); } catch (e) {}
+            }
+
+            initTooltips(accordionEl);
+            setTimeout(() => scrollToTicket(ticketId), 100);
+        }
+
+        function openExistingTicket(ticketId) {
+            const collapseEl = document.getElementById(`collapse${ticketId}`);
+            if (!collapseEl) return false;
+            bindCollapseEvents(collapseEl);
+            try { bootstrap.Collapse.getOrCreateInstance(collapseEl).show(); } catch (e) {}
+            setTimeout(() => scrollToTicket(ticketId), 150);
+            return true;
+        }
+
+        async function loadCreateModal() {
+            if (!createModalContent) return;
+            createModalContent.innerHTML = `
+                <div class="text-center p-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small mt-2">Carregando formulário...</div>
+                </div>
+            `;
+            const resp = await fetch(createModalUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const html = await resp.text();
+            createModalContent.innerHTML = html;
+            execScripts(createModalContent);
+            initTooltips(createModalContent);
+
+            // Se veio de algum atalho (ex.: cliente -> criar OS), pré-seleciona o cliente
+            try {
+                const params = new URLSearchParams(window.location.search || '');
+                const presetClient = params.get('client');
+                if (presetClient) {
+                    const clientSelect = createModalContent.querySelector('[name="create-client"]');
+                    if (clientSelect) {
+                        clientSelect.value = presetClient;
+                        clientSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            } catch (e) {}
+        }
+
+        if (openCreateBtn && createModal) {
+            openCreateBtn.addEventListener('click', async function () {
+                try {
+                    createModal.show();
+                    await loadCreateModal();
+                } catch (e) {
+                    // fallback: se falhar, redireciona para a criação padrão
+                    window.location.href = "{% url 'ticket_list' %}?create=1";
+                }
+            });
+        }
+
+        // Deep-link: abrir modal de criação / abrir uma OS específica via querystring
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            const openId = params.get('open');
+            const createFlag = params.get('create');
+
+            if (createFlag === '1' && createModal) {
+                createModal.show();
+                loadCreateModal();
+            }
+
+            if (openId && /^\d+$/.test(openId)) {
+                // garante depois que a página renderizou
+                setTimeout(() => openExistingTicket(openId), 50);
+            }
+        } catch (e) {}
+
+        // Submit do formulário de criação (AJAX)
+        if (createModalContent) {
+            createModalContent.addEventListener('submit', async function (e) {
+                const form = e.target;
+                if (!form || form.id !== 'createTicketForm') return;
+                e.preventDefault();
+
+                const fd = new FormData(form);
+                try {
+                    const resp = await fetch(form.action, {
+                        method: 'POST',
+                        body: fd,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    if (!resp.ok) {
+                        const data = await resp.json().catch(() => null);
+                        if (data && data.html) {
+                            createModalContent.innerHTML = data.html;
+                            execScripts(createModalContent);
+                            initTooltips(createModalContent);
+                            return;
+                        }
+                        throw new Error('Erro ao criar OS');
+                    }
+
+                    const data = await resp.json();
+                    if (!data || data.status !== 'success') {
+                        throw new Error((data && data.message) || 'Erro ao criar OS');
+                    }
+
+                    // Fecha modal e insere na lista
+                    try { createModal && createModal.hide(); } catch (e2) {}
+                    await insertNewTicket(data.ticket_id);
+                } catch (err) {
+                    alert(err.message || 'Erro ao criar OS.');
+                }
+            }, true);
+        }
+
+        initTooltips(document);
+
+        // Clicar no "espaço das ações" também abre/fecha o collapse (exceto ao clicar nos botões/links)
+        accordionEl.addEventListener('click', function (e) {
+            const actionsEl = e.target.closest('.ticket-acc-actions');
+            if (!actionsEl || actionsEl.classList.contains('ticket-acc-actions-header')) return;
+
+            // Se clicou em um botão/link dentro das ações, não toggle
+            if (e.target.closest('button') || e.target.closest('a')) return;
+
+            const headerEl = actionsEl.closest('.accordion-header');
+            if (!headerEl) return;
+            const toggleBtn = headerEl.querySelector('.accordion-button[data-bs-target]');
+            if (!toggleBtn) return;
+
+            const target = toggleBtn.getAttribute('data-bs-target');
+            if (!target) return;
+            const collapseEl = document.querySelector(target);
+            if (!collapseEl) return;
+
+            try { bootstrap.Collapse.getOrCreateInstance(collapseEl).toggle(); } catch (err) {}
+        });
+    });
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {

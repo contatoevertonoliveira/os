@@ -37,7 +37,7 @@
                                 <small class="text-muted">De: {{ notification.sender.get_full_name|default:"Sistema" }}</small>
                                 <div>
                                     {% if notification.related_ticket %}
-                                        <a href="{% url 'ticket_detail' notification.related_ticket.pk %}" class="btn btn-sm btn-info text-white me-2">Ver Ticket</a>
+                                        <a href="{% url 'ticket_list' %}?period=all&open={{ notification.related_ticket.pk }}" class="btn btn-sm btn-info text-white me-2">Ver Ticket</a>
                                     {% endif %}
                                     {% if not notification.is_read %}
                                         <button class="btn btn-sm btn-outline-primary mark-read-btn" data-id="{{ notification.id }}">Marcar como lida</button>

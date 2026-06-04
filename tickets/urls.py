@@ -1,7 +1,7 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
-    DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TokenLoginView,
+    DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
     TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView, TicketPDFStatusView, TicketsDailyReportPDFStatusView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView, client_quick_update,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
@@ -21,7 +21,7 @@ from .views import (
     load_hubs, ChecklistDailyView, ChecklistPDFView,
     TicketsDailyReportPDFView, TicketsWeeklyReportPDFView, TicketsMonthlyReportPDFView,
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
-    TicketUpdateEditView, TicketUpdateDeleteView, TicketUpdateImageDeleteView,
+    TicketUpdateEditView, TicketUpdateDeleteView, TicketUpdateImageDeleteView, TicketImageDeleteView,
     ChecklistItemDetailAddView, ChecklistItemDetailUpdateView, ChecklistItemDetailDeleteView, ClientHubsAPIView, ClientTodaysTicketsAPIView,
     ChecklistImageToggleReportView, ServicesHubView, WelcomeView,
     LocalView, LocalAgendaAPIView,
@@ -92,6 +92,9 @@ urlpatterns = [
     path('tickets/<int:pk>/pdf/status/', TicketPDFStatusView.as_view(), name='ticket_pdf_status'),
     path('tickets/<int:pk>/pdf/view/', TicketPDFViewerView.as_view(), name='ticket_pdf_view'),
     path('tickets/<int:pk>/modal/', TicketModalView.as_view(), name='ticket_modal'),
+    path('tickets/<int:pk>/inline/', TicketInlineView.as_view(), name='ticket_inline'),
+    path('tickets/create/modal/', TicketCreateModalView.as_view(), name='ticket_create_modal'),
+    path('tickets/<int:pk>/accordion-item/', TicketAccordionItemView.as_view(), name='ticket_accordion_item'),
     path('tickets/<int:pk>/edit/', TicketUpdateView.as_view(), name='ticket_update'),
     path('tickets/<int:pk>/delete/', TicketDeleteView.as_view(), name='ticket_delete'),
     
@@ -99,6 +102,7 @@ urlpatterns = [
     path('updates/<int:pk>/edit/', TicketUpdateEditView.as_view(), name='ticket_update_edit'),
     path('updates/<int:pk>/delete/', TicketUpdateDeleteView.as_view(), name='ticket_update_delete'),
     path('updates/images/<int:pk>/delete/', TicketUpdateImageDeleteView.as_view(), name='ticket_update_image_delete'),
+    path('tickets/images/<int:pk>/delete/', TicketImageDeleteView.as_view(), name='ticket_image_delete'),
 
     # Checklist Sub-items
     path('checklist/item/<int:item_id>/detail/add/', ChecklistItemDetailAddView.as_view(), name='checklist_item_detail_add'),

@@ -1,0 +1,166 @@
+<div class="accordion-item border-0 mb-2 shadow-sm">
+    <h2 class="accordion-header" id="heading{{ ticket.id }}">
+        <div class="d-flex align-items-stretch">
+            <button
+                    class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapse{{ ticket.id }}"
+                    aria-expanded="false"
+                    aria-controls="collapse{{ ticket.id }}"
+                    data-ticket-id="{{ ticket.id }}"
+                    data-inline-url="{% url 'ticket_inline' ticket.id %}"
+                >
+                    <div class="ticket-acc-grid">
+                        <div class="ticket-acc-cell text-center">
+                            {% with creator=ticket.creator_user %}
+                                {% if creator %}
+                                    {% with creator_name=ticket.creator_display_name %}
+                                        <span
+                                            class="ticket-creator-tooltip-target {% if can_edit_ticket_creator %}ticket-creator-trigger{% endif %}"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-custom-class="ticket-creator-tooltip"
+                                            data-bs-placement="right"
+                                            data-bs-html="true"
+                                            data-bs-title="<div class='ticket-creator-tooltip-wrap'>{% if ticket.creator_photo_url %}<img class='ticket-creator-tooltip-photo' src='{{ ticket.creator_photo_url }}' alt='{{ creator_name|escape }}'>{% else %}<div class='ticket-creator-tooltip-photo-fallback'><i class='fas fa-user'></i></div>{% endif %}<div><div class='ticket-creator-tooltip-name'>{{ creator_name|escape }}</div><div class='ticket-creator-tooltip-meta'>Cargo: {{ ticket.creator_job_title|default:'-'|escape }}</div><div class='ticket-creator-tooltip-meta'>Lançado: {{ ticket.created_at|date:'d/m/Y H:i' }}</div></div></div>"
+                                            {% if can_edit_ticket_creator %}
+                                                data-ticket-id="{{ ticket.id }}"
+                                                data-set-url="{% url 'ticket_set_creator' ticket.id %}"
+                                                data-current-creator-id="{{ creator.id }}"
+                                                data-launched="{{ ticket.created_at|date:'d/m/Y H:i' }}"
+                                                style="cursor: pointer;"
+                                                onclick="event.stopPropagation();"
+                                            {% endif %}
+                                        >
+                                            {% if ticket.creator_photo_url %}
+                                                <img class="ticket-creator-avatar" src="{{ ticket.creator_photo_url }}" alt="{{ creator_name }}">
+                                            {% else %}
+                                                <span class="ticket-creator-avatar-fallback"><i class="fas fa-user"></i></span>
+                                            {% endif %}
+                                        </span>
+                                    {% endwith %}
+                                {% else %}
+                                    <span class="ticket-creator-avatar-fallback"><i class="fas fa-user"></i></span>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        <div class="ticket-acc-cell ticket-acc-mono fw-semibold ticket-acc-truncate">{{ ticket.formatted_id }}</div>
+                        <div class="ticket-acc-cell ticket-acc-mono text-muted ticket-acc-truncate">{{ ticket.leankeep_id|default:"-" }}</div>
+
+                        <div class="ticket-acc-cell ticket-acc-truncate">
+                            <div class="d-flex align-items-center gap-2">
+                                {% if ticket.client.logo %}
+                                    <img src="{{ ticket.client.logo.url }}" alt="Logo" class="rounded" style="width: 18px; height: 18px; object-fit: cover;">
+                                {% endif %}
+                                <div class="d-flex flex-column ticket-acc-truncate">
+                                    <div class="ticket-acc-truncate fw-semibold">{{ ticket.client.name }}</div>
+                                    {% if ticket.hub %}
+                                        <div class="small text-muted ticket-acc-truncate">{{ ticket.hub.name }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-lg">{{ ticket.ticket_type.name|default:"-" }}</div>
+
+                        <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-lg">
+                            {% if ticket.equipments.exists %}
+                                {% for eq in ticket.equipments.all %}
+                                    {{ eq.name }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                {{ ticket.equipment|default:"-" }}
+                            {% endif %}
+                        </div>
+
+                        <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">
+                            {% if ticket.contact_jumper_responsible %}
+                                {{ ticket.contact_jumper_responsible.name }}
+                            {% else %}
+                                {% for tech in ticket.technicians.all %}
+                                    {{ tech.get_full_name|default:tech.username }}{% if not forloop.last %}, {% endif %}
+                                {% empty %}
+                                    -
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="ticket-acc-cell text-center">
+                            {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
+                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
+                                <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'finished' %}
+                                <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'pending' %}
+                                <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'canceled' %}
+                                <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'in_progress' %}
+                                <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'open' %}
+                                <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'delayed' %}
+                                <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% elif ticket.status == 'aguardando' %}
+                                <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 24px; width: 90px; object-fit: contain;">
+                            {% else %}
+                                <span class="badge bg-light text-dark border">{{ ticket.get_status_display }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</div>
+                        <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">{{ ticket.deadline|date:"d/m/Y H:i"|default:"-" }}</div>
+                    </div>
+                </button>
+
+            <div class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-info"
+                        title="Ver/Editar"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapse{{ ticket.id }}"
+                        aria-controls="collapse{{ ticket.id }}"
+                    >
+                        <i class="fas fa-eye"></i>
+                    </button>
+
+                    {% if 'ticket_pdf_view' in allowed_url_names %}
+                        <a href="{% url 'ticket_pdf_view' ticket.id %}" class="btn btn-sm btn-outline-secondary" title="Gerar PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                    {% endif %}
+
+                    <button
+                        type="button"
+                        class="btn btn-sm {% if ticket.delete_status == 'pending' %}btn-outline-warning{% else %}btn-outline-danger{% endif %}"
+                        title="{% if ticket.delete_status == 'pending' %}Solicitação de exclusão pendente{% else %}Excluir / Solicitar exclusão{% endif %}"
+                        onclick="requestTicketDeletion('{% url 'ticket_delete_request' ticket.id %}', 'OS #{{ ticket.formatted_id|escapejs }}', {{ ticket.id }}, '{{ ticket.creator_display_name|default:'Administradores'|escapejs }}', '{{ request.user.profile.role|escapejs }}', {% if ticket.creator_user and ticket.creator_user.id == request.user.id %}true{% else %}false{% endif %});"
+                    >
+                        <i class="fas fa-trash"></i>
+                    </button>
+
+                    {% if ticket.delete_status == 'pending' %}
+                    {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' or ticket.creator_user.id == request.user.id %}
+                        <button type="button" class="btn btn-sm btn-success" title="Aprovar exclusão"
+                                onclick="decideTicketDeletion('{% url 'ticket_delete_approve' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Rejeitar exclusão"
+                                onclick="decideTicketDeletion('{% url 'ticket_delete_reject' ticket.id %}', {{ ticket.id }}, 'OS #{{ ticket.formatted_id|escapejs }}');">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    {% endif %}
+                    {% endif %}
+            </div>
+        </div>
+    </h2>
+    <div id="collapse{{ ticket.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ ticket.id }}" data-bs-parent="#ticketsAccordion">
+        <div class="accordion-body p-0">
+            <div class="ticket-inline-container" id="ticketInlineContainer{{ ticket.id }}" data-loaded="0"></div>
+        </div>
+    </div>
+</div>
+

@@ -110,7 +110,7 @@
                     <i class="fas fa-trash"></i>
                 </button>
                 {% endif %}
-                <a href="{% url 'ticket_create' %}?client={{ client.pk }}" class="btn btn-sm btn-success" onclick="event.stopPropagation();">
+                <a href="{% url 'ticket_list' %}?create=1&client={{ client.pk }}" class="btn btn-sm btn-success" onclick="event.stopPropagation();">
                     <i class="fas fa-ticket-alt"></i> Abrir OS
                 </a>
             </div>

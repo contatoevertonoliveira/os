@@ -740,7 +740,7 @@
                                                     </td>
                                                     <td class="text-muted small">{{ ticket.updated_at|date:"H:i" }}</td>
                                                     <td class="text-end pe-4">
-                                                        <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-sm btn-outline-secondary">
+                                                        <a href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}" class="btn btn-sm btn-outline-secondary">
                                                             Ver
                                                         </a>
                                                     </td>

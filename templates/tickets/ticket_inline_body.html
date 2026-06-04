@@ -1,0 +1,555 @@
+{% load widget_tweaks %}
+
+<div class="p-3">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <div class="fw-bold text-primary">
+                Leankeep nº: {{ ticket.leankeep_id|default:'00000' }} | OS: {{ ticket.formatted_id }}
+            </div>
+            <div class="text-muted small">{{ ticket.client.name }}</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-{{ ticket.status_color|default:'secondary' }}">{{ ticket.get_status_display }}</span>
+            {% if ticket.deadline and ticket.deadline < now and ticket.status != 'finished' and ticket.status != 'canceled' %}
+                <span class="badge bg-danger">Vencida</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <form class="ticket-inline-form" id="ticketEditForm" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="pending_delete_updates" id="pendingDeleteUpdates{{ ticket.id }}" value="">
+
+        <div class="row g-3 align-items-start">
+            {# Sempre 2 colunas no desktop: conteúdo (8) + evolução (4) #}
+            <div class="col-lg-8">
+                <div class="p-3 bg-white rounded-3 border border-dark-subtle">
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold text-muted mb-1">Status</label>
+                            {% render_field form.status class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted mb-1">Cliente</label>
+                            {% render_field form.client class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-muted mb-1">Hub/Loja</label>
+                            {% render_field form.hub class="form-select form-select-sm" %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="row g-2">
+                            <!-- Sistemas -->
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Sistemas</label>
+                                <div class="card p-2 bg-light border-0 rounded-3 h-100">
+                                    <div class="row row-cols-2 g-2">
+                                        {% for checkbox in form.systems %}
+                                        <div class="col">
+                                            <div class="form-check form-switch">
+                                                {{ checkbox.tag }}
+                                                <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
+                                                    <span class="badge rounded-pill" id="modal-badge-{{ checkbox.id_for_label }}"
+                                                          style="background-color: #dc3545; font-weight: normal; font-size: 0.75rem; min-width: 50px;">
+                                                        {{ checkbox.choice_label }}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <small class="text-muted" style="font-size: 0.75rem;">Ative para adicionar.</small>
+                            </div>
+
+                            <!-- Imagens da OS -->
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Imagens da OS</label>
+                                <div class="p-2 bg-light rounded-3 border-0">
+                                    <div class="ticket-images-grid" id="ticketImagesGrid{{ ticket.id }}">
+                                        {% if ticket.images.exists %}
+                                            {% for img_obj in ticket.images.all %}
+                                                <div id="ticket-image-item-{{ img_obj.id }}" class="ticket-image-item position-relative">
+                                                    <img
+                                                        src="{{ img_obj.image.url }}"
+                                                        alt="Imagem da OS"
+                                                        class="img-thumbnail open-gallery-btn shadow-sm"
+                                                        style="width: 100%; height: 78px; object-fit: cover; cursor: pointer;"
+                                                        data-gallery-group="ticket_{{ ticket.id }}_images"
+                                                        data-image-url="{{ img_obj.image.url }}"
+                                                        data-image-desc="OS {{ ticket.formatted_id }}"
+                                                        data-image-delete-url="{% url 'ticket_image_delete' img_obj.id %}"
+                                                    >
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                        style="line-height: 1; padding: 0.15rem 0.35rem;"
+                                                        title="Excluir imagem"
+                                                        onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_image_delete' img_obj.id %}', 'ticket-image-item-{{ img_obj.id }}');"
+                                                    >×</button>
+                                                </div>
+                                            {% endfor %}
+                                        {% elif ticket.image %}
+                                            <div class="ticket-image-item">
+                                                <img
+                                                    src="{{ ticket.image.url }}"
+                                                    alt="Imagem da OS"
+                                                    class="img-thumbnail open-gallery-btn shadow-sm"
+                                                    style="width: 100%; height: 78px; object-fit: cover; cursor: pointer;"
+                                                    data-gallery-group="ticket_{{ ticket.id }}_images"
+                                                    data-image-url="{{ ticket.image.url }}"
+                                                    data-image-desc="OS {{ ticket.formatted_id }}"
+                                                >
+                                            </div>
+                                        {% else %}
+                                            <div class="text-muted small">Sem imagens.</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div id="ticketImagesPreview{{ ticket.id }}" class="d-flex flex-wrap gap-2 mt-2 d-none"></div>
+                                    <input
+                                        type="file"
+                                        name="ticket_images"
+                                        id="id_ticket_images_{{ ticket.id }}"
+                                        class="form-control form-control-sm mt-2"
+                                        multiple
+                                    >
+                                    <small class="text-muted" style="font-size: 0.75rem;">Clique para ampliar. Você pode anexar mais imagens e salvar.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Equipamentos</label>
+                            {% render_field form.equipment_selection class="form-select form-select-sm" %}
+                            <div id="modal-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-1"></div>
+                            <div class="d-none">{% render_field form.equipments %}</div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
+                            {% render_field form.ticket_type class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
+                            {% render_field form.problem_type class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">ID Leankeep</label>
+                            {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
+                            {% render_field form.contact_client_requester class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Responsável/Executor</label>
+                            {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
+                            {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-muted mb-1">Prazo</label>
+                            {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted mb-1">Descrição Inicial</label>
+                            {% render_field form.description class="form-control form-control-sm" rows="5" %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted mb-1">Descrição Final (Resolução)</label>
+                            {% render_field form.final_description class="form-control form-control-sm" rows="5" placeholder="Descreva o que foi feito..." %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                        <button type="submit" name="save_action" value="collapse" class="btn btn-success btn-sm px-4 fw-bold">
+                            <i class="fas fa-save me-1"></i> Salvar e recolher
+                        </button>
+                    </div>
+                </div>
+        </div>
+
+            <div class="col-lg-4">
+                <div class="d-flex flex-column h-100">
+                    <!-- Nova Evolução (balão) -->
+                    <div class="p-3 bg-white rounded-3 border border-dark-subtle mb-3">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3">
+                            <i class="fas fa-plus-circle me-1"></i> Nova Evolução
+                        </h6>
+                        <div class="mb-2">
+                            <textarea name="evolution_description" class="form-control form-control-sm" rows="2" placeholder="Descreva o andamento..."></textarea>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex gap-2 align-items-center">
+                                <div class="input-group input-group-sm w-75">
+                                    <input type="file" name="evolution_image" id="id_evolution_image" class="form-control form-control-sm" multiple>
+                                    <span class="input-group-text bg-light text-muted" title="Cole (Ctrl+V)">
+                                        <i class="fas fa-paste"></i>
+                                    </span>
+                                </div>
+                                <button type="submit" name="inline_action" value="evolve" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <div id="evolution-images-preview" class="d-flex flex-wrap gap-2 d-none"></div>
+                        </div>
+                    </div>
+
+                    <!-- Histórico -->
+                    <div class="flex-grow-1 p-3 bg-light rounded-3 border border-dark-subtle" style="max-height: 520px; overflow:auto;">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 sticky-top py-1" style="background-color: rgba(255,255,255,0.85);">
+                            <i class="fas fa-history me-1"></i> Histórico
+                        </h6>
+
+                        {% if updates %}
+                            <div class="timeline-sm">
+                                {% for update in updates %}
+                                <div id="update-item-{{ update.id }}" class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
+                                    <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
+                                    <div class="card shadow-sm border-0 group-hover-actions">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold small text-primary">
+                                                    {% if update.created_by %}{{ update.created_by.get_full_name|default:update.created_by.username }}{% else %}Sistema{% endif %}
+                                                </span>
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <small class="text-muted" style="font-size: 0.7rem;">
+                                                        {{ update.created_at|date:"d/m H:i" }}
+                                                    </small>
+                                                    <div class="update-actions">
+                                                        <button type="button" class="btn btn-link p-0 text-secondary" onclick="toggleEditUpdate('{{ update.id }}')" title="Editar">
+                                                            <i class="fas fa-pencil-alt fa-xs"></i>
+                                                        </button>
+                                                        <button type="button" class="btn btn-link p-0 text-danger ms-1" title="Excluir" onclick="confirmPendingUpdateDelete('{{ update.id }}')">
+                                                            <i class="fas fa-trash fa-xs"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div id="update-view-{{ update.id }}" ondblclick="if (event && event.target && event.target.tagName !== 'IMG') { toggleEditUpdate('{{ update.id }}'); }" title="Duplo clique para editar">
+                                                <p class="mb-1 text-dark small" style="font-size: 0.85rem; cursor: text;">{{ update.description|linebreaksbr }}</p>
+
+                                                {% if update.images.exists %}
+                                                    <div class="update-images-grid mt-2">
+                                                        {% for img_obj in update.images.all %}
+                                                            <div id="update-image-item-{{ img_obj.id }}" class="position-relative">
+                                                                <img
+                                                                    src="{{ img_obj.image.url }}"
+                                                                    alt="Imagem da Evolução"
+                                                                    class="img-thumbnail open-gallery-btn shadow-sm"
+                                                                    style="width: 100%; height: 72px; object-fit: cover; cursor: pointer;"
+                                                                    data-gallery-group="update_{{ update.id }}_images"
+                                                                    data-image-url="{{ img_obj.image.url }}"
+                                                                    data-image-desc="{{ update.description|default:''|escapejs }}"
+                                                                    {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                                                                        data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                    {% elif update.created_by and update.created_by.id == request.user.id %}
+                                                                        data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                    {% endif %}
+                                                                >
+
+                                                                {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                                                                    <button
+                                                                        type="button"
+                                                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                                        style="line-height: 1; padding: 0.15rem 0.35rem;"
+                                                                        title="Excluir imagem"
+                                                                        onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
+                                                                    >×</button>
+                                                                {% elif update.created_by and update.created_by.id == request.user.id %}
+                                                                    <button
+                                                                        type="button"
+                                                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                                        style="line-height: 1; padding: 0.15rem 0.35rem;"
+                                                                        title="Excluir imagem"
+                                                                        onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
+                                                                    >×</button>
+                                                                {% endif %}
+                                                            </div>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% elif update.image %}
+                                                    <div class="mt-2 position-relative d-inline-block">
+                                                        <img
+                                                            src="{{ update.image.url }}"
+                                                            alt="Imagem da Evolução"
+                                                            class="img-thumbnail open-gallery-btn shadow-sm"
+                                                            style="width: 100px; height: 100px; object-fit: cover; cursor: pointer;"
+                                                            data-gallery-group="update_{{ update.id }}_images"
+                                                            data-image-url="{{ update.image.url }}"
+                                                            data-image-desc="{{ update.description|default:''|escapejs }}"
+                                                        >
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+
+                                            <div id="update-edit-{{ update.id }}" class="d-none mt-2">
+                                                <div class="update-edit-inline" data-action="{% url 'ticket_update_edit' update.id %}">
+                                                    <textarea id="update-desc-{{ update.id }}" class="form-control form-control-sm mb-2" rows="3">{{ update.description }}</textarea>
+                                                    <div class="d-flex justify-content-end gap-1">
+                                                        <button type="button" class="btn btn-sm btn-light border" onclick="toggleEditUpdate('{{ update.id }}')">Cancelar</button>
+                                                        <button
+                                                            type="button"
+                                                            class="btn btn-sm btn-primary inline-update-save"
+                                                            data-update-id="{{ update.id }}"
+                                                            data-action="{% url 'ticket_update_edit' update.id %}"
+                                                        >Salvar</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-comment-slash fa-2x mb-2 opacity-25"></i>
+                                <p class="small mb-0">Nenhuma evolução registrada.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    .update-actions { display: none; }
+    .group-hover-actions:hover .update-actions { display: block; }
+
+    .update-images-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+    @media (max-width: 1200px) {
+        .update-images-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .ticket-images-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+    @media (max-width: 1200px) {
+        .ticket-images-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 768px) {
+        .ticket-images-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+</style>
+
+<script>
+    (function() {
+        // Define colors from template
+        const systemColors = {
+            {% for system in form.systems.field.queryset %}
+                "{{ system.id }}": "{{ system.color }}",
+            {% endfor %}
+        };
+        const SYSTEM_OFF_COLOR = '#dc3545';
+
+        const checkboxes = document.querySelectorAll('#ticketEditForm input[name="systems"]');
+        function enforceSingleSystemSelection(checkedBox) {
+            if (!checkedBox || !checkedBox.checked) return;
+            checkboxes.forEach(cb => {
+                if (cb !== checkedBox && cb.checked) {
+                    cb.checked = false;
+                    cb.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+        }
+
+        checkboxes.forEach(checkbox => {
+            const badge = document.getElementById(`modal-badge-${checkbox.id}`);
+            const systemId = checkbox.value;
+            const color = systemColors[systemId] || '#6c757d';
+
+            checkbox.addEventListener('change', function() {
+                enforceSingleSystemSelection(checkbox);
+            });
+
+            if (badge) {
+                const updateStyle = () => {
+                    if (checkbox.checked) {
+                        badge.style.backgroundColor = color;
+                        badge.style.opacity = '1';
+                        badge.classList.add('shadow-sm');
+                    } else {
+                        badge.style.backgroundColor = SYSTEM_OFF_COLOR;
+                        badge.style.opacity = '0.85';
+                        badge.classList.remove('shadow-sm');
+                    }
+                };
+                checkbox.addEventListener('change', updateStyle);
+                updateStyle();
+            }
+        });
+    })();
+</script>
+
+<script>
+    // Exclusão de evolução: não exclui imediatamente do banco.
+    // Marca para excluir e só aplica ao clicar em "Salvar e recolher".
+    function confirmPendingUpdateDelete(updateId) {
+        if (!updateId) return;
+        confirmAjaxDelete('', '', function () {
+            try {
+                const item = document.getElementById(`update-item-${updateId}`);
+                if (item) item.classList.add('d-none');
+
+                const input = document.getElementById('pendingDeleteUpdates{{ ticket.id }}');
+                if (!input) return;
+                const current = String(input.value || '').split(',').map(s => s.trim()).filter(Boolean);
+                if (!current.includes(String(updateId))) current.push(String(updateId));
+                input.value = current.join(',');
+            } catch (e) {}
+        });
+    }
+</script>
+
+<script>
+    // Toggle edição de uma evolução (histórico)
+    function toggleEditUpdate(updateId) {
+        const viewEl = document.getElementById(`update-view-${updateId}`);
+        const editEl = document.getElementById(`update-edit-${updateId}`);
+        if (!viewEl || !editEl) return;
+        viewEl.classList.toggle('d-none');
+        editEl.classList.toggle('d-none');
+    }
+
+    // Preview + paste de imagens na evolução
+    (function () {
+        const evolutionInput = document.getElementById('id_evolution_image');
+        const previewContainer = document.getElementById('evolution-images-preview');
+        const modalForm = document.getElementById('ticketEditForm');
+        if (!evolutionInput || !previewContainer || !modalForm) return;
+
+        function renderEvolutionPreviews(files) {
+            if (!files || files.length === 0) {
+                previewContainer.classList.add('d-none');
+                previewContainer.innerHTML = '';
+                return;
+            }
+            previewContainer.classList.remove('d-none');
+            previewContainer.innerHTML = '';
+            Array.from(files).forEach((file) => {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'img-thumbnail shadow-sm';
+                    img.style.width = '70px';
+                    img.style.height = '70px';
+                    img.style.objectFit = 'cover';
+                    previewContainer.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        evolutionInput.addEventListener('change', function () {
+            renderEvolutionPreviews(this.files);
+        });
+
+        modalForm.addEventListener('paste', function (e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            let hasImage = false;
+            const dataTransfer = new DataTransfer();
+
+            if (evolutionInput.files.length > 0) {
+                Array.from(evolutionInput.files).forEach(file => dataTransfer.items.add(file));
+            }
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const timestamp = new Date().getTime();
+                    const file = new File([blob], `pasted_evolution_${timestamp}_${i}.png`, { type: blob.type });
+                    dataTransfer.items.add(file);
+                    hasImage = true;
+                }
+            }
+
+            if (hasImage) {
+                evolutionInput.files = dataTransfer.files;
+                renderEvolutionPreviews(evolutionInput.files);
+            }
+        });
+    })();
+</script>
+
+<script>
+    // Preview + remoção local das imagens da OS (antes de salvar)
+    (function () {
+        const input = document.getElementById('id_ticket_images_{{ ticket.id }}');
+        const preview = document.getElementById('ticketImagesPreview{{ ticket.id }}');
+        if (!input || !preview) return;
+
+        let buffer = [];
+        function sync() {
+            const dt = new DataTransfer();
+            buffer.forEach((f) => dt.items.add(f));
+            input.files = dt.files;
+        }
+        function render() {
+            preview.innerHTML = '';
+            if (!buffer.length) {
+                preview.classList.add('d-none');
+                return;
+            }
+            preview.classList.remove('d-none');
+            buffer.forEach((file, idx) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'position-relative d-inline-block';
+
+                const img = document.createElement('img');
+                img.className = 'img-thumbnail shadow-sm';
+                img.style.width = '70px';
+                img.style.height = '70px';
+                img.style.objectFit = 'cover';
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-danger position-absolute top-0 end-0 m-1';
+                btn.style.lineHeight = '1';
+                btn.textContent = '×';
+                btn.addEventListener('click', function () {
+                    buffer.splice(idx, 1);
+                    sync();
+                    render();
+                });
+
+                const reader = new FileReader();
+                reader.onload = function (e) { img.src = e.target.result; };
+                reader.readAsDataURL(file);
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(btn);
+                preview.appendChild(wrapper);
+            });
+        }
+
+        input.addEventListener('change', function () {
+            buffer = Array.from(input.files || []);
+            sync();
+            render();
+        });
+    })();
+</script>

@@ -12,7 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy, reverse
 from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Exists, OuterRef, Subquery, Prefetch
-from django.template.loader import get_template
+from django.template.loader import get_template, render_to_string
 try:
     from xhtml2pdf import pisa
 except ModuleNotFoundError:
@@ -32,7 +32,9 @@ from datetime import timedelta, datetime
 from django.db.models import Count, Q
 from django.db.models.functions import Coalesce
 from collections import defaultdict
+from django.views.decorators.http import require_http_methods
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class DashboardView(LoginRequiredMixin, TemplateView):
     template_name = 'dashboard.html'
     
@@ -357,6 +359,7 @@ class WelcomeView(TemplateView):
         return super().get(request, *args, **kwargs)
 
 # Ticket Views
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class TicketListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tickets/ticket_list.html'
@@ -567,8 +570,16 @@ class TicketDetailView(LoginRequiredMixin, DetailView):
     template_name = 'tickets/ticket_detail.html'
     context_object_name = 'ticket'
 
+    def dispatch(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        return redirect(f"{reverse('ticket_list')}?period=all&open={pk}")
+
     def get_queryset(self):
         return Ticket.objects.select_related('client', 'hub', 'equipment', 'requester').prefetch_related('requesters', 'technicians', 'equipments', 'systems', 'updates', 'updates__images', 'images')
+
+    def dispatch(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        return redirect(f"{reverse('ticket_list')}?period=all&open={pk}")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -677,6 +688,10 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     success_url = reverse_lazy('ticket_list')
     success_message = "Ordem de Serviço criada com sucesso!"
 
+    def dispatch(self, request, *args, **kwargs):
+        # Criação centralizada na lista (/tickets/) via modal
+        return redirect(f"{reverse('ticket_list')}?create=1")
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = "Nova Ordem de Serviço"
@@ -699,12 +714,93 @@ class TicketCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
                 TicketImage.objects.create(ticket=self.object, image=f, uploaded_by=self.request.user)
         return response
 
+
+class TicketCreateModalView(LoginRequiredMixin, View):
+    """
+    Criação de OS via modal (AJAX) na lista.
+    GET -> retorna HTML do corpo da modal (form).
+    POST -> cria a OS e retorna JSON com o id para inserir na lista.
+    """
+
+    template_name = 'tickets/ticket_create_modal_body.html'
+
+    def get(self, request, *args, **kwargs):
+        form = TicketForm(prefix='create')
+        context = {'form': form}
+        return render(request, self.template_name, context)
+
+    def post(self, request, *args, **kwargs):
+        form = TicketForm(request.POST, request.FILES, prefix='create')
+        if not form.is_valid():
+            html = render_to_string(self.template_name, {'form': form}, request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+
+        ticket = form.save(commit=False)
+        if not getattr(ticket, "created_by_id", None):
+            ticket.created_by = request.user
+        ticket.save()
+        form.save_m2m()
+
+        # Imagens (mesmo fluxo do TicketCreateView)
+        files = request.FILES.getlist(f'{form.prefix}-ticket_images')
+        if files:
+            if not ticket.image:
+                ticket.image = files[0]
+                ticket.save(update_fields=['image'])
+            for f in files:
+                if hasattr(f, 'seek'):
+                    f.seek(0)
+                TicketImage.objects.create(ticket=ticket, image=f, uploaded_by=request.user)
+
+        return JsonResponse({'status': 'success', 'ticket_id': ticket.id})
+
+
+class TicketAccordionItemView(LoginRequiredMixin, View):
+    """
+    Retorna o HTML de 1 item do accordion da lista (para inserir via JS após criar uma OS).
+    """
+
+    template_name = 'tickets/_ticket_accordion_item.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        ticket = (
+            Ticket.objects.filter(pk=pk)
+            .select_related(
+                'client',
+                'hub',
+                'equipment',
+                'ticket_type',
+                'created_by',
+                'created_by__profile',
+                'requester',
+                'requester__profile',
+            )
+            .prefetch_related('technicians', 'equipments')
+            .first()
+        )
+        if not ticket:
+            return HttpResponse('OS não encontrada.', status=404)
+
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        can_edit_ticket_creator = role in ['admin', 'super_admin']
+        context = {
+            'ticket': ticket,
+            'now': timezone.now(),
+            'can_edit_ticket_creator': can_edit_ticket_creator,
+        }
+        return render(request, self.template_name, context)
+
 class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
     form_class = TicketForm
     template_name = 'tickets/ticket_form.html'
     success_url = reverse_lazy('ticket_list')
     success_message = "Ordem de Serviço atualizada com sucesso!"
+
+    def dispatch(self, request, *args, **kwargs):
+        # Edição centralizada na lista (/tickets/) via accordion
+        pk = kwargs.get('pk')
+        return redirect(f"{reverse('ticket_list')}?period=all&open={pk}")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -836,7 +932,120 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
             context = self.get_context_data(form=form)
             return render(self.request, self.template_name, context)
 
+
+class TicketInlineView(TicketModalView):
+    """
+    Mesma edição da OS da modal, porém renderizada para uso inline (collapse) na lista.
+    """
+    template_name = 'tickets/ticket_inline_body.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['now'] = timezone.now()
+        return context
+
+    def post(self, request, *args, **kwargs):
+        # Para evitar salvar alterações "sem querer", só persistimos campos da OS
+        # quando o usuário clicar explicitamente no botão de salvar.
+        # O botão "Salvar e Evoluir" deve apenas registrar evolução (texto/imagens),
+        # sem alterar os campos da OS se o usuário não salvou.
+        self.object = self.get_object()
+
+        inline_action = (request.POST.get('inline_action') or '').strip()
+        if inline_action == 'evolve':
+            # Registra evolução sem salvar alterações nos campos da OS
+            evolution_desc = request.POST.get('evolution_description', '')
+            evolution_imgs = request.FILES.getlist('evolution_image')
+
+            user = request.user
+            if hasattr(user, 'profile') and user.profile.role in ['technician', 'standard']:
+                if not self.object.technicians.filter(id=user.id).exists():
+                    self.object.technicians.add(user)
+
+            if evolution_desc or evolution_imgs:
+                update = TicketUpdate.objects.create(
+                    ticket=self.object,
+                    created_by=request.user,
+                    description=evolution_desc,
+                    image=None
+                )
+                for img in evolution_imgs:
+                    if hasattr(img, 'seek'):
+                        img.seek(0)
+                    TicketUpdateImage.objects.create(update=update, image=img)
+                messages.success(request, "Evolução registrada com sucesso!")
+            else:
+                messages.warning(request, "Informe a evolução ou selecione uma imagem.")
+
+            form = self.form_class(instance=self.object)
+            context = self.get_context_data(form=form)
+            return render(request, self.template_name, context)
+
+        return super().post(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        # Reaproveita a regra da modal, mas sem redirect ao "fechar".
+        # Aqui o frontend decide se vai recolher o card.
+        self.object = form.save()
+
+        user = self.request.user
+        if hasattr(user, 'profile') and user.profile.role in ['technician', 'standard']:
+            if not self.object.technicians.filter(id=user.id).exists():
+                self.object.technicians.add(user)
+
+        evolution_desc = self.request.POST.get('evolution_description', '')
+        evolution_imgs = self.request.FILES.getlist('evolution_image')
+        has_evolution = False
+        if evolution_desc or evolution_imgs:
+            update = TicketUpdate.objects.create(
+                ticket=self.object,
+                created_by=self.request.user,
+                description=evolution_desc,
+                image=None
+            )
+            for img in evolution_imgs:
+                if hasattr(img, 'seek'):
+                    img.seek(0)
+                TicketUpdateImage.objects.create(update=update, image=img)
+            has_evolution = True
+
+        # Upload de imagens da OS (thumbnails)
+        ticket_files = self.request.FILES.getlist('ticket_images')
+        if ticket_files:
+            if not self.object.image:
+                self.object.image = ticket_files[0]
+                self.object.save(update_fields=['image'])
+            for f in ticket_files:
+                if hasattr(f, 'seek'):
+                    f.seek(0)
+                TicketImage.objects.create(ticket=self.object, image=f, uploaded_by=self.request.user)
+
+        # Exclusões pendentes do histórico (aplica somente quando salvar a OS)
+        pending_delete_updates = (self.request.POST.get('pending_delete_updates') or '').strip()
+        if pending_delete_updates:
+            ids = [s.strip() for s in pending_delete_updates.split(',') if s.strip().isdigit()]
+            if ids:
+                role = getattr(getattr(self.request.user, 'profile', None), 'role', None)
+                for update_id in ids:
+                    upd = TicketUpdate.objects.filter(pk=int(update_id), ticket=self.object).first()
+                    if not upd:
+                        continue
+                    can_delete = bool(role in ['admin', 'super_admin'] or upd.created_by_id == self.request.user.id)
+                    if not can_delete:
+                        continue
+                    upd.delete()
+
+        save_action = self.request.POST.get('save_action')
+        if has_evolution:
+            messages.success(self.request, "Evolução registrada com sucesso!")
+        elif save_action in ['stay', 'collapse']:
+            messages.success(self.request, "Alterações salvas!")
+
+        context = self.get_context_data(form=form)
+        return render(self.request, self.template_name, context)
+
 # Client Views
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class ClientListView(LoginRequiredMixin, ListView):
     model = Client
     template_name = 'cadastros/client_list.html'
@@ -1408,6 +1617,33 @@ class TicketUpdateImageDeleteView(LoginRequiredMixin, View):
         img_obj.delete()
         return JsonResponse({'status': 'success', 'message': 'Imagem excluída com sucesso!'})
 
+class TicketImageDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        img_obj = get_object_or_404(TicketImage, pk=pk)
+        ticket = img_obj.ticket
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        can_delete = bool(
+            role in ['admin', 'super_admin']
+            or img_obj.uploaded_by_id == request.user.id
+            or getattr(ticket, 'created_by_id', None) == request.user.id
+        )
+        if not can_delete:
+            return JsonResponse({'status': 'error', 'message': 'Sem permissão para excluir esta imagem.'}, status=403)
+
+        # Se esta imagem estiver setada como "principal" no ticket.image, trocar para outra ou limpar.
+        next_img = TicketImage.objects.filter(ticket=ticket).exclude(pk=img_obj.pk).order_by('-uploaded_at').first()
+        is_primary = bool(getattr(ticket, 'image', None) and img_obj.image and ticket.image.name == img_obj.image.name)
+
+        if img_obj.image:
+            img_obj.image.delete(save=False)
+        img_obj.delete()
+
+        if is_primary:
+            ticket.image = next_img.image if next_img else None
+            ticket.save(update_fields=['image'])
+
+        return JsonResponse({'status': 'success', 'message': 'Imagem excluída com sucesso!'})
+
 class TicketUpdateEditView(LoginRequiredMixin, View):
     def post(self, request, pk):
         update = get_object_or_404(TicketUpdate, pk=pk)
@@ -1419,13 +1655,17 @@ class TicketUpdateEditView(LoginRequiredMixin, View):
             update.save()
             messages.success(request, "Evolução atualizada com sucesso!")
         
-        # Render the modal body again
+        # Re-render (modal ou inline)
         form = TicketModalForm(instance=ticket)
         context = {
             'ticket': ticket,
             'form': form,
-            'updates': ticket.updates.all().order_by('-created_at')
+            'updates': ticket.updates.all().order_by('-created_at'),
+            'now': timezone.now(),
         }
+
+        if request.headers.get('X-Ticket-Inline') == '1':
+            return render(request, 'tickets/ticket_inline_body.html', context)
         return render(request, 'tickets/ticket_modal_body.html', context)
 
 # System Views
@@ -1554,6 +1794,7 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         return context
 
 # Tasks
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class TaskListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tasks/task_list.html'

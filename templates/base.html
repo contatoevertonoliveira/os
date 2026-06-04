@@ -804,7 +804,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-0">Tem certeza que deseja excluir este item do histórico?</p>
+                    <p class="mb-0">Tem certeza que deseja excluir este item?</p>
                     <p class="text-muted small mt-2 mb-0">Esta ação não pode ser desfeita.</p>
                 </div>
                 <div class="modal-footer">
@@ -823,13 +823,13 @@
                     <h6 class="modal-title mb-0" id="galleryTitle">Galeria</h6>
                     <div class="d-flex align-items-center gap-2">
                         <span id="galleryCounter" class="text-muted small"></span>
-                        <a id="galleryOpenBtn" class="btn btn-sm btn-outline-secondary" href="#" target="_blank" rel="noopener">Abrir</a>
-                        <a id="galleryDownloadBtn" class="btn btn-sm btn-outline-secondary" href="#" download>Baixar</a>
+                        <a id="galleryOpenBtn" class="btn btn-sm btn-outline-secondary d-none" href="#" target="_blank" rel="noopener">Abrir</a>
+                        <a id="galleryDownloadBtn" class="btn btn-sm btn-outline-secondary d-none" href="#" download>Baixar</a>
                         <button id="galleryDeleteBtn" type="button" class="btn btn-sm btn-danger d-none">Excluir</button>
-                        <button id="galleryMinimizeBtn" type="button" class="btn btn-sm btn-light text-secondary" title="Minimizar" aria-label="Minimizar">
+                        <button id="galleryMinimizeBtn" type="button" class="btn btn-sm btn-light text-secondary d-none" title="Minimizar" aria-label="Minimizar">
                             <i class="fas fa-minus fa-xs"></i>
                         </button>
-                        <button id="galleryMaximizeBtn" type="button" class="btn btn-sm btn-light text-secondary" title="Maximizar" aria-label="Maximizar">
+                        <button id="galleryMaximizeBtn" type="button" class="btn btn-sm btn-light text-secondary d-none" title="Maximizar" aria-label="Maximizar">
                             <i class="far fa-square fa-xs"></i>
                         </button>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1076,17 +1076,7 @@
                 const deleteUrl = deleteBtn.dataset.deleteUrl || '';
                 const activeUrl = deleteBtn.dataset.activeUrl || '';
                 if (!deleteUrl) return;
-                if (!confirm('Excluir esta imagem?')) return;
-
-                fetch(deleteUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken(),
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(r => r.json())
-                .then(data => {
+                confirmAjaxDelete(deleteUrl, '', function(data) {
                     if (!data || data.status !== 'success') {
                         alert('Erro ao excluir a imagem.');
                         return;
@@ -1114,8 +1104,7 @@
                     const active = getActiveItem();
                     const idx = active ? Math.max(0, items.indexOf(active)) : 0;
                     buildCarousel(updatedImages, Math.min(idx, updatedImages.length - 1));
-                })
-                .catch(() => alert('Erro ao excluir a imagem.'));
+                });
             });
 
             document.body.addEventListener('click', function(e) {
@@ -1176,6 +1165,7 @@
         // AJAX Delete Logic
         let deleteUrl = '';
         let deleteElementId = '';
+        let deleteCallback = null;
         const ajaxDeleteModalEl = document.getElementById('ajaxDeleteConfirmationModal');
         let ajaxDeleteModal;
 
@@ -1183,24 +1173,46 @@
             ajaxDeleteModal = new bootstrap.Modal(ajaxDeleteModalEl);
             
             document.getElementById('confirmAjaxDeleteBtn').addEventListener('click', function() {
-                if (deleteUrl && deleteElementId) {
+                // Modo 1: exclusão AJAX (deleteUrl preenchida)
+                // Modo 2: confirmação local (sem request) - usado quando queremos apenas "marcar para excluir" e aplicar ao salvar.
+                if (!deleteUrl && typeof deleteCallback === 'function') {
+                    try { deleteCallback({ status: 'success' }); } catch (e) {}
+                    try { ajaxDeleteModal.hide(); } catch (e) {}
+                    deleteUrl = '';
+                    deleteElementId = '';
+                    deleteCallback = null;
+                    return;
+                }
+
+                if (deleteUrl) {
+                            const csrfEl = document.querySelector('input[name="csrfmiddlewaretoken"]');
+                            const csrfToken = csrfEl ? csrfEl.value : '';
+                            const headers = {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            };
+                            // Se existir token no DOM, usa; caso contrário, o wrapper global do fetch injeta do cookie.
+                            if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
                     // Perform AJAX request
                     fetch(deleteUrl, {
                         method: 'POST',
-                        headers: {
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                                headers: headers
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.status === 'success') {
                             // Remove the element
-                            const element = document.getElementById(deleteElementId);
-                            if (element) {
-                                element.remove();
+                            if (deleteElementId) {
+                                const element = document.getElementById(deleteElementId);
+                                if (element) element.remove();
+                            }
+                            if (typeof deleteCallback === 'function') {
+                                try { deleteCallback(data); } catch (e) {}
                             }
                             ajaxDeleteModal.hide();
+                            deleteUrl = '';
+                            deleteElementId = '';
+                            deleteCallback = null;
                             
                             // Optional: Show a toast notification
                             // We can reuse the toast logic if available, or just rely on the UI update
@@ -1216,9 +1228,10 @@
             });
         }
 
-        function confirmAjaxDelete(url, elementId) {
+        function confirmAjaxDelete(url, elementId, onSuccess) {
             deleteUrl = url;
-            deleteElementId = elementId;
+            deleteElementId = elementId || '';
+            deleteCallback = onSuccess || null;
             if (ajaxDeleteModal) {
                 ajaxDeleteModal.show();
             }
@@ -1534,6 +1547,108 @@
         })();
     </script>
     {% endif %}
+
+    <!-- Modal: Sessão expirada (reautenticação por Token) -->
+    <div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
+                <div class="modal-header bg-gradient-primary text-white border-0">
+                    <h6 class="modal-title fw-bold mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>Sessão expirada
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-muted small mb-3">
+                        Sua sessão foi encerrada por falta de uso. Informe novamente seu <strong>Token de Acesso</strong> para continuar.
+                    </div>
+                    <form id="sessionExpiredForm" method="post" action="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">
+                        {% csrf_token %}
+                        <label for="sessionExpiredToken" class="form-label small fw-bold mb-1">Token de Acesso</label>
+                        <input
+                            id="sessionExpiredToken"
+                            name="token"
+                            type="password"
+                            class="form-control text-center"
+                            autocomplete="off"
+                            placeholder="Cole seu token aqui"
+                            style="font-family: monospace; letter-spacing: 2px;"
+                            required
+                        >
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <a class="btn btn-light border" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">Ir para Login</a>
+                            <button type="submit" class="btn btn-primary-custom">
+                                Reconectar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tratamento global: quando a sessão expira, requisições AJAX começam a receber redirect para /login/.
+        // Isso evita "telas quebradas" (modais vazias/erros JS) e pede o token novamente.
+        (function () {
+            try {
+                if (window.location.pathname && window.location.pathname.startsWith('/login')) return;
+                const modalEl = document.getElementById('sessionExpiredModal');
+                if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) return;
+
+                const modal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+                const tokenInput = document.getElementById('sessionExpiredToken');
+
+                let showing = false;
+                function showSessionExpiredModal() {
+                    if (showing) return;
+                    showing = true;
+                    try { modal.show(); } catch (e) {}
+                    setTimeout(() => { try { tokenInput && tokenInput.focus(); } catch (e) {} }, 200);
+                }
+                window.showSessionExpiredModal = showSessionExpiredModal;
+
+                const originalFetch = window.fetch.bind(window);
+                window.fetch = async function (...args) {
+                    // Injeta CSRF automaticamente em requisições unsafe, se o caller não tiver definido
+                    try {
+                        const input = args[0];
+                        const init = args[1] || {};
+                        const method = String((init && init.method) || 'GET').toUpperCase();
+                        const unsafe = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+                        if (unsafe) {
+                            const headers = new Headers((init && init.headers) || {});
+                            if (!headers.has('X-CSRFToken')) {
+                                const token = getCookie('csrftoken');
+                                if (token) headers.set('X-CSRFToken', token);
+                            }
+                            if (!headers.has('X-Requested-With')) {
+                                headers.set('X-Requested-With', 'XMLHttpRequest');
+                            }
+                            args[1] = Object.assign({}, init, { headers });
+                        }
+                    } catch (e) {}
+
+                    const resp = await originalFetch(...args);
+                    try {
+                        const isLogin = (resp && resp.url && resp.url.includes('/login')) || false;
+                        // Sessão expirada normalmente volta redirect para /login (200 OK ou 302 seguido de 200).
+                        // NÃO tratamos 403 como sessão expirada, pois pode ser CSRF.
+                        if ((resp && resp.redirected && isLogin) || (resp && resp.status === 401)) {
+                            showSessionExpiredModal();
+                            throw new Error('SESSION_EXPIRED');
+                        }
+                    } catch (e) {
+                        // Re-throw para que chamadas específicas possam tratar em .catch()
+                        throw e;
+                    }
+                    return resp;
+                };
+            } catch (e) {
+                // Se algo falhar aqui, não quebra a página
+            }
+        })();
+    </script>
     
     {% block scripts %}{% endblock %}
 </body>

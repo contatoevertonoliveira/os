@@ -383,9 +383,16 @@ class TicketForm(forms.ModelForm):
             self.initial['requesters'] = [self.instance.requester]
 
         current_client = None
-        if 'client' in self.data:
+        client_key = self.add_prefix('client')
+        raw_client_id = None
+        if client_key in self.data:
+            raw_client_id = self.data.get(client_key)
+        elif 'client' in self.data:
+            raw_client_id = self.data.get('client')
+
+        if raw_client_id:
             try:
-                client_id = int(self.data.get('client'))
+                client_id = int(raw_client_id)
                 current_client = Client.objects.filter(id=client_id).first()
             except (ValueError, TypeError):
                 current_client = None
@@ -404,13 +411,29 @@ class TicketForm(forms.ModelForm):
                     current_client = None
 
         current_hub_id = None
-        if "hub" in self.data:
+        hub_key = self.add_prefix('hub')
+        raw_hub_id = None
+        if hub_key in self.data:
+            raw_hub_id = self.data.get(hub_key)
+        elif "hub" in self.data:
+            raw_hub_id = self.data.get("hub")
+
+        if raw_hub_id:
             try:
-                current_hub_id = int(self.data.get("hub")) if self.data.get("hub") else None
+                current_hub_id = int(raw_hub_id) if raw_hub_id else None
             except (ValueError, TypeError):
                 current_hub_id = None
         elif self.instance.pk and getattr(self.instance, "hub_id", None):
             current_hub_id = self.instance.hub_id
+
+        # Campos obrigatórios para salvar OS (restante opcional)
+        for field_name in [
+            'client', 'status', 'systems', 'ticket_type', 'problem_type',
+            'contact_client_requester', 'contact_jumper_responsible',
+            'start_date', 'deadline', 'description'
+        ]:
+            if field_name in self.fields:
+                self.fields[field_name].required = True
 
         if current_client:
             qs = ContactClient.objects.filter(is_active=True, client_ref_id=current_client.id)
@@ -464,13 +487,21 @@ class TicketForm(forms.ModelForm):
         self.fields['hub'].queryset = ClientHub.objects.none()
         self.fields['hub'].empty_label = "Todas as Lojas / Sem Hub Específico"
 
-        if 'client' in self.data:
+        # Suporte a forms com prefix (ex.: modal de criação usa prefix='create')
+        client_key = self.add_prefix('client')
+        raw_client_id = None
+        if client_key in self.data:
+            raw_client_id = self.data.get(client_key)
+        elif 'client' in self.data:
+            raw_client_id = self.data.get('client')
+
+        if raw_client_id:
             try:
-                client_id = int(self.data.get('client'))
+                client_id = int(raw_client_id)
                 self.fields['hub'].queryset = ClientHub.objects.filter(client_id=client_id).order_by('name')
             except (ValueError, TypeError):
                 pass  # invalid input from the client; ignore and fallback to empty queryset
-        elif self.instance.pk:
+        elif self.instance.pk and getattr(self.instance, 'client_id', None):
             self.fields['hub'].queryset = self.instance.client.hubs.order_by('name')
 
     def save(self, commit=True):
