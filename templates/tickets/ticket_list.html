@@ -201,22 +201,22 @@
     }
 
     /* As classes row-* eram para <tr>. Aqui aplicamos também no header do accordion */
-    .accordion-button.row-open { background-color: #ffffff !important; }
-    .accordion-button.row-pending { background-color: rgba(255, 193, 7, 0.25) !important; }
+    .accordion-button.row-open { background-color: rgba(245, 236, 220, 0.95) !important; }      /* bege claro */
+    .accordion-button.row-pending { background-color: rgba(180, 160, 255, 0.22) !important; }   /* roxo claro */
     .accordion-button.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
     .accordion-button.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
     .accordion-button.row-delayed { background-color: rgba(220, 53, 69, 0.25) !important; }
     .accordion-button.row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
-    .accordion-button.row-in-progress { background-color: rgba(255, 193, 7, 0.18) !important; }
+    .accordion-button.row-in-progress { background-color: rgba(173, 216, 230, 0.32) !important; } /* azul bebê */
 
     /* Ações com a mesma cor do header */
-    .ticket-acc-actions.row-open { background-color: #ffffff !important; }
-    .ticket-acc-actions.row-pending { background-color: rgba(255, 193, 7, 0.25) !important; }
+    .ticket-acc-actions.row-open { background-color: rgba(245, 236, 220, 0.95) !important; }      /* bege claro */
+    .ticket-acc-actions.row-pending { background-color: rgba(180, 160, 255, 0.22) !important; }   /* roxo claro */
     .ticket-acc-actions.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
     .ticket-acc-actions.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
     .ticket-acc-actions.row-delayed { background-color: rgba(220, 53, 69, 0.25) !important; }
     .ticket-acc-actions.row-delete-requested { background-color: rgba(255, 193, 7, 0.22) !important; }
-    .ticket-acc-actions.row-in-progress { background-color: rgba(255, 193, 7, 0.18) !important; }
+    .ticket-acc-actions.row-in-progress { background-color: rgba(173, 216, 230, 0.32) !important; } /* azul bebê */
 
     @media (max-width: 1200px) {
         .ticket-acc-grid { grid-template-columns: 40px 90px 90px 1.4fr 1fr 1fr 120px 140px; }
@@ -434,6 +434,7 @@
                 <h2 class="accordion-header" id="heading{{ ticket.id }}">
                     <div class="d-flex align-items-stretch">
                         <button
+                                id="ticketAccordionButton{{ ticket.id }}"
                                 class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                                 type="button"
                                 data-bs-toggle="collapse"
@@ -518,7 +519,7 @@
                                         {% endif %}
                                     </div>
 
-                                    <div class="ticket-acc-cell text-center">
+                                    <div class="ticket-acc-cell text-center" id="ticketStatusCell{{ ticket.id }}">
                                         {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
                                             <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
                                         {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
@@ -547,7 +548,7 @@
                                 </div>
                             </button>
 
-                        <div class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
+                        <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-outline-info"
@@ -1727,6 +1728,66 @@
             });
         }
 
+        function updateTicketHeaderFromInline(ticketId, inlineContainer) {
+            try {
+                const btn = document.getElementById(`ticketAccordionButton${ticketId}`);
+                const actions = document.getElementById(`ticketActions${ticketId}`);
+                const statusCell = document.getElementById(`ticketStatusCell${ticketId}`);
+                if (!btn || !actions || !statusCell || !inlineContainer) return;
+
+                const statusSelect = inlineContainer.querySelector('select[name="status"]');
+                const deadlineInput = inlineContainer.querySelector('input[name="deadline"]');
+                const statusVal = statusSelect ? String(statusSelect.value || '').trim() : '';
+                const statusText = statusSelect ? (statusSelect.options[statusSelect.selectedIndex]?.textContent || '').trim() : '';
+                const deadlineVal = deadlineInput ? String(deadlineInput.value || '').trim() : '';
+
+                // calcula "delayed" (vencido) se prazo < agora e status aberto/em andamento
+                let isDelayed = false;
+                if (deadlineVal) {
+                    const dt = new Date(deadlineVal);
+                    if (!isNaN(dt.getTime())) {
+                        const now = new Date();
+                        if (dt.getTime() < now.getTime() && (statusVal === 'open' || statusVal === 'in_progress')) {
+                            isDelayed = true;
+                        }
+                    }
+                }
+
+                const rowClasses = ['row-open', 'row-pending', 'row-in-progress', 'row-finished', 'row-canceled', 'row-delayed', 'row-delete-requested'];
+                rowClasses.forEach(c => { btn.classList.remove(c); actions.classList.remove(c); });
+
+                let rowClass = 'row-open';
+                if (isDelayed) rowClass = 'row-delayed';
+                else if (statusVal === 'pending') rowClass = 'row-pending';
+                else if (statusVal === 'in_progress') rowClass = 'row-in-progress';
+                else if (statusVal === 'finished') rowClass = 'row-finished';
+                else if (statusVal === 'canceled') rowClass = 'row-canceled';
+                else if (statusVal === 'open') rowClass = 'row-open';
+
+                btn.classList.add(rowClass);
+                actions.classList.add(rowClass);
+
+                // Atualiza etiqueta/imagem do status no header
+                const imgMap = {
+                    open: { src: '/media/images/emaberto.png', alt: 'Em Aberto' },
+                    in_progress: { src: '/media/images/emandamento.png', alt: 'Em Andamento' },
+                    pending: { src: '/media/images/aprovacao.png', alt: 'Aguardando Aprovação' },
+                    finished: { src: '/media/images/solucionado.png', alt: 'Finalizado' },
+                    canceled: { src: '/media/images/cancelado.png', alt: 'Cancelado' },
+                };
+
+                if (isDelayed) {
+                    statusCell.innerHTML = `<img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">`;
+                } else if (imgMap[statusVal]) {
+                    const info = imgMap[statusVal];
+                    statusCell.innerHTML = `<img src="${info.src}" alt="${info.alt}" style="height: 24px; width: 90px; object-fit: contain;">`;
+                } else {
+                    const label = statusText || statusVal || 'Status';
+                    statusCell.innerHTML = `<span class="badge bg-light text-dark border">${label}</span>`;
+                }
+            } catch (e) {}
+        }
+
         function bindCollapseEvents(collapseEl) {
             if (!collapseEl || collapseEl.dataset.bound === '1') return;
             collapseEl.dataset.bound = '1';
@@ -1816,6 +1877,7 @@
                 container.innerHTML = html;
                 execScripts(container);
                 initTooltips(container);
+                updateTicketHeaderFromInline(ticketId, container);
 
                 // Se clicou em "Salvar e recolher" (somente no form principal)
                 if (e.submitter && e.submitter.value === 'collapse' && collapseEl) {

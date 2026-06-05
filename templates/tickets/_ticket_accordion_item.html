@@ -2,6 +2,7 @@
     <h2 class="accordion-header" id="heading{{ ticket.id }}">
         <div class="d-flex align-items-stretch">
             <button
+                    id="ticketAccordionButton{{ ticket.id }}"
                     class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
                     type="button"
                     data-bs-toggle="collapse"
@@ -86,7 +87,7 @@
                             {% endif %}
                         </div>
 
-                        <div class="ticket-acc-cell text-center">
+                        <div class="ticket-acc-cell text-center" id="ticketStatusCell{{ ticket.id }}">
                             {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
                                 <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
                             {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
@@ -115,7 +116,7 @@
                     </div>
                 </button>
 
-            <div class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
+            <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
                     <button
                         type="button"
                         class="btn btn-sm btn-outline-info"
@@ -163,4 +164,3 @@
         </div>
     </div>
 </div>
-
