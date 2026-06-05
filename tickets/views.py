@@ -261,6 +261,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['my_tickets'] = tickets_qs.filter(technicians=self.request.user).count()
         return context
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class TokenLoginView(LoginView):
     template_name = 'login.html'
     authentication_form = TokenLoginForm
