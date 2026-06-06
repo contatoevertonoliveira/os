@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="card card-custom shadow-sm border-0">
+        <div class="card-body p-4 p-md-5">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width: 52px; height: 52px; background: rgba(220,53,69,0.12); color: #dc3545;">
+                    <i class="fas fa-ban"></i>
+                </div>
+                <div>
+                    <h4 class="mb-0 fw-bold">{{ title|default:"Acesso negado" }}</h4>
+                    <div class="text-muted small">Erro 403</div>
+                </div>
+            </div>
+
+            <div class="alert alert-soft-warning mb-0">
+                {{ message|default:"Você não tem permissão para acessar essa página. Entre em contato com seu gerente!" }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
