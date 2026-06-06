@@ -1,99 +1,233 @@
 {% load widget_tweaks %}
 
 <div id="createTicketModalBody">
+    <style>
+        /* Skin "ticket" para a modal de Nova OS (estilo boarding pass) */
+        .create-pass-wrap {
+            display: grid;
+            grid-template-columns: 62px 1fr;
+            gap: 12px;
+            padding: 14px;
+        }
+        @media (max-width: 576px) {
+            .create-pass-wrap { grid-template-columns: 1fr; }
+        }
+
+        .create-pass-side {
+            border-radius: 18px;
+            background: #262626;
+            color: rgba(255,255,255,0.96);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+        .create-pass-side-text {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            letter-spacing: 2px;
+            font-weight: 800;
+            font-size: 0.86rem;
+            text-transform: uppercase;
+            opacity: 0.95;
+        }
+
+        /* Variação de cor do ticket (diferente do ticket "padrão") */
+        .create-pass-ticket.ticket-pass .ticket-pass-topbar {
+            background: linear-gradient(180deg, #f2d8c2, #e7c3a2);
+            color: rgba(0,0,0,0.72);
+        }
+        .create-pass-ticket.ticket-pass .ticket-pass-title {
+            opacity: 0.45;
+            color: rgba(0,0,0,0.55);
+        }
+        .create-pass-ticket.ticket-pass .ticket-pass-content {
+            position: relative;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,0.94), rgba(255,255,255,0.86));
+        }
+        /* Marca d'água (mapa mundi caricatura) */
+        .create-pass-ticket.ticket-pass .ticket-pass-content::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image: url("/media/images/mapa_mundi_watermark.png");
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 76% auto;
+            pointer-events: none;
+            opacity: 0.06;
+            filter: blur(0.2px) grayscale(1);
+        }
+        .create-pass-ticket.ticket-pass .ticket-pass-main,
+        .create-pass-ticket.ticket-pass .ticket-pass-stub {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Ajustes de inputs dentro do ticket */
+        .create-pass-ticket .form-control,
+        .create-pass-ticket .form-select {
+            background-color: rgba(255,255,255,0.92);
+            border-color: rgba(0,0,0,0.12);
+        }
+        .create-pass-ticket .form-control:focus,
+        .create-pass-ticket .form-select:focus {
+            box-shadow: 0 0 0 0.2rem rgba(181, 140, 103, 0.20);
+            border-color: rgba(181, 140, 103, 0.55);
+        }
+        .create-pass-close {
+            border: none;
+            background: rgba(0,0,0,0.10);
+            color: rgba(0,0,0,0.70);
+            width: 34px;
+            height: 34px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .create-pass-close:hover { background: rgba(0,0,0,0.16); }
+    </style>
+
     <form id="createTicketForm" method="post" action="{% url 'ticket_create_modal' %}" enctype="multipart/form-data" novalidate>
         {% csrf_token %}
 
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
-                {% render_field form.client class="form-select form-select-sm" %}
-                <div class="text-danger small">{{ form.client.errors }}</div>
-            </div>
-            <div class="col-md-4">
-                <label for="{{ form.hub.id_for_label }}" class="form-label small fw-bold mb-1">Hub / Loja</label>
-                {% render_field form.hub class="form-select form-select-sm" %}
-                <div class="text-danger small">{{ form.hub.errors }}</div>
-            </div>
-            <div class="col-md-4">
-                <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
-                {% render_field form.status class="form-select form-select-sm" %}
-                <div class="text-danger small">{{ form.status.errors }}</div>
+        <div class="create-pass-wrap">
+            <div class="create-pass-side d-none d-sm-flex">
+                <div class="create-pass-side-text">NOVA OS</div>
             </div>
 
-            <div class="col-12">
-                <label class="form-label small fw-bold mb-1">Sistemas</label>
-                <div class="card p-3 bg-light border rounded-3">
-                    <div class="d-flex flex-wrap gap-3">
-                        {% for checkbox in form.systems %}
-                        <div class="form-check form-switch">
-                            {{ checkbox.tag }}
-                            <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
-                                <span class="badge rounded-pill" id="badge-{{ checkbox.id_for_label }}" style="background-color: #dc3545; font-weight: normal; font-size: 0.8rem; min-width: 60px;">
-                                    {{ checkbox.choice_label }}
-                                </span>
-                            </label>
-                        </div>
-                        {% endfor %}
+            <div class="ticket-pass create-pass-ticket ticket-pass-full">
+                <div class="ticket-pass-topbar">
+                    <div class="ticket-pass-brand">
+                        <i class="fa-solid fa-screwdriver-wrench"></i>
+                        <span>JumperFour</span>
+                    </div>
+                    <div class="ticket-pass-title">NOVA ORDEM DE SERVIÇO</div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="create-pass-close" data-bs-dismiss="modal" aria-label="Fechar">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
                 </div>
-                <div class="text-danger small">{{ form.systems.errors }}</div>
-                <small class="text-muted" style="font-size: 0.75rem;">Ative para adicionar.</small>
-            </div>
 
-            <div class="col-md-3">
-                <label for="{{ form.equipment_selection.id_for_label }}" class="form-label small fw-bold mb-1">Equipamentos</label>
-                {% render_field form.equipment_selection class="form-select form-select-sm" %}
-                <div id="create-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-2"></div>
-                <div class="d-none">{% render_field form.equipments %}</div>
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.ticket_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
-                {% render_field form.ticket_type class="form-select form-select-sm" %}
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.problem_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Problema</label>
-                {% render_field form.problem_type class="form-select form-select-sm" %}
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.leankeep_id.id_for_label }}" class="form-label small fw-bold mb-1">ID Leankeep</label>
-                {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
-            </div>
+                <div class="ticket-pass-content">
+                    <!-- Lado esquerdo: formulário -->
+                    <div class="ticket-pass-main">
+                        <div class="ticket-pass-barcode-vert" aria-hidden="true"></div>
+                        <div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
+                                    {% render_field form.client class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.client.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.hub.id_for_label }}" class="form-label small fw-bold mb-1">Hub / Loja</label>
+                                    {% render_field form.hub class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.hub.errors }}</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="{{ form.status.id_for_label }}" class="form-label small fw-bold mb-1">Status</label>
+                                    {% render_field form.status class="form-select form-select-sm" %}
+                                    <div class="text-danger small">{{ form.status.errors }}</div>
+                                </div>
 
-            <div class="col-md-3">
-                <label for="{{ form.contact_client_requester.id_for_label }}" class="form-label small fw-bold mb-1">Solicitante</label>
-                {% render_field form.contact_client_requester class="form-select form-select-sm" %}
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.contact_jumper_responsible.id_for_label }}" class="form-label small fw-bold mb-1">Responsável/Executor</label>
-                {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.start_date.id_for_label }}" class="form-label small fw-bold mb-1">Data de Início</label>
-                {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
-            </div>
-            <div class="col-md-3">
-                <label for="{{ form.deadline.id_for_label }}" class="form-label small fw-bold mb-1">Prazo</label>
-                {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
-            </div>
+                                <div class="col-12">
+                                    <label class="form-label small fw-bold mb-1">Sistemas</label>
+                                    <div class="card p-3 bg-light border rounded-3">
+                                        <div class="d-flex flex-wrap gap-3">
+                                            {% for checkbox in form.systems %}
+                                            <div class="form-check form-switch">
+                                                {{ checkbox.tag }}
+                                                <label class="form-check-label d-flex align-items-center gap-2" for="{{ checkbox.id_for_label }}">
+                                                    <span class="badge rounded-pill" id="badge-{{ checkbox.id_for_label }}" style="background-color: #dc3545; font-weight: normal; font-size: 0.8rem; min-width: 60px;">
+                                                        {{ checkbox.choice_label }}
+                                                    </span>
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="text-danger small">{{ form.systems.errors }}</div>
+                                    <small class="text-muted" style="font-size: 0.75rem;">Ative para adicionar.</small>
+                                </div>
 
-            <div class="col-12">
-                <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição</label>
-                {% render_field form.description class="form-control" rows="4" placeholder="Descreva os detalhes..." %}
-            </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.equipment_selection.id_for_label }}" class="form-label small fw-bold mb-1">Equipamentos</label>
+                                    {% render_field form.equipment_selection class="form-select form-select-sm" %}
+                                    <div id="create-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-2"></div>
+                                    <div class="d-none">{% render_field form.equipments %}</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.ticket_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Chamado</label>
+                                    {% render_field form.ticket_type class="form-select form-select-sm" %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.problem_type.id_for_label }}" class="form-label small fw-bold mb-1">Tipo de Problema</label>
+                                    {% render_field form.problem_type class="form-select form-select-sm" %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.leankeep_id.id_for_label }}" class="form-label small fw-bold mb-1">ID Leankeep</label>
+                                    {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
+                                </div>
 
-            <div class="col-12">
-                <label for="id_{{ form.prefix }}-ticket_images" class="form-label small fw-bold mb-1">Anexar várias imagens</label>
-                <input type="file" name="{{ form.prefix }}-ticket_images" id="id_{{ form.prefix }}-ticket_images" class="form-control form-control-sm" multiple>
-                <div id="create-ticket-images-preview" class="d-flex flex-wrap gap-2 mt-2 d-none"></div>
-            </div>
-        </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.contact_client_requester.id_for_label }}" class="form-label small fw-bold mb-1">Solicitante</label>
+                                    {% render_field form.contact_client_requester class="form-select form-select-sm" %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.contact_jumper_responsible.id_for_label }}" class="form-label small fw-bold mb-1">Responsável/Executor</label>
+                                    {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.start_date.id_for_label }}" class="form-label small fw-bold mb-1">Data de Início</label>
+                                    {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.deadline.id_for_label }}" class="form-label small fw-bold mb-1">Prazo</label>
+                                    {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                                </div>
 
-        <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
-            <button type="button" class="btn btn-light border btn-sm px-4" data-bs-dismiss="modal">Cancelar</button>
-            <button type="submit" class="btn btn-primary-custom btn-sm px-5 fw-bold">
-                <i class="fas fa-save me-2"></i>Salvar
-            </button>
+                                <div class="col-12">
+                                    <label for="{{ form.description.id_for_label }}" class="form-label small fw-bold mb-1">Descrição</label>
+                                    {% render_field form.description class="form-control" rows="4" placeholder="Descreva os detalhes..." %}
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="id_{{ form.prefix }}-ticket_images" class="form-label small fw-bold mb-1">Anexar várias imagens</label>
+                                    <input type="file" name="{{ form.prefix }}-ticket_images" id="id_{{ form.prefix }}-ticket_images" class="form-control form-control-sm" multiple>
+                                    <div id="create-ticket-images-preview" class="d-flex flex-wrap gap-2 mt-2 d-none"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lado direito: ações -->
+                    <div class="ticket-pass-stub">
+                        <div class="ticket-pass-stub-inner">
+                            <div class="ticket-pass-label">CADASTRO</div>
+                            <div class="ticket-pass-code">NOVA OS</div>
+                            <div class="ticket-pass-barcode" aria-hidden="true"></div>
+
+                            <div class="d-grid gap-2 mt-2">
+                                <button type="submit" class="btn btn-primary-custom btn-sm fw-bold">
+                                    <i class="fa-solid fa-floppy-disk me-2"></i>Salvar
+                                </button>
+                                <button type="button" class="btn btn-light border btn-sm" data-bs-dismiss="modal">
+                                    Cancelar
+                                </button>
+                            </div>
+
+                            <div class="small text-muted mt-2">
+                                Dica: você pode preencher o essencial agora e completar depois na OS.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </form>
 </div>
@@ -331,4 +465,3 @@
         }
     })();
 </script>
-

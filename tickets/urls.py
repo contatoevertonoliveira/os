@@ -1,7 +1,7 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
-    DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
+    DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketMiniPreviewView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
     TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView, TicketPDFStatusView, TicketsDailyReportPDFStatusView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView, client_quick_update,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
@@ -17,6 +17,8 @@ from .views import (
     UserAccessUpdateView,
     ProfileView, SettingsView,
     TaskListView, TaskFavoriteView,
+    ShiftHandoverEntryCreateView, ShiftHandoverEntryDeleteView, ShiftHandoverEntryEditView,
+    ShiftHandoverUsersView, ShiftHandoverEntryNotifyView, ShiftHandoverEntryAcknowledgeView, ShiftHandoverPendingAlertsView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
     load_hubs, ChecklistDailyView, ChecklistPDFView,
     TicketsDailyReportPDFView, TicketsWeeklyReportPDFView, TicketsMonthlyReportPDFView,
@@ -57,6 +59,14 @@ urlpatterns = [
     # Tasks
     path('tasks/', TaskListView.as_view(), name='task_list'),
     path('tasks/<int:pk>/favorite/', TaskFavoriteView.as_view(), name='task_favorite'),
+    path('tasks/handover/entries/add/', ShiftHandoverEntryCreateView.as_view(), name='handover_entry_add'),
+    path('tasks/handover/entries/<int:pk>/delete/', ShiftHandoverEntryDeleteView.as_view(), name='handover_entry_delete'),
+    path('tasks/handover/entries/<int:pk>/edit/', ShiftHandoverEntryEditView.as_view(), name='handover_entry_edit'),
+    path('tasks/handover/users/', ShiftHandoverUsersView.as_view(), name='handover_users'),
+    path('tasks/handover/entries/<int:pk>/notify/', ShiftHandoverEntryNotifyView.as_view(), name='handover_entry_notify'),
+    path('tasks/handover/entries/<int:pk>/ack/', ShiftHandoverEntryAcknowledgeView.as_view(), name='handover_entry_ack'),
+    path('tasks/handover/alerts/pending/', ShiftHandoverPendingAlertsView.as_view(), name='handover_alerts_pending'),
+    path('tasks/tickets/<int:pk>/preview/', TicketMiniPreviewView.as_view(), name='ticket_mini_preview'),
     
     # Checklist
     path('checklist/daily/', ChecklistDailyView.as_view(), name='checklist_daily'),

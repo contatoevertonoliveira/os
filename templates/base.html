@@ -21,6 +21,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
     
     <style>
         :root {
@@ -1124,6 +1125,57 @@
             });
         });
     </script>
+
+    <script>
+        // Toast global: lembretes de Passagem de Turno (Tasks)
+        document.addEventListener('DOMContentLoaded', function () {
+            const url = "{% url 'handover_alerts_pending' %}";
+
+            function ensureToastContainer() {
+                let c = document.getElementById('globalToastContainer');
+                if (!c) {
+                    c = document.createElement('div');
+                    c.id = 'globalToastContainer';
+                    c.className = 'toast-container position-fixed top-0 end-0 p-3';
+                    c.style.zIndex = 2060;
+                    document.body.appendChild(c);
+                }
+                return c;
+            }
+
+            async function checkHandoverAlerts() {
+                try {
+                    const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+                    const data = await resp.json();
+                    if (!data || data.status !== 'success') return;
+                    const count = Number(data.count || 0);
+                    if (!count) return;
+
+                    const container = ensureToastContainer();
+                    const toastEl = document.createElement('div');
+                    toastEl.className = 'toast align-items-center text-bg-warning border-0';
+                    toastEl.setAttribute('role', 'alert');
+                    toastEl.setAttribute('aria-live', 'assertive');
+                    toastEl.setAttribute('aria-atomic', 'true');
+                    toastEl.innerHTML = `
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <strong>Lembrete de turno:</strong> você tem <strong>${count}</strong> mensagem(ns) pendente(s).
+                                <a href="{% url 'task_list' %}" class="ms-2 text-dark fw-bold text-decoration-underline">Ver</a>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    `;
+                    container.appendChild(toastEl);
+                    const toast = bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 8000 });
+                    toast.show();
+                } catch (e) {}
+            }
+
+            // roda uma vez ao carregar (equivale a “sempre que fizer login”)
+            checkHandoverAlerts();
+        });
+    </script>
     <script>
         function confirmDelete(url, itemName) {
             const modal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
@@ -1651,5 +1703,6 @@
     </script>
     
     {% block scripts %}{% endblock %}
+    {% block extra_fab %}{% endblock %}
 </body>
 </html>

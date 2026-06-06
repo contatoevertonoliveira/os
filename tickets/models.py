@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from datetime import time
 from django.db.utils import OperationalError, ProgrammingError
 import uuid
 
@@ -344,12 +345,78 @@ class SystemSettings(models.Model):
         help_text="Se marcado, permite gerar PDF de checklists não finalizados para testes."
     )
 
+    # === Passagem de Turno / Turnos ===
+    day_shift_start = models.TimeField(default=time(8, 0), verbose_name="Início do turno diurno")
+    day_shift_end = models.TimeField(default=time(20, 0), verbose_name="Fim do turno diurno")
+
+    enable_night_shift = models.BooleanField(default=False, verbose_name="Ativar turno noturno")
+    night_shift_start = models.TimeField(default=time(20, 0), verbose_name="Início do turno noturno")
+    night_shift_end = models.TimeField(default=time(8, 0), verbose_name="Fim do turno noturno")
+
     def __str__(self):
         return "Configurações do Sistema"
 
     class Meta:
         verbose_name = "Configuração do Sistema"
         verbose_name_plural = "Configurações do Sistema"
+
+
+class ShiftHandover(models.Model):
+    SHIFT_TYPE_CHOICES = (
+        ('day', 'Diurno'),
+        ('night', 'Noturno'),
+    )
+
+    shift_date = models.DateField(verbose_name="Data do turno")
+    shift_type = models.CharField(max_length=10, choices=SHIFT_TYPE_CHOICES, default='day', verbose_name="Tipo de turno")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('shift_date', 'shift_type')
+        ordering = ['-shift_date', '-id']
+        verbose_name = "Passagem de Turno"
+        verbose_name_plural = "Passagens de Turno"
+
+    def __str__(self):
+        return f"{self.shift_date} ({self.get_shift_type_display()})"
+
+
+class ShiftHandoverEntry(models.Model):
+    handover = models.ForeignKey(ShiftHandover, on_delete=models.CASCADE, related_name='entries', verbose_name="Turno")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Criado por")
+    text = models.TextField(verbose_name="Texto")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = "Anotação do Turno"
+        verbose_name_plural = "Anotações do Turno"
+
+
+class ShiftHandoverEntryAlert(models.Model):
+    """
+    Alerta direcionado de uma anotação para um usuário (passagem de turno).
+    Enquanto não houver acknowledged_at, o alerta fica pendente e deve disparar toast no login.
+    """
+    PRIORITY_CHOICES = (
+        ('high', 'Alta'),
+        ('medium', 'Média'),
+        ('low', 'Baixa'),
+    )
+
+    entry = models.ForeignKey(ShiftHandoverEntry, on_delete=models.CASCADE, related_name='alerts', verbose_name="Anotação")
+    target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='handover_alerts', verbose_name="Usuário alvo")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='handover_alerts_created', verbose_name="Criado por")
+    created_at = models.DateTimeField(auto_now_add=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium', verbose_name="Prioridade")
+
+    class Meta:
+        unique_together = ('entry', 'target_user')
+        ordering = ['-created_at', '-id']
+        verbose_name = "Alerta de Anotação (Turno)"
+        verbose_name_plural = "Alertas de Anotação (Turno)"
 
 class MicrosoftGraphToken(models.Model):
     purpose = models.SlugField(max_length=50, unique=True)

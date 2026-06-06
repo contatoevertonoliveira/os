@@ -689,9 +689,21 @@ class TravelSegmentForm(forms.ModelForm):
 class SystemSettingsForm(forms.ModelForm):
     class Meta:
         model = SystemSettings
-        fields = ['session_timeout_minutes']
+        fields = [
+            'session_timeout_minutes',
+            'day_shift_start',
+            'day_shift_end',
+            'enable_night_shift',
+            'night_shift_start',
+            'night_shift_end',
+        ]
         widgets = {
             'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
+            'day_shift_start': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'day_shift_end': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'enable_night_shift': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+            'night_shift_start': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'night_shift_end': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
 
 class MultipleFileInput(forms.ClearableFileInput):

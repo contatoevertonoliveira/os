@@ -508,61 +508,104 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['clients_filter_list'] = Client.objects.all().order_by('name').only('id', 'name')
         
         # Alerts (Toasts) for open/delayed tickets
-        # Logic: Check for ANY ticket (not just filtered ones) that requires attention
-        # Delayed: deadline < now AND status != finished/canceled
-        # Open: status in [open, in_progress, pending]
-        
-        now = timezone.now()
-        
-        delayed_tickets = Ticket.objects.filter(
-            deadline__lt=now
-        ).exclude(
-            status__in=['finished', 'canceled']
-        ).select_related('client')
+        # Requisito: não saturar. Mostrar no máximo 2x por dia por usuário:
+        # 1) primeira vez do dia (primeiro acesso/login)
+        # 2) após o término do turno (ex.: 20:00 no diurno), uma vez.
+        now = timezone.localtime(timezone.now())
+        today = timezone.localdate()
 
-        open_tickets_qs = Ticket.objects.exclude(
-            status__in=['finished', 'canceled']
-        ).select_related('client')
+        toast_key = f"ticket_list_toast_state_{self.request.user.id}"
+        state = self.request.session.get(toast_key) or {}
+        if state.get('date') != str(today):
+            state = {'date': str(today), 'morning_shown': False, 'end_shown': False}
+
+        # Detecta fim do turno com base nas configurações (diurno/noturno)
+        try:
+            settings_obj = SystemSettings.objects.first() or SystemSettings.objects.create()
+        except Exception:
+            settings_obj = None
+
+        day_end = getattr(settings_obj, 'day_shift_end', None) or datetime.strptime('20:00', '%H:%M').time()
+        night_enabled = bool(getattr(settings_obj, 'enable_night_shift', False))
+        night_start = getattr(settings_obj, 'night_shift_start', None) or datetime.strptime('20:00', '%H:%M').time()
+        night_end = getattr(settings_obj, 'night_shift_end', None) or datetime.strptime('08:00', '%H:%M').time()
+
+        def aware(dt):
+            return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+
+        day_end_dt = aware(datetime.combine(today, day_end))
+
+        shift_end_dt = day_end_dt
+        if night_enabled:
+            t = now.time()
+            in_night = (t >= night_start) or (t < night_end)
+            if in_night:
+                end_day = today + timedelta(days=1) if t >= night_start else today
+                shift_end_dt = aware(datetime.combine(end_day, night_end))
+            else:
+                shift_end_dt = day_end_dt
+
+        should_show = False
+        if not state.get('morning_shown'):
+            should_show = True
+            state['morning_shown'] = True
+        elif (not state.get('end_shown')) and (now >= shift_end_dt):
+            should_show = True
+            state['end_shown'] = True
+
+        self.request.session[toast_key] = state
 
         alerts = []
+        if should_show:
+            # Logic: Check for ANY ticket (not just filtered ones) that requires attention
+            # Delayed: deadline < now AND status != finished/canceled
+            # Open: status in [open, in_progress, pending]
+            delayed_tickets = Ticket.objects.filter(
+                deadline__lt=now
+            ).exclude(
+                status__in=['finished', 'canceled']
+            ).select_related('client')
 
-        for ticket in delayed_tickets:
-            alerts.append({
-                'type': 'danger',
-                'title': 'Atenção: Atraso',
-                'message': f'A ocorrência {ticket.formatted_id} está atrasada.',
-                'icon': 'exclamation-triangle',
-                'ticket_id': ticket.id
-            })
+            open_tickets_qs = Ticket.objects.exclude(
+                status__in=['finished', 'canceled']
+            ).select_related('client')
 
-        for ticket in open_tickets_qs:
-            if ticket in delayed_tickets:
-                continue
-            if ticket.status == 'open':
-                msg = f'A ocorrência {ticket.formatted_id} está em aberto.'
-            elif ticket.status == 'in_progress':
-                msg = f'A ocorrência {ticket.formatted_id} está em andamento.'
-            elif ticket.status == 'pending':
-                msg = f'A ocorrência {ticket.formatted_id} está aguardando aprovação.'
-            else:
-                msg = f'A ocorrência {ticket.formatted_id} requer atenção.'
+            for ticket in delayed_tickets:
+                alerts.append({
+                    'type': 'danger',
+                    'title': 'Atenção: Atraso',
+                    'message': f'A ocorrência {ticket.formatted_id} está atrasada.',
+                    'icon': 'exclamation-triangle',
+                    'ticket_id': ticket.id
+                })
 
-            alerts.append({
-                'type': 'info',
-                'title': 'Pendência',
-                'message': msg,
-                'icon': 'info-circle',
-                'ticket_id': ticket.id
-            })
+            for ticket in open_tickets_qs:
+                if ticket in delayed_tickets:
+                    continue
+                if ticket.status == 'open':
+                    msg = f'A ocorrência {ticket.formatted_id} está em aberto.'
+                elif ticket.status == 'in_progress':
+                    msg = f'A ocorrência {ticket.formatted_id} está em andamento.'
+                elif ticket.status == 'pending':
+                    msg = f'A ocorrência {ticket.formatted_id} está aguardando aprovação.'
+                else:
+                    msg = f'A ocorrência {ticket.formatted_id} requer atenção.'
+
+                alerts.append({
+                    'type': 'info',
+                    'title': 'Pendência',
+                    'message': msg,
+                    'icon': 'info-circle',
+                    'ticket_id': ticket.id
+                })
 
         context['alerts'] = alerts
 
-        today = timezone.localdate()
         start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
         end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
         today_count = Ticket.objects.filter(created_at__range=(start_of_day, end_of_day)).count()
         context['today_date'] = today
-        context['now'] = timezone.now()
+        context['now'] = now
         context['today_tickets_count'] = today_count
         context['can_daily_report_all'] = getattr(getattr(self.request.user, 'profile', None), 'role', None) in ['admin', 'super_admin']
         context['all_tickets'] = Ticket.objects.all().select_related('client').order_by('-created_at')
@@ -803,6 +846,36 @@ class TicketAccordionItemView(LoginRequiredMixin, View):
             'can_edit_ticket_creator': can_edit_ticket_creator,
         }
         return render(request, self.template_name, context)
+
+
+class TicketMiniPreviewView(LoginRequiredMixin, View):
+    """
+    Retorna um resumo da OS para ser usado como "miniatura" na Passagem de Turno,
+    permitindo consultar rapidamente sem sair da página.
+    """
+
+    template_name = 'tasks/_ticket_mini_preview.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        ticket = (
+            Ticket.objects.filter(pk=pk)
+            .select_related(
+                'client',
+                'hub',
+                'ticket_type',
+                'requester',
+                'created_by',
+                'contact_requester',
+                'contact_client_requester',
+                'contact_responsible',
+                'contact_jumper_responsible',
+            )
+            .prefetch_related('systems', 'technicians')
+            .first()
+        )
+        if not ticket:
+            return HttpResponse('OS não encontrada.', status=404)
+        return render(request, self.template_name, {'ticket': ticket})
 
 class TicketUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
@@ -1807,54 +1880,632 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['checklist_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
         return context
 
-# Tasks
+# Tasks (refatorado: Passagem de Turno)
 @method_decorator(ensure_csrf_cookie, name='dispatch')
-class TaskListView(LoginRequiredMixin, ListView):
-    model = Ticket
+class TaskListView(LoginRequiredMixin, TemplateView):
     template_name = 'tasks/task_list.html'
-    context_object_name = 'tickets'
 
-    def get_queryset(self):
-        queryset = Ticket.objects.select_related('client').prefetch_related('systems', 'technicians', 'technicians__profile')
-        
-        queryset = queryset.annotate(
-            is_favorite=Exists(
-                TicketFavorite.objects.filter(
-                    ticket=OuterRef('pk'),
-                    user=self.request.user
-                )
-            ),
-            my_favorite_created_at=Subquery(
-                TicketFavorite.objects.filter(
-                    ticket=OuterRef('pk'),
-                    user=self.request.user
-                ).values('created_at')[:1]
-            )
-        )
-        active_statuses = ['open', 'in_progress', 'pending']
-        status_filter = self.request.GET.get('status') or 'all'
+    def _get_shift_settings(self):
+        settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
+        return settings_obj
 
-        if status_filter == 'all':
-            queryset = queryset.filter(status__in=active_statuses)
-        elif status_filter in active_statuses:
-            queryset = queryset.filter(status=status_filter)
-        elif status_filter == 'finished':
-            queryset = queryset.filter(status='finished')
-        else:
-            queryset = queryset.filter(status__in=active_statuses)
+    def _build_shifts(self, now):
+        settings_obj = self._get_shift_settings()
+        day_start = getattr(settings_obj, 'day_shift_start', None) or datetime.strptime('08:00', '%H:%M').time()
+        day_end = getattr(settings_obj, 'day_shift_end', None) or datetime.strptime('20:00', '%H:%M').time()
+        enable_night = bool(getattr(settings_obj, 'enable_night_shift', False))
+        night_start = getattr(settings_obj, 'night_shift_start', None) or datetime.strptime('20:00', '%H:%M').time()
+        night_end = getattr(settings_obj, 'night_shift_end', None) or datetime.strptime('08:00', '%H:%M').time()
 
-        return queryset.order_by('client__name', '-is_favorite', 'my_favorite_created_at')
+        def aware(dt):
+            try:
+                return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+            except Exception:
+                return dt
+
+        shifts = []
+        today = timezone.localdate()
+        # Gera uma janela de dias suficiente para montar 7 turnos
+        for i in range(0, 14):
+            d = today - timedelta(days=i)
+
+            # Turno noturno (opcional)
+            if enable_night:
+                ns = aware(datetime.combine(d, night_start))
+                # Pode cruzar meia-noite
+                end_day = d if night_end >= night_start else (d + timedelta(days=1))
+                ne = aware(datetime.combine(end_day, night_end))
+                if ns <= now:
+                    shifts.append({'date': d, 'type': 'night', 'start': ns, 'end': ne})
+
+            # Turno diurno (padrão)
+            ds = aware(datetime.combine(d, day_start))
+            de = aware(datetime.combine(d, day_end))
+            if ds <= now:
+                shifts.append({'date': d, 'type': 'day', 'start': ds, 'end': de})
+
+            if len(shifts) >= 7:
+                break
+
+        # Marca o turno atual (start <= now < end)
+        for sh in shifts:
+            sh['is_current'] = bool(sh['start'] <= now < sh['end'])
+
+        # Mantém o turno atual sempre como primeiro destaque
+        shifts.sort(key=lambda x: (1 if x.get('is_current') else 0, x['start']), reverse=True)
+        return shifts[:7], settings_obj
+
+    def _build_shifts_for_range(self, now, date_start, date_end_exclusive):
+        """
+        Monta turnos entre datas (date_start <= dia < date_end_exclusive).
+        Retorna (shifts, settings_obj) sem limitar quantidade (paginação é feita depois).
+        """
+        settings_obj = self._get_shift_settings()
+        day_start = getattr(settings_obj, 'day_shift_start', None) or datetime.strptime('08:00', '%H:%M').time()
+        day_end = getattr(settings_obj, 'day_shift_end', None) or datetime.strptime('20:00', '%H:%M').time()
+        enable_night = bool(getattr(settings_obj, 'enable_night_shift', False))
+        night_start = getattr(settings_obj, 'night_shift_start', None) or datetime.strptime('20:00', '%H:%M').time()
+        night_end = getattr(settings_obj, 'night_shift_end', None) or datetime.strptime('08:00', '%H:%M').time()
+
+        def aware(dt):
+            try:
+                return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+            except Exception:
+                return dt
+
+        shifts = []
+        d = date_start
+        while d < date_end_exclusive:
+            # Noturno
+            if enable_night:
+                ns = aware(datetime.combine(d, night_start))
+                end_day = d if night_end >= night_start else (d + timedelta(days=1))
+                ne = aware(datetime.combine(end_day, night_end))
+                shifts.append({'date': d, 'type': 'night', 'start': ns, 'end': ne})
+
+            # Diurno
+            ds = aware(datetime.combine(d, day_start))
+            de = aware(datetime.combine(d, day_end))
+            shifts.append({'date': d, 'type': 'day', 'start': ds, 'end': de})
+
+            d = d + timedelta(days=1)
+
+        for sh in shifts:
+            sh['is_current'] = bool(sh['start'] <= now < sh['end'])
+
+        shifts.sort(key=lambda x: (1 if x.get('is_current') else 0, x['start']), reverse=True)
+        return shifts, settings_obj
+
+    def _status_dot(self, ticket, ref_now):
+        try:
+            status = (ticket.status or '').strip()
+            deadline = getattr(ticket, 'deadline', None)
+            if deadline and deadline < ref_now and status in {'open', 'in_progress'}:
+                return 'dot-delayed'
+            return {
+                'finished': 'dot-finished',
+                'pending': 'dot-pending',
+                'in_progress': 'dot-in-progress',
+                'canceled': 'dot-canceled',
+                'open': 'dot-open',
+            }.get(status, 'dot-open')
+        except Exception:
+            return 'dot-open'
+
+    def _status_emoji(self, ticket, ref_now):
+        """
+        Emoji para exibição rápida no post-it.
+        """
+        try:
+            status = (ticket.status or '').strip()
+            deadline = getattr(ticket, 'deadline', None)
+            if deadline and deadline < ref_now and status in {'open', 'in_progress'}:
+                return '🔴'
+            return {
+                'finished': '🟢',
+                'pending': '🟣',
+                'in_progress': '🔵',
+                'canceled': '⚫',
+                'open': '🟡',
+            }.get(status, '🟡')
+        except Exception:
+            return '🟡'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        status_label_map = dict(Ticket.STATUS_CHOICES)
-        status_choices = [('all', 'Todos')]
-        for code in ['open', 'in_progress', 'pending', 'finished']:
-            label = status_label_map.get(code, code)
-            status_choices.append((code, label))
-        context['status_choices'] = status_choices
-        context['current_status'] = self.request.GET.get('status') or 'all'
+        now = timezone.localtime(timezone.now())
+
+        # Filtros de histórico (dia/semana/mês/ano) com paginação
+        period = (self.request.GET.get('period') or 'recent').strip()
+        page = self.request.GET.get('page') or '1'
+        try:
+            page = max(int(page), 1)
+        except Exception:
+            page = 1
+        per_page = 30
+
+        today = timezone.localdate()
+        range_label = "Últimos 7 turnos"
+
+        shifts = []
+        settings_obj = None
+
+        if period == 'week':
+            # input type="week" → YYYY-Www
+            week_val = (self.request.GET.get('week') or '').strip()
+            if not week_val:
+                iso = today.isocalendar()
+                week_val = f"{iso.year}-W{iso.week:02d}"
+            try:
+                year_str, w_str = week_val.split('-W')
+                y = int(year_str)
+                w = int(w_str)
+                start_date = datetime.fromisocalendar(y, w, 1).date()
+                end_date = start_date + timedelta(days=7)
+            except Exception:
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=7)
+                iso = start_date.isocalendar()
+                week_val = f"{iso.year}-W{iso.week:02d}"
+
+            shifts, settings_obj = self._build_shifts_for_range(now, start_date, end_date)
+            range_label = f"Semana {week_val}"
+            context['current_week'] = week_val
+
+        elif period in {'month', 'year'}:
+            # Mês: YYYY-MM (input type="month")
+            # Ano: usuário escolhe ano e mês (select)
+            if period == 'month':
+                month_val = (self.request.GET.get('month') or '').strip()
+                if not month_val:
+                    month_val = f"{today.year:04d}-{today.month:02d}"
+                try:
+                    y, m = month_val.split('-')
+                    y = int(y)
+                    m = int(m)
+                except Exception:
+                    y, m = today.year, today.month
+                    month_val = f"{y:04d}-{m:02d}"
+                context['current_month'] = month_val
+            else:
+                y = self.request.GET.get('year') or str(today.year)
+                m = self.request.GET.get('month_num') or f"{today.month:02d}"
+                try:
+                    y = int(y)
+                    m = int(m)
+                except Exception:
+                    y, m = today.year, today.month
+                context['current_year'] = str(y)
+                context['current_month_num'] = f"{m:02d}"
+                month_val = f"{y:04d}-{m:02d}"
+
+            # semana do mês (1-5) opcional
+            week_in_month = (self.request.GET.get('week_in_month') or '').strip()
+            try:
+                import calendar
+                last_day = calendar.monthrange(y, m)[1]
+            except Exception:
+                last_day = 31
+
+            start_day = 1
+            end_day = last_day
+            if week_in_month and week_in_month.isdigit():
+                wim = int(week_in_month)
+                if 1 <= wim <= 5:
+                    start_day = (wim - 1) * 7 + 1
+                    end_day = min(wim * 7, last_day)
+                    context['current_week_in_month'] = str(wim)
+            else:
+                context['current_week_in_month'] = ''
+
+            start_date = datetime(y, m, start_day).date()
+            end_date = datetime(y, m, end_day).date() + timedelta(days=1)
+
+            shifts, settings_obj = self._build_shifts_for_range(now, start_date, end_date)
+            if period == 'month':
+                range_label = f"Mês {month_val}" + (f" (semana {context['current_week_in_month']})" if context.get('current_week_in_month') else "")
+            else:
+                range_label = f"Ano {y} - {month_val}"
+
+        else:
+            period = 'recent'
+            shifts, settings_obj = self._build_shifts(now)
+
+        # Paginação (máximo 30 post-its por página)
+        total = len(shifts)
+        total_pages = max((total + per_page - 1) // per_page, 1)
+        if page > total_pages:
+            page = total_pages
+        start_i = (page - 1) * per_page
+        end_i = start_i + per_page
+        shifts_page = shifts[start_i:end_i]
+
+        context['handover_period'] = period
+        context['handover_range_label'] = range_label
+        context['handover_page'] = page
+        context['handover_total_pages'] = total_pages
+        context['handover_total'] = total
+
+        # choices para ano/mês
+        context['year_choices'] = [str(today.year - i) for i in range(0, 6)]
+        context['month_choices'] = [
+            ('01', 'Jan'), ('02', 'Fev'), ('03', 'Mar'), ('04', 'Abr'),
+            ('05', 'Mai'), ('06', 'Jun'), ('07', 'Jul'), ('08', 'Ago'),
+            ('09', 'Set'), ('10', 'Out'), ('11', 'Nov'), ('12', 'Dez'),
+        ]
+
+        weekday_pt = {
+            0: 'Segunda',
+            1: 'Terça',
+            2: 'Quarta',
+            3: 'Quinta',
+            4: 'Sexta',
+            5: 'Sábado',
+            6: 'Domingo',
+        }
+
+        # Prefetch leve para exibir lista
+        data = []
+        for sh in shifts_page:
+            handover, _ = ShiftHandover.objects.get_or_create(shift_date=sh['date'], shift_type=sh['type'])
+
+            shift_end_ref = min(sh['end'], now) if sh['start'] <= now else sh['end']
+
+            tickets_created = (
+                Ticket.objects
+                .select_related('client', 'hub')
+                .prefetch_related('systems', 'technicians')
+                .filter(created_at__gte=sh['start'], created_at__lt=sh['end'])
+                .order_by('-created_at')
+            )[:30]
+
+            pendencias = (
+                Ticket.objects
+                .select_related('client', 'hub')
+                .prefetch_related('systems', 'technicians')
+                .exclude(status__in=['finished', 'canceled'])
+                .filter(created_at__lte=sh['end'])
+                .filter(Q(deadline__lt=sh['end']) | Q(status__in=['pending', 'in_progress', 'open']))
+                .order_by('deadline', '-updated_at')
+            )[:30]
+
+            def serialize_ticket(t):
+                return {
+                    'id': t.id,
+                    'formatted_id': t.formatted_id,
+                    'leankeep_id': (t.leankeep_id or '').strip() or '-',
+                    'client_name': getattr(getattr(t, 'client', None), 'name', '') or '',
+                    'status_dot': self._status_dot(t, shift_end_ref),
+                    'status_emoji': self._status_emoji(t, shift_end_ref),
+                    'preview_url': reverse('ticket_mini_preview', kwargs={'pk': t.id}),
+                }
+
+            # Prefetch alertas (para destinatário e para o criador acompanhar baixas)
+            user_alerts = list(
+                handover.entries
+                .prefetch_related(
+                    Prefetch(
+                        'alerts',
+                        queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(),
+                        to_attr='alerts_all'
+                    ),
+                    Prefetch(
+                        'alerts',
+                        queryset=ShiftHandoverEntryAlert.objects.filter(target_user=self.request.user),
+                        to_attr='alerts_for_user'
+                    )
+                )
+                .select_related('created_by')
+                .all()
+            )
+
+            def serialize_entry(e):
+                alerts_for_user = getattr(e, 'alerts_for_user', []) or []
+                alerts_all = getattr(e, 'alerts_all', []) or []
+
+                has_alert = bool(alerts_for_user)
+                has_pending_alert = any(a.acknowledged_at is None for a in alerts_for_user)
+                has_ack_alert = any(a.acknowledged_at is not None for a in alerts_for_user)
+                priority = None
+                if alerts_for_user:
+                    # unique_together garante 1 por usuário, mas mantemos robusto
+                    try:
+                        priority = alerts_for_user[0].priority
+                    except Exception:
+                        priority = None
+
+                # Para o criador da mensagem: mostrar confirmação quando os destinatários derem baixa
+                creator_total = 0
+                creator_ack_count = 0
+                creator_all_ack = False
+                if e.created_by_id == self.request.user.id and alerts_all:
+                    creator_total = len(alerts_all)
+                    creator_ack_count = sum(1 for a in alerts_all if a.acknowledged_at is not None)
+                    creator_all_ack = (creator_total > 0 and creator_ack_count == creator_total)
+
+                # Mostrar para quem foi direcionado (ex.: Everton --> Guilherme [Alta])
+                recipients = ''
+                priority_code = None
+                if alerts_all:
+                    try:
+                        recipients = ', '.join(
+                            [((a.target_user.get_full_name() or a.target_user.username) if getattr(a, 'target_user', None) else '') for a in alerts_all]
+                        ).strip(', ').strip()
+                    except Exception:
+                        recipients = ''
+                    # Caso existam prioridades diferentes, pega a mais alta
+                    pr_order = {'high': 3, 'medium': 2, 'low': 1}
+                    try:
+                        priority_code = sorted(
+                            [a.priority for a in alerts_all if getattr(a, 'priority', None)],
+                            key=lambda p: pr_order.get(p, 0),
+                            reverse=True
+                        )[0]
+                    except Exception:
+                        priority_code = None
+
+                priority_label = {'high': 'Alta', 'medium': 'Média', 'low': 'Baixa'}.get(priority_code) if priority_code else None
+                return {
+                    'obj': e,
+                    'has_alert': has_alert,
+                    'has_pending_alert': has_pending_alert,
+                    'has_ack_alert': has_ack_alert,
+                    'priority': priority,
+                    'creator_total': creator_total,
+                    'creator_ack_count': creator_ack_count,
+                    'creator_all_ack': creator_all_ack,
+                    'recipients': recipients,
+                    'priority_code': priority_code,
+                    'priority_label': priority_label,
+                }
+
+            data.append({
+                'handover': handover,
+                'shift': sh,
+                'weekday_label': weekday_pt.get(sh['date'].weekday(), ''),
+                'title_date': sh['date'],
+                'shift_label': 'Diurno' if sh['type'] == 'day' else 'Noturno',
+                'is_current': bool(sh.get('is_current')),
+                'tickets_created': [serialize_ticket(t) for t in tickets_created],
+                'pendencias': [serialize_ticket(t) for t in pendencias],
+                'entries_data': [serialize_entry(e) for e in user_alerts],
+            })
+
+        context['handover_cards'] = data
+        context['handover_settings'] = settings_obj
         return context
+
+
+def build_handover_entry_data(entry, user):
+    """
+    Monta o payload usado no template para:
+    - Destinatário: destacar/pulsar + dar baixa + prioridade
+    - Criador: mostrar confirmação de leitura (todos deram baixa / X de Y)
+    """
+    alerts_for_user = getattr(entry, 'alerts_for_user', None)
+    if alerts_for_user is None:
+        alerts_for_user = list(entry.alerts.filter(target_user=user))
+
+    alerts_all = getattr(entry, 'alerts_all', None)
+    if alerts_all is None:
+        alerts_all = list(entry.alerts.select_related('target_user').all())
+
+    has_alert = bool(alerts_for_user)
+    has_pending_alert = any(a.acknowledged_at is None for a in alerts_for_user)
+    has_ack_alert = any(a.acknowledged_at is not None for a in alerts_for_user)
+    priority = (alerts_for_user[0].priority if alerts_for_user else None)
+
+    recipients = ''
+    priority_code = None
+    if alerts_all:
+        try:
+            recipients = ', '.join(
+                [((a.target_user.get_full_name() or a.target_user.username) if getattr(a, 'target_user', None) else '') for a in alerts_all]
+            ).strip(', ').strip()
+        except Exception:
+            recipients = ''
+        pr_order = {'high': 3, 'medium': 2, 'low': 1}
+        try:
+            priority_code = sorted(
+                [a.priority for a in alerts_all if getattr(a, 'priority', None)],
+                key=lambda p: pr_order.get(p, 0),
+                reverse=True
+            )[0]
+        except Exception:
+            priority_code = None
+
+    priority_label = {'high': 'Alta', 'medium': 'Média', 'low': 'Baixa'}.get(priority_code) if priority_code else None
+
+    creator_total = 0
+    creator_ack_count = 0
+    creator_all_ack = False
+    if entry.created_by_id == user.id and alerts_all:
+        creator_total = len(alerts_all)
+        creator_ack_count = sum(1 for a in alerts_all if a.acknowledged_at is not None)
+        creator_all_ack = (creator_total > 0 and creator_ack_count == creator_total)
+
+    return {
+        'has_alert': has_alert,
+        'has_pending_alert': has_pending_alert,
+        'has_ack_alert': has_ack_alert,
+        'priority': priority,
+        'creator_total': creator_total,
+        'creator_ack_count': creator_ack_count,
+        'creator_all_ack': creator_all_ack,
+        'recipients': recipients,
+        'priority_code': priority_code,
+        'priority_label': priority_label,
+    }
+
+
+class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        handover_id = request.POST.get('handover_id')
+        text = (request.POST.get('text') or '').strip()
+        if not handover_id or not str(handover_id).isdigit():
+            return JsonResponse({'status': 'error', 'message': 'Turno inválido.'}, status=400)
+        if not text:
+            return JsonResponse({'status': 'error', 'message': 'Digite uma anotação.'}, status=400)
+        if len(text) > 4000:
+            return JsonResponse({'status': 'error', 'message': 'Texto muito longo.'}, status=400)
+
+        handover = get_object_or_404(ShiftHandover, pk=int(handover_id))
+        entry = ShiftHandoverEntry.objects.create(handover=handover, created_by=request.user, text=text)
+        entry_data = build_handover_entry_data(entry, request.user)
+        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        return JsonResponse({'status': 'success', 'html': html})
+
+
+class ShiftHandoverEntryDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        entry = get_object_or_404(ShiftHandoverEntry, pk=pk)
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        can_delete = bool(role in ['admin', 'super_admin'] or entry.created_by_id == request.user.id)
+        if not can_delete:
+            return JsonResponse({'status': 'error', 'message': 'Sem permissão para excluir.'}, status=403)
+        entry.delete()
+        return JsonResponse({'status': 'success'})
+
+
+class ShiftHandoverEntryEditView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        entry = get_object_or_404(ShiftHandoverEntry, pk=pk)
+        role = getattr(getattr(request.user, 'profile', None), 'role', None)
+        can_edit = bool(role in ['admin', 'super_admin'] or entry.created_by_id == request.user.id)
+        if not can_edit:
+            return JsonResponse({'status': 'error', 'message': 'Sem permissão para editar.'}, status=403)
+
+        text = (request.POST.get('text') or '').strip()
+        if not text:
+            return JsonResponse({'status': 'error', 'message': 'Digite uma anotação.'}, status=400)
+        if len(text) > 4000:
+            return JsonResponse({'status': 'error', 'message': 'Texto muito longo.'}, status=400)
+
+        entry.text = text
+        entry.save(update_fields=['text'])
+        # mantém o estado de alerta para o usuário atual
+        entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
+        ).select_related('created_by').first() or entry
+        entry_data = build_handover_entry_data(entry, request.user)
+        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        return JsonResponse({'status': 'success', 'html': html})
+
+
+class ShiftHandoverUsersView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        users = (
+            User.objects.filter(is_active=True)
+            .select_related('profile')
+            .order_by('first_name', 'username')
+        )
+        data = []
+        for u in users:
+            name = (u.get_full_name() or u.username or '').strip()
+            data.append({'id': u.id, 'name': name})
+        return JsonResponse({'status': 'success', 'users': data})
+
+
+class ShiftHandoverEntryNotifyView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        entry = get_object_or_404(ShiftHandoverEntry, pk=pk)
+        priority = (request.POST.get('priority') or 'medium').strip()
+        if priority not in {'high', 'medium', 'low'}:
+            priority = 'medium'
+        raw_ids = request.POST.getlist('user_ids[]') or request.POST.getlist('user_ids') or []
+        # aceita "1,2,3"
+        if len(raw_ids) == 1 and isinstance(raw_ids[0], str) and ',' in raw_ids[0]:
+            raw_ids = [x.strip() for x in raw_ids[0].split(',') if x.strip()]
+
+        user_ids = []
+        for x in raw_ids:
+            if str(x).isdigit():
+                user_ids.append(int(x))
+        user_ids = list(dict.fromkeys(user_ids))  # uniq mantendo ordem
+
+        if not user_ids:
+            return JsonResponse({'status': 'error', 'message': 'Selecione ao menos um usuário.'}, status=400)
+
+        # cria/reativa alertas
+        for uid in user_ids:
+            target = User.objects.filter(pk=uid, is_active=True).first()
+            if not target:
+                continue
+            alert, created = ShiftHandoverEntryAlert.objects.get_or_create(
+                entry=entry,
+                target_user=target,
+                defaults={'created_by': request.user, 'priority': priority}
+            )
+            if not created:
+                # reativa (volta a pendente)
+                alert.acknowledged_at = None
+                if not alert.created_by_id:
+                    alert.created_by = request.user
+                alert.priority = priority
+                alert.save(update_fields=['acknowledged_at', 'created_by', 'priority'])
+
+        # Retorna HTML do item (sem highlight para quem está notificando, a menos que ele também seja alvo)
+        entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
+        ).select_related('created_by').first() or entry
+        entry_data = build_handover_entry_data(entry, request.user)
+        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        return JsonResponse({'status': 'success', 'html': html})
+
+
+class ShiftHandoverEntryAcknowledgeView(LoginRequiredMixin, View):
+    def post(self, request, pk, *args, **kwargs):
+        entry = get_object_or_404(ShiftHandoverEntry, pk=pk)
+        now = timezone.now()
+        qs = ShiftHandoverEntryAlert.objects.filter(
+            entry=entry,
+            target_user=request.user,
+            acknowledged_at__isnull=True
+        )
+        updated = qs.update(acknowledged_at=now)
+        if not updated:
+            return JsonResponse({'status': 'error', 'message': 'Nada para dar baixa.'}, status=400)
+
+        # Notifica o remetente (comprovação)
+        try:
+            alert_obj = qs.select_related('created_by').first()
+            sender = getattr(alert_obj, 'created_by', None)
+            if sender and sender.id != request.user.id:
+                Notification.objects.create(
+                    recipient=sender,
+                    sender=request.user,
+                    title='Lembrete de turno lido',
+                    message=f"O usuário {request.user.get_full_name() or request.user.username} deu baixa no lembrete: \"{(entry.text or '')[:200]}\"",
+                    notification_type='message'
+                )
+        except Exception:
+            pass
+
+        # Retorna HTML já com estado atualizado para o usuário atual
+        entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
+        ).select_related('created_by').first() or entry
+        entry_data = build_handover_entry_data(entry, request.user)
+        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        return JsonResponse({'status': 'success', 'html': html})
+
+
+class ShiftHandoverPendingAlertsView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        qs = ShiftHandoverEntryAlert.objects.filter(target_user=request.user, acknowledged_at__isnull=True).select_related('entry', 'entry__handover')
+        count = qs.count()
+        # retorna poucos itens para o toast
+        items = []
+        for a in qs.order_by('-created_at')[:5]:
+            items.append({
+                'entry_id': a.entry_id,
+                'handover_id': a.entry.handover_id,
+                'text': (a.entry.text or '')[:120],
+            })
+        return JsonResponse({'status': 'success', 'count': count, 'items': items})
 
 class TaskFavoriteView(LoginRequiredMixin, View):
     def post(self, request, pk):

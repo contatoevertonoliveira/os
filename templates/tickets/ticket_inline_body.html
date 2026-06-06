@@ -1,50 +1,89 @@
 {% load widget_tweaks %}
 
 <div class="p-3">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div>
-            <div class="fw-bold text-primary">
-                Leankeep nº: {{ ticket.leankeep_id|default:'00000' }} | OS: {{ ticket.formatted_id }}
-            </div>
-            <div class="text-muted small">{{ ticket.client.name }}</div>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-{{ ticket.status_color|default:'secondary' }}">{{ ticket.get_status_display }}</span>
-            {% if ticket.deadline and ticket.deadline < now and ticket.status != 'finished' and ticket.status != 'canceled' %}
-                <span class="badge bg-danger">Vencida</span>
-            {% endif %}
-        </div>
-    </div>
-
     <form class="ticket-inline-form" id="ticketEditForm" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="pending_delete_updates" id="pendingDeleteUpdates{{ ticket.id }}" value="">
 
-        <div class="row g-3 align-items-start">
-            {# Sempre 2 colunas no desktop: conteúdo (8) + evolução (4) #}
-            <div class="col-lg-8">
-                <div class="p-3 bg-white rounded-3 border border-dark-subtle">
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold text-muted mb-1">Status</label>
-                            {% render_field form.status class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label small fw-bold text-muted mb-1">Cliente</label>
-                            {% render_field form.client class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label small fw-bold text-muted mb-1">Hub/Loja</label>
-                            {% render_field form.hub class="form-select form-select-sm" %}
-                        </div>
-                    </div>
+        <div class="ticket-pass ticket-pass-full mb-3">
+            <div class="ticket-pass-topbar">
+                <div class="ticket-pass-brand">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                    <span>JumperFour</span>
+                </div>
+                <div class="ticket-pass-title">
+                    {% if ticket.ticket_type and ticket.ticket_type.name %}{{ ticket.ticket_type.name }}{% elif ticket.call_type %}{{ ticket.get_call_type_display }}{% else %}OS{% endif %}
+                </div>
+                <div class="ticket-pass-title right">
+                    {% if ticket.ticket_type and ticket.ticket_type.name %}{{ ticket.ticket_type.name }}{% elif ticket.call_type %}{{ ticket.get_call_type_display }}{% else %}OS{% endif %}
+                </div>
+            </div>
 
-                    <div class="mb-3">
+            <div class="ticket-pass-content">
+                <!-- Lado esquerdo: campos editáveis -->
+                <div class="ticket-pass-main">
+                    <div class="ticket-pass-barcode-vert" aria-hidden="true"></div>
+                    <div>
                         <div class="row g-2">
+                            <div class="col-md-2">
+                                <div class="ticket-pass-label">Status</div>
+                                {% render_field form.status class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-5">
+                                <div class="ticket-pass-label">Cliente</div>
+                                {% render_field form.client class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-5">
+                                <div class="ticket-pass-label">Hub/Loja</div>
+                                {% render_field form.hub class="form-select form-select-sm" %}
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Equipamentos</div>
+                                {% render_field form.equipment_selection class="form-select form-select-sm" %}
+                                <div id="modal-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-1"></div>
+                                <div class="d-none">{% render_field form.equipments %}</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Tipo de Chamado</div>
+                                {% render_field form.ticket_type class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Tipo de Problema</div>
+                                {% render_field form.problem_type class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">ID Leankeep</div>
+                                {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Solicitante</div>
+                                {% render_field form.contact_client_requester class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Responsável/Executor</div>
+                                {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Data de Início</div>
+                                {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
+                            </div>
+                            <div class="col-md-3">
+                                <div class="ticket-pass-label">Prazo</div>
+                                {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-2">
                             <!-- Sistemas -->
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold text-muted mb-1">Sistemas</label>
-                                <div class="card p-2 bg-light border-0 rounded-3" style="max-height: 130px; overflow: auto;">
+                                <div class="ticket-pass-label">Sistemas</div>
+                                <div class="card p-2 bg-light border-0 rounded-3" style="max-height: 150px; overflow: auto;">
                                     <div class="row row-cols-2 g-2">
                                         {% for checkbox in form.systems %}
                                         <div class="col">
@@ -66,7 +105,7 @@
 
                             <!-- Imagens da OS -->
                             <div class="col-md-6">
-                                <label class="form-label small fw-bold text-muted mb-1">Imagens da OS</label>
+                                <div class="ticket-pass-label">Imagens da OS</div>
                                 <div class="p-2 bg-light rounded-3 border-0">
                                     <div class="ticket-images-grid" id="ticketImagesGrid{{ ticket.id }}">
                                         {% if ticket.images.exists %}
@@ -120,209 +159,177 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Equipamentos</label>
-                            {% render_field form.equipment_selection class="form-select form-select-sm" %}
-                            <div id="modal-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-1"></div>
-                            <div class="d-none">{% render_field form.equipments %}</div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-6">
+                                <div class="ticket-pass-label">Descrição Inicial</div>
+                                {% render_field form.description class="form-control form-control-sm" rows="5" %}
+                            </div>
+                            <div class="col-md-6">
+                                <div class="ticket-pass-label">Descrição Final (Resolução)</div>
+                                {% render_field form.final_description class="form-control form-control-sm" rows="5" placeholder="Descreva o que foi feito..." %}
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Chamado</label>
-                            {% render_field form.ticket_type class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Tipo de Problema</label>
-                            {% render_field form.problem_type class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">ID Leankeep</label>
-                            {% render_field form.leankeep_id class="form-control form-control-sm" placeholder="00000" %}
-                        </div>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Solicitante</label>
-                            {% render_field form.contact_client_requester class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Responsável/Executor</label>
-                            {% render_field form.contact_jumper_responsible class="form-select form-select-sm" %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Data de Início</label>
-                            {% render_field form.start_date class="form-control form-control-sm" type="datetime-local" %}
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-muted mb-1">Prazo</label>
-                            {% render_field form.deadline class="form-control form-control-sm" type="datetime-local" %}
-                        </div>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Descrição Inicial</label>
-                            {% render_field form.description class="form-control form-control-sm" rows="5" %}
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold text-muted mb-1">Descrição Final (Resolução)</label>
-                            {% render_field form.final_description class="form-control form-control-sm" rows="5" placeholder="Descreva o que foi feito..." %}
-                        </div>
-                    </div>
-
-                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
-                        <button type="submit" name="save_action" value="collapse" class="btn btn-success btn-sm px-4 fw-bold">
-                            <i class="fas fa-save me-1"></i> Salvar e recolher
-                        </button>
                     </div>
                 </div>
-        </div>
 
-            <div class="col-lg-4">
-                <div class="d-flex flex-column h-100">
-                    <!-- Nova Evolução (balão) -->
-                    <div class="p-3 bg-white rounded-3 border border-dark-subtle mb-3">
-                        <h6 class="text-uppercase text-secondary fw-bold small mb-3">
-                            <i class="fas fa-plus-circle me-1"></i> Nova Evolução
-                        </h6>
-                        <div class="mb-2">
-                            <textarea name="evolution_description" class="form-control form-control-sm" rows="2" placeholder="Descreva o andamento..."></textarea>
+                <!-- Lado direito: ações + evolução + histórico -->
+                <div class="ticket-pass-stub">
+                    <div class="ticket-pass-stub-inner">
+                        <div class="ticket-pass-label">BOARDING PASS</div>
+                        <div class="ticket-pass-code">{{ ticket.formatted_id }}</div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" name="save_action" value="collapse" class="btn btn-success btn-sm fw-bold">
+                                <i class="fas fa-save me-1"></i> Salvar e recolher
+                            </button>
+                            {% if 'ticket_pdf_view' in allowed_url_names %}
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'ticket_pdf_view' ticket.id %}">
+                                    PDF
+                                </a>
+                            {% endif %}
                         </div>
-                        <div class="d-flex flex-column gap-2">
-                            <div class="d-flex gap-2 align-items-center">
-                                <div class="input-group input-group-sm w-75">
-                                    <input type="file" name="evolution_image" id="id_evolution_image" class="form-control form-control-sm" multiple>
-                                    <span class="input-group-text bg-light text-muted" title="Cole (Ctrl+V)">
-                                        <i class="fas fa-paste"></i>
-                                    </span>
-                                </div>
-                                <button type="submit" name="inline_action" value="evolve" class="btn btn-outline-primary btn-sm w-25" title="Salvar e Evoluir">
-                                    <i class="fas fa-paper-plane"></i>
-                                </button>
+
+                        <!-- Nova Evolução (balão) -->
+                        <div class="mt-2 p-2 bg-white rounded-3 border border-dark-subtle">
+                            <div class="ticket-pass-label mb-1"><i class="fas fa-plus-circle me-1"></i> Nova Evolução</div>
+                            <div class="mb-2">
+                                <textarea name="evolution_description" class="form-control form-control-sm" rows="2" placeholder="Descreva o andamento..."></textarea>
                             </div>
-                            <div id="evolution-images-preview" class="d-flex flex-wrap gap-2 d-none"></div>
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex gap-2 align-items-center">
+                                    <div class="input-group input-group-sm flex-grow-1">
+                                        <input type="file" name="evolution_image" id="id_evolution_image" class="form-control form-control-sm" multiple>
+                                        <span class="input-group-text bg-light text-muted" title="Cole (Ctrl+V)">
+                                            <i class="fas fa-paste"></i>
+                                        </span>
+                                    </div>
+                                    <button type="submit" name="inline_action" value="evolve" class="btn btn-outline-primary btn-sm" title="Salvar e Evoluir">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                                <div id="evolution-images-preview" class="d-flex flex-wrap gap-2 d-none"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Histórico -->
-                    <div class="flex-grow-1 p-3 bg-light rounded-3 border border-dark-subtle" style="max-height: 520px; overflow:auto;">
-                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 sticky-top py-1" style="background-color: rgba(255,255,255,0.85);">
-                            <i class="fas fa-history me-1"></i> Histórico
-                        </h6>
+                        <!-- Histórico -->
+                        <div class="mt-2 p-2 bg-light rounded-3 border border-dark-subtle" style="max-height: 520px; overflow:auto;">
+                            <div class="ticket-pass-label mb-2 sticky-top py-1" style="background-color: rgba(255,255,255,0.92);">
+                                <i class="fas fa-history me-1"></i> Histórico
+                            </div>
 
-                        {% if updates %}
-                            <div class="timeline-sm">
-                                {% for update in updates %}
-                                <div id="update-item-{{ update.id }}" class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
-                                    <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
-                                    <div class="card shadow-sm border-0 group-hover-actions">
-                                        <div class="card-body p-2">
-                                            <div class="d-flex justify-content-between mb-1">
-                                                <span class="fw-bold small text-primary">
-                                                    {% if update.created_by %}{{ update.created_by.get_full_name|default:update.created_by.username }}{% else %}Sistema{% endif %}
-                                                </span>
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <small class="text-muted" style="font-size: 0.7rem;">
-                                                        {{ update.created_at|date:"d/m H:i" }}
-                                                    </small>
-                                                    <div class="update-actions">
-                                                        <button type="button" class="btn btn-link p-0 text-secondary" onclick="toggleEditUpdate('{{ update.id }}')" title="Editar">
-                                                            <i class="fas fa-pencil-alt fa-xs"></i>
-                                                        </button>
-                                                        <button type="button" class="btn btn-link p-0 text-danger ms-1" title="Excluir" onclick="confirmPendingUpdateDelete('{{ update.id }}')">
-                                                            <i class="fas fa-trash fa-xs"></i>
-                                                        </button>
+                            {% if updates %}
+                                <div class="timeline-sm">
+                                    {% for update in updates %}
+                                    <div id="update-item-{{ update.id }}" class="timeline-item pb-3 border-start ps-3 ms-2 position-relative">
+                                        <div class="timeline-dot bg-white border border-2 border-primary rounded-circle position-absolute start-0 translate-middle-x" style="width: 10px; height: 10px; top: 4px;"></div>
+                                        <div class="card shadow-sm border-0 group-hover-actions">
+                                            <div class="card-body p-2">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <span class="fw-bold small text-primary">
+                                                        {% if update.created_by %}{{ update.created_by.get_full_name|default:update.created_by.username }}{% else %}Sistema{% endif %}
+                                                    </span>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <small class="text-muted" style="font-size: 0.7rem;">
+                                                            {{ update.created_at|date:"d/m H:i" }}
+                                                        </small>
+                                                        <div class="update-actions">
+                                                            <button type="button" class="btn btn-link p-0 text-secondary" onclick="toggleEditUpdate('{{ update.id }}')" title="Editar">
+                                                                <i class="fas fa-pencil-alt fa-xs"></i>
+                                                            </button>
+                                                            <button type="button" class="btn btn-link p-0 text-danger ms-1" title="Excluir" onclick="confirmPendingUpdateDelete('{{ update.id }}')">
+                                                                <i class="fas fa-trash fa-xs"></i>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            <div id="update-view-{{ update.id }}" ondblclick="if (event && event.target && event.target.tagName !== 'IMG') { toggleEditUpdate('{{ update.id }}'); }" title="Duplo clique para editar">
-                                                <p class="mb-1 text-dark small" style="font-size: 0.85rem; cursor: text;">{{ update.description|linebreaksbr }}</p>
+                                                <div id="update-view-{{ update.id }}" ondblclick="if (event && event.target && event.target.tagName !== 'IMG') { toggleEditUpdate('{{ update.id }}'); }" title="Duplo clique para editar">
+                                                    <p class="mb-1 text-dark small" style="font-size: 0.85rem; cursor: text;">{{ update.description|linebreaksbr }}</p>
 
-                                                {% if update.images.exists %}
-                                                    <div class="update-images-grid mt-2">
-                                                        {% for img_obj in update.images.all %}
-                                                            <div id="update-image-item-{{ img_obj.id }}" class="position-relative">
-                                                                <img
-                                                                    src="{{ img_obj.image.url }}"
-                                                                    alt="Imagem da Evolução"
-                                                                    class="img-thumbnail open-gallery-btn shadow-sm"
-                                                                    style="width: 100%; height: 72px; object-fit: cover; cursor: pointer;"
-                                                                    data-gallery-group="update_{{ update.id }}_images"
-                                                                    data-image-url="{{ img_obj.image.url }}"
-                                                                    data-image-desc="{{ update.description|default:''|escapejs }}"
+                                                    {% if update.images.exists %}
+                                                        <div class="update-images-grid mt-2">
+                                                            {% for img_obj in update.images.all %}
+                                                                <div id="update-image-item-{{ img_obj.id }}" class="position-relative">
+                                                                    <img
+                                                                        src="{{ img_obj.image.url }}"
+                                                                        alt="Imagem da Evolução"
+                                                                        class="img-thumbnail open-gallery-btn shadow-sm"
+                                                                        style="width: 100%; height: 72px; object-fit: cover; cursor: pointer;"
+                                                                        data-gallery-group="update_{{ update.id }}_images"
+                                                                        data-image-url="{{ img_obj.image.url }}"
+                                                                        data-image-desc="{{ update.description|default:''|escapejs }}"
+                                                                        {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+                                                                            data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                        {% elif update.created_by and update.created_by.id == request.user.id %}
+                                                                            data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                        {% endif %}
+                                                                    >
+
                                                                     {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
-                                                                        data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                        <button
+                                                                            type="button"
+                                                                            class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                                            style="line-height: 1; padding: 0.15rem 0.35rem;"
+                                                                            title="Excluir imagem"
+                                                                            onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
+                                                                        >×</button>
                                                                     {% elif update.created_by and update.created_by.id == request.user.id %}
-                                                                        data-image-delete-url="{% url 'ticket_update_image_delete' img_obj.id %}"
+                                                                        <button
+                                                                            type="button"
+                                                                            class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                                            style="line-height: 1; padding: 0.15rem 0.35rem;"
+                                                                            title="Excluir imagem"
+                                                                            onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
+                                                                        >×</button>
                                                                     {% endif %}
-                                                                >
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% elif update.image %}
+                                                        <div class="mt-2 position-relative d-inline-block">
+                                                            <img
+                                                                src="{{ update.image.url }}"
+                                                                alt="Imagem da Evolução"
+                                                                class="img-thumbnail open-gallery-btn shadow-sm"
+                                                                style="width: 100px; height: 100px; object-fit: cover; cursor: pointer;"
+                                                                data-gallery-group="update_{{ update.id }}_images"
+                                                                data-image-url="{{ update.image.url }}"
+                                                                data-image-desc="{{ update.description|default:''|escapejs }}"
+                                                            >
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
 
-                                                                {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
-                                                                    <button
-                                                                        type="button"
-                                                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
-                                                                        style="line-height: 1; padding: 0.15rem 0.35rem;"
-                                                                        title="Excluir imagem"
-                                                                        onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
-                                                                    >×</button>
-                                                                {% elif update.created_by and update.created_by.id == request.user.id %}
-                                                                    <button
-                                                                        type="button"
-                                                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
-                                                                        style="line-height: 1; padding: 0.15rem 0.35rem;"
-                                                                        title="Excluir imagem"
-                                                                        onclick="event.stopPropagation(); confirmAjaxDelete('{% url 'ticket_update_image_delete' img_obj.id %}', 'update-image-item-{{ img_obj.id }}');"
-                                                                    >×</button>
-                                                                {% endif %}
-                                                            </div>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% elif update.image %}
-                                                    <div class="mt-2 position-relative d-inline-block">
-                                                        <img
-                                                            src="{{ update.image.url }}"
-                                                            alt="Imagem da Evolução"
-                                                            class="img-thumbnail open-gallery-btn shadow-sm"
-                                                            style="width: 100px; height: 100px; object-fit: cover; cursor: pointer;"
-                                                            data-gallery-group="update_{{ update.id }}_images"
-                                                            data-image-url="{{ update.image.url }}"
-                                                            data-image-desc="{{ update.description|default:''|escapejs }}"
-                                                        >
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-
-                                            <div id="update-edit-{{ update.id }}" class="d-none mt-2">
-                                                <div class="update-edit-inline" data-action="{% url 'ticket_update_edit' update.id %}">
-                                                    <textarea id="update-desc-{{ update.id }}" class="form-control form-control-sm mb-2" rows="3">{{ update.description }}</textarea>
-                                                    <div class="d-flex justify-content-end gap-1">
-                                                        <button type="button" class="btn btn-sm btn-light border" onclick="toggleEditUpdate('{{ update.id }}')">Cancelar</button>
-                                                        <button
-                                                            type="button"
-                                                            class="btn btn-sm btn-primary inline-update-save"
-                                                            data-update-id="{{ update.id }}"
-                                                            data-action="{% url 'ticket_update_edit' update.id %}"
-                                                        >Salvar</button>
+                                                <div id="update-edit-{{ update.id }}" class="d-none mt-2">
+                                                    <div class="update-edit-inline" data-action="{% url 'ticket_update_edit' update.id %}">
+                                                        <textarea id="update-desc-{{ update.id }}" class="form-control form-control-sm mb-2" rows="3">{{ update.description }}</textarea>
+                                                        <div class="d-flex justify-content-end gap-1">
+                                                            <button type="button" class="btn btn-sm btn-light border" onclick="toggleEditUpdate('{{ update.id }}')">Cancelar</button>
+                                                            <button
+                                                                type="button"
+                                                                class="btn btn-sm btn-primary inline-update-save"
+                                                                data-update-id="{{ update.id }}"
+                                                                data-action="{% url 'ticket_update_edit' update.id %}"
+                                                            >Salvar</button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
+                                    {% endfor %}
                                 </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-comment-slash fa-2x mb-2 opacity-25"></i>
-                                <p class="small mb-0">Nenhuma evolução registrada.</p>
-                            </div>
-                        {% endif %}
+                            {% else %}
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-comment-slash fa-2x mb-2 opacity-25"></i>
+                                    <p class="small mb-0">Nenhuma evolução registrada.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="ticket-pass-barcode" aria-hidden="true"></div>
                     </div>
-                </div>
                 </div>
             </div>
         </div>

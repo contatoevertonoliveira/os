@@ -42,6 +42,220 @@
         .ticket-row .ticket-id { font-family: monospace; font-weight: 500; }
     thead th { font-size: 0.8rem; font-weight: 500; white-space: nowrap; }
 
+    /* ===== Ticket (boarding pass) dentro do collapse da OS ===== */
+    .ticket-pass,
+    .ticket-pass * {
+        font-family: 'Poppins', sans-serif !important;
+        text-shadow: none !important;
+        -webkit-text-stroke: 0 !important;
+        letter-spacing: 0 !important;
+    }
+    /* NÃO sobrescrever a fonte dos ícones (FontAwesome) dentro do ticket */
+    .ticket-pass i.fa,
+    .ticket-pass i.fas,
+    .ticket-pass i.far,
+    .ticket-pass i.fab,
+    .ticket-pass i.fa-solid,
+    .ticket-pass i.fa-regular,
+    .ticket-pass i.fa-brands,
+    .ticket-pass [class^="fa-"],
+    .ticket-pass [class*=" fa-"] {
+        font-family: "Font Awesome 6 Free" !important;
+        font-weight: 900 !important;
+        letter-spacing: 0 !important;
+        text-shadow: none !important;
+        -webkit-text-stroke: 0 !important;
+    }
+    .ticket-pass .fa-brands {
+        font-family: "Font Awesome 6 Brands" !important;
+        font-weight: 400 !important;
+    }
+    .ticket-pass {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: #f8fafc;
+        box-shadow: 0 14px 28px rgba(0,0,0,0.12);
+    }
+    .ticket-pass-topbar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(180deg, #ffc04d, #ffb234);
+        color: rgba(0,0,0,0.82);
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .ticket-pass-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 800;
+    }
+    .ticket-pass-title {
+        text-align: center;
+        opacity: 0.35;
+        color: rgba(0,0,0,0.55);
+        font-weight: 800;
+    }
+    .ticket-pass-title.right { text-align: right; }
+    .ticket-pass-content {
+        display: grid;
+        grid-template-columns: 1fr 260px;
+        position: relative;
+        background:
+            radial-gradient(circle at 20% 20%, rgba(0,0,0,0.04), rgba(0,0,0,0) 45%),
+            radial-gradient(circle at 80% 40%, rgba(0,0,0,0.03), rgba(0,0,0,0) 50%),
+            linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88));
+    }
+    /* Marca d'água (mapa mundi estilizado) */
+    .ticket-pass-content::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("/media/images/mapa_mundi_watermark.png");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 82% auto;
+        pointer-events: none;
+        opacity: 0.07;
+        filter: blur(0.2px) grayscale(1);
+    }
+    .ticket-pass-main,
+    .ticket-pass-stub {
+        position: relative;
+        z-index: 1;
+    }
+    .ticket-pass-stub {
+        position: relative;
+        background: rgba(255,255,255,0.96);
+        border-left: 2px dashed rgba(0,0,0,0.22);
+    }
+    .ticket-pass-stub::before,
+    .ticket-pass-stub::after {
+        content: "";
+        position: absolute;
+        left: -12px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #f8fafc;
+        border: 1px solid rgba(0,0,0,0.12);
+        z-index: 2;
+    }
+    .ticket-pass-stub::before { top: 28px; }
+    .ticket-pass-stub::after { bottom: 28px; }
+    .ticket-pass-main {
+        display: grid;
+        grid-template-columns: 46px 1fr;
+        gap: 10px;
+        padding: 12px;
+    }
+    .ticket-pass-barcode-vert {
+        border-radius: 10px;
+        background:
+            repeating-linear-gradient(
+                90deg,
+                rgba(0,0,0,0.85) 0px,
+                rgba(0,0,0,0.85) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+        opacity: 0.7;
+    }
+    .ticket-pass-label {
+        font-size: 0.66rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: rgba(0,0,0,0.55);
+        font-weight: 700;
+    }
+    .ticket-pass-big {
+        font-size: 0.98rem;
+        font-weight: 800;
+        color: rgba(0,0,0,0.86);
+        line-height: 1.2;
+    }
+    .ticket-pass-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 12px;
+        margin-top: 10px;
+    }
+    .ticket-pass-value {
+        font-size: 0.84rem;
+        color: rgba(0,0,0,0.86);
+        font-weight: 600;
+        line-height: 1.25;
+    }
+    .ticket-pass-desc {
+        font-size: 0.82rem;
+        color: rgba(0,0,0,0.80);
+        line-height: 1.3;
+        white-space: pre-line;
+        text-align: justify;
+        text-justify: inter-word;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(0,0,0,0.02);
+    }
+    .ticket-pass-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: rgba(255,255,255,0.88);
+        font-size: 0.74rem;
+        font-weight: 600;
+        margin: 2px 6px 2px 0;
+    }
+    .ticket-pass-stub-inner {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .ticket-pass-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        font-size: 0.98rem;
+    }
+    .ticket-pass-barcode {
+        height: 34px;
+        border-radius: 10px;
+        background:
+            repeating-linear-gradient(
+                90deg,
+                rgba(0,0,0,0.86) 0px,
+                rgba(0,0,0,0.86) 2px,
+                transparent 2px,
+                transparent 5px
+            );
+        opacity: 0.75;
+    }
+    @media (max-width: 576px) {
+        .ticket-pass-content { grid-template-columns: 1fr; }
+        .ticket-pass-stub { border-left: none; border-top: 2px dashed rgba(0,0,0,0.22); }
+        .ticket-pass-stub::before, .ticket-pass-stub::after { display: none; }
+    }
+
+    /* Versão "tamanho real" (com ferramentas) no collapse da OS:
+       reduzimos o canhoto para sobrar mais espaço pro conteúdo */
+    .ticket-pass.ticket-pass-full .ticket-pass-content { grid-template-columns: 1fr 300px; }
+    @media (max-width: 992px) {
+        .ticket-pass.ticket-pass-full .ticket-pass-content { grid-template-columns: 1fr; }
+    }
+
     .ticket-creator-avatar,
     .ticket-creator-avatar-fallback {
         width: 28px;
@@ -257,14 +471,8 @@
 <!-- Modal: Criar Nova OS -->
 <div class="modal fade" id="createTicketModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px; overflow: hidden;">
-            <div class="modal-header bg-gradient-primary text-white border-0">
-                <h6 class="modal-title fw-bold mb-0">
-                    <i class="fas fa-plus-circle me-2"></i>Nova Ordem de Serviço
-                </h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="createTicketModalContent">
+        <div class="modal-content border-0 shadow-lg bg-transparent" style="border-radius: 18px; overflow: visible;">
+            <div class="modal-body p-0" id="createTicketModalContent">
                 <div class="text-center p-5 text-muted">
                     <div class="spinner-border text-primary" role="status"></div>
                     <div class="small mt-2">Carregando formulário...</div>
@@ -1692,6 +1900,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <script>
     // Lista de OS em modo "card collapse" (sem modal)
@@ -2260,7 +2469,6 @@
         });
     });
 </script>
-{% endif %}
 
 <!-- Modal: Exclusão / Solicitação de exclusão de OS -->
 <div class="modal fade" id="ticketDeleteModal" tabindex="-1" aria-hidden="true">
@@ -2460,16 +2668,26 @@
 
                 const data = await _postForm(state.url, formData);
 
+                // A lista atual é em accordion (cards). Mantemos fallback para a antiga tabela (tr).
                 const row = document.querySelector(`tr[data-ticket-id="${state.ticketId}"]`);
+                const headerEl = document.getElementById(`heading${state.ticketId}`);
+                const collapseEl = document.getElementById(`collapse${state.ticketId}`);
+                const accordionItem = (headerEl && headerEl.closest('.accordion-item')) || (collapseEl && collapseEl.closest('.accordion-item'));
+                const toggleBtn = document.getElementById(`ticketAccordionButton${state.ticketId}`);
+                const actionsEl = document.getElementById(`ticketActions${state.ticketId}`);
 
                 if (data.mode === 'deleted') {
-                    if (row) row.remove();
+                    if (accordionItem) accordionItem.remove();
+                    else if (row) row.remove();
                     modal.hide();
                     _showToast('success', `${state.label}: excluída com sucesso.`);
                     return;
                 }
 
                 if (data.mode === 'requested' || data.mode === 'already_pending') {
+                    if (accordionItem) accordionItem.classList.add('row-delete-requested');
+                    if (toggleBtn) toggleBtn.classList.add('row-delete-requested');
+                    if (actionsEl) actionsEl.classList.add('row-delete-requested');
                     if (row) row.classList.add('row-delete-requested');
                     modal.hide();
                     _showToast('warning', `Solicitação de exclusão enviada para ${state.recipient}.`);
@@ -2477,6 +2695,9 @@
                 }
 
                 if (data.mode === 'rejected') {
+                    if (accordionItem) accordionItem.classList.remove('row-delete-requested');
+                    if (toggleBtn) toggleBtn.classList.remove('row-delete-requested');
+                    if (actionsEl) actionsEl.classList.remove('row-delete-requested');
                     if (row) row.classList.remove('row-delete-requested');
                     modal.hide();
                     _showToast('secondary', `Solicitação de exclusão rejeitada: ${state.label}.`);
@@ -2508,6 +2729,88 @@
             const mode = (url || '').includes('/reject/') ? 'reject' : 'approve';
             openDeleteModal({ mode, url, ticketId, label });
         };
+    });
+</script>
+{% endblock %}
+
+{% block extra_fab %}
+<style>
+    .quick-fab {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        width: 90px;
+        height: 90px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #00b85c, #009542);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 0 16px 30px rgba(0,0,0,0.18);
+        z-index: 2060;
+        text-decoration: none;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    }
+    /* “Acender” como interruptor moderno */
+    .quick-fab::after {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.55), rgba(255,255,255,0.0) 55%);
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        pointer-events: none;
+    }
+    .quick-fab:hover {
+        transform: translateY(-2px);
+        box-shadow:
+            0 20px 38px rgba(0,0,0,0.22),
+            0 0 0 6px rgba(6, 78, 59, 0.25),
+            0 0 38px rgba(6, 78, 59, 0.75);
+        filter: brightness(1.12) saturate(1.15);
+        color: #fff;
+        text-decoration: none;
+    }
+    .quick-fab:hover::after { opacity: 1; }
+    .quick-fab:active { transform: translateY(0px) scale(0.98); }
+    .quick-fab i {
+        font-size: 32px;
+        display: inline-flex;
+        transition: filter 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+    .quick-fab:hover i,
+    .quick-fab:hover i::before {
+        color: #eafff4; /* acende (verde escuro no glow) */
+        /* glow no próprio ícone (mais evidente) */
+        text-shadow:
+            0 0 10px rgba(6, 78, 59, 0.95),
+            0 0 22px rgba(6, 78, 59, 0.80);
+        filter: none;
+        transform: scale(1.05);
+    }
+</style>
+
+<a
+    href="{% url 'task_list' %}"
+    class="quick-fab"
+    data-bs-toggle="tooltip"
+    data-bs-placement="left"
+    title="Turno"
+    aria-label="Turno"
+>
+    <i class="fa-solid fa-clipboard-list"></i>
+</a>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.bootstrap && window.bootstrap.Tooltip) {
+            document.querySelectorAll('.quick-fab[data-bs-toggle="tooltip"]').forEach((el) => {
+                try { bootstrap.Tooltip.getOrCreateInstance(el); } catch (e) {}
+            });
+        }
     });
 </script>
 {% endblock %}

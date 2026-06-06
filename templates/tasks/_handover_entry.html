@@ -1,0 +1,86 @@
+<div
+    id="handover-entry-{{ entry.id }}"
+    class="handover-entry border rounded-3 p-2 bg-white bg-opacity-75
+        {% if entry_data and entry_data.has_pending_alert %}handover-entry-alert{% endif %}
+        {% if entry_data and entry_data.has_pending_alert and entry_data.priority %}handover-entry-alert-{{ entry_data.priority }}{% endif %}
+    "
+    data-entry-id="{{ entry.id }}"
+    data-edit-url="{% url 'handover_entry_edit' entry.id %}"
+    data-notify-url="{% url 'handover_entry_notify' entry.id %}"
+    data-ack-url="{% url 'handover_entry_ack' entry.id %}"
+>
+    <div class="d-flex justify-content-between align-items-start gap-2">
+        <div class="small text-muted">
+            <span>{{ entry.created_at|date:"d/m H:i" }}</span>
+            <span class="mx-1">|</span>
+            <strong class="text-dark">
+                {% if entry.created_by %}{{ entry.created_by.get_full_name|default:entry.created_by.username }}{% else %}Sistema{% endif %}
+            </strong>
+            {% if entry_data and entry_data.recipients %}
+                <span class="mx-1">--&gt;</span>
+                <span class="text-dark">{{ entry_data.recipients }}</span>
+                {% with p=entry_data.priority_code|default:entry_data.priority %}
+                    {% if p == 'high' %}
+                        <span class="badge bg-danger ms-2">Alta</span>
+                    {% elif p == 'medium' %}
+                        <span class="badge bg-warning text-dark ms-2">Média</span>
+                    {% elif p == 'low' %}
+                        <span class="badge bg-info text-dark ms-2">Baixa</span>
+                    {% endif %}
+                {% endwith %}
+            {% endif %}
+        </div>
+        {% with role=request.user.profile.role|default:'' %}
+            {% if role == 'admin' or role == 'super_admin' or entry.created_by_id == request.user.id %}
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-link text-secondary p-0 handover-entry-edit-btn" title="Editar anotação">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-link text-danger p-0"
+                        title="Excluir anotação"
+                        onclick="confirmAjaxDelete('{% url 'handover_entry_delete' entry.id %}', 'handover-entry-{{ entry.id }}')"
+                    >
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="handover-entry-view">
+        <div class="small text-dark mt-1 handover-entry-text" style="white-space: pre-wrap;">{{ entry.text }}</div>
+    </div>
+
+    <div class="handover-entry-edit d-none mt-2">
+        <textarea class="form-control form-control-sm handover-entry-textarea" rows="3">{{ entry.text }}</textarea>
+        <div class="d-flex justify-content-end gap-2 mt-2">
+            <button type="button" class="btn btn-sm btn-light border handover-entry-cancel-btn">Cancelar</button>
+            <button type="button" class="btn btn-sm btn-primary-custom handover-entry-save-btn">
+                <i class="fas fa-save me-1"></i>Salvar
+            </button>
+        </div>
+    </div>
+
+    <!-- Ações/estado ficam no rodapé do "balão" para não encostar nas badges do topo -->
+    <div class="d-flex justify-content-end mt-2 pt-2 border-top border-dark-subtle">
+        {% if entry_data and entry_data.has_pending_alert %}
+            <button type="button" class="btn btn-sm btn-warning border-0 text-dark handover-entry-ack-btn" title="Dar baixa no lembrete">
+                <i class="fa-solid fa-check me-1"></i>Dar baixa
+            </button>
+        {% elif entry_data and entry_data.has_ack_alert %}
+            <span class="text-success small" title="Lida">
+                <i class="fa-solid fa-check-circle"></i>
+            </span>
+        {% elif entry_data and entry_data.creator_all_ack %}
+            <span class="text-success small" title="Todos os destinatários deram baixa">
+                <i class="fa-solid fa-check-double"></i>
+            </span>
+        {% elif entry_data and entry_data.creator_total %}
+            <span class="text-muted small" title="Confirmação de leitura">
+                {{ entry_data.creator_ack_count }}/{{ entry_data.creator_total }} lidos
+            </span>
+        {% endif %}
+    </div>
+</div>

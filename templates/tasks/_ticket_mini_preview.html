@@ -1,0 +1,115 @@
+<div class="ticket-pass">
+    <div class="ticket-pass-topbar">
+        <div class="ticket-pass-brand">
+            <i class="fa-solid fa-screwdriver-wrench"></i>
+            <span>JumperFour</span>
+        </div>
+        <div class="ticket-pass-title">
+            {% if ticket.ticket_type and ticket.ticket_type.name %}{{ ticket.ticket_type.name }}{% elif ticket.call_type %}{{ ticket.get_call_type_display }}{% else %}OS{% endif %}
+        </div>
+        <div class="ticket-pass-title right">
+            {% if ticket.ticket_type and ticket.ticket_type.name %}{{ ticket.ticket_type.name }}{% elif ticket.call_type %}{{ ticket.get_call_type_display }}{% else %}OS{% endif %}
+        </div>
+    </div>
+
+    <div class="ticket-pass-content">
+        <div class="ticket-pass-main">
+            <div class="ticket-pass-barcode-vert" aria-hidden="true"></div>
+            <div>
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div>
+                        <div class="ticket-pass-label">OS</div>
+                        <div class="ticket-pass-big">{{ ticket.formatted_id }}</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="ticket-pass-label">Status</div>
+                        <div class="ticket-pass-value">{{ ticket.get_status_display }}</div>
+                    </div>
+                </div>
+
+                <div class="row g-2 mt-2">
+                    <div class="col-6">
+                        <div class="ticket-pass-label">Cliente</div>
+                        <div class="ticket-pass-big">{{ ticket.client.name }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="ticket-pass-label">Hub / Loja</div>
+                        <div class="ticket-pass-big">{% if ticket.hub %}{{ ticket.hub.name }}{% else %}-{% endif %}</div>
+                    </div>
+                </div>
+
+                <div class="ticket-pass-grid">
+                    <div>
+                        <div class="ticket-pass-label">Início</div>
+                        <div class="ticket-pass-value">
+                            {% if ticket.start_date %}{{ ticket.start_date|date:"d/m/Y H:i" }}{% else %}{{ ticket.created_at|date:"d/m/Y H:i" }}{% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="ticket-pass-label">Prazo</div>
+                        <div class="ticket-pass-value">{% if ticket.deadline %}{{ ticket.deadline|date:"d/m/Y H:i" }}{% else %}-{% endif %}</div>
+                    </div>
+                    <div>
+                        <div class="ticket-pass-label">Solicitante</div>
+                        <div class="ticket-pass-value">
+                            {% if ticket.requester %}{{ ticket.requester.get_full_name|default:ticket.requester.username }}
+                            {% elif ticket.contact_requester %}{{ ticket.contact_requester.name }}
+                            {% elif ticket.contact_client_requester %}{{ ticket.contact_client_requester.name }}
+                            {% else %}-{% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="ticket-pass-label">Executor</div>
+                        <div class="ticket-pass-value">
+                            {% if ticket.technicians.all %}
+                                {% for t in ticket.technicians.all %}
+                                    {{ t.get_full_name|default:t.username }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% elif ticket.contact_responsible %}{{ ticket.contact_responsible.name }}
+                            {% elif ticket.contact_jumper_responsible %}{{ ticket.contact_jumper_responsible.name }}
+                            {% else %}-{% endif %}
+                        </div>
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <div class="ticket-pass-label">Sistemas</div>
+                        {% with systems=ticket.systems.all %}
+                            {% if systems %}
+                                {% for s in systems %}
+                                    <span class="ticket-pass-chip" style="background-color: {{ s.color|default:'#fff' }};">{{ s.name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <div class="ticket-pass-value">-</div>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <div class="ticket-pass-label">Descrição</div>
+                        <div class="ticket-pass-desc text-start">
+                            {% if ticket.description %}{{ ticket.description|truncatechars:260 }}{% else %}-{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ticket-pass-stub">
+            <div class="ticket-pass-stub-inner">
+                <div class="ticket-pass-label">BOARDING PASS</div>
+                <div class="ticket-pass-code">{{ ticket.formatted_id }}</div>
+
+                {% if ticket.leankeep_id %}
+                    <div>
+                        <div class="ticket-pass-label">Leankeep</div>
+                        <div class="ticket-pass-value">{{ ticket.leankeep_id }}</div>
+                    </div>
+                {% endif %}
+
+                <a class="btn btn-sm btn-primary-custom w-100" href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}">
+                    Abrir OS
+                </a>
+
+                <div class="ticket-pass-barcode" aria-hidden="true"></div>
+            </div>
+        </div>
+    </div>
+</div>

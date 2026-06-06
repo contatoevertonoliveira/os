@@ -1,489 +1,1120 @@
 {% extends 'base.html' %}
-{% load static %}
-
-
 
 {% block content %}
-<div class="d-flex justify-content-end mb-3">
-    <form method="get" class="d-flex">
-        <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
-            {% for code, label in status_choices %}
-            <option value="{{ code }}" {% if current_status == code %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
-    </form>
-</div>
-<div id="task-board-container" class="h-100">
-    <div id="task-board">
-        {% regroup tickets by client as client_list %}
-        
-        <div class="row g-4">
-        {% for client in client_list %}
-            <div class="col-md-6 col-lg-4 col-xl-3">
-                <div class="client-column h-100">
-                    <div class="client-header mb-3 pb-2 border-bottom border-2 border-dark d-flex justify-content-between align-items-center">
-                        <h5 class="fw-bold text-uppercase m-0 text-dark d-flex align-items-center">
-                            {% if client.grouper.logo %}
-                                <img src="{{ client.grouper.logo.url }}" alt="Logo" class="me-2 rounded" style="width: 30px; height: 30px; object-fit: cover;">
-                            {% else %}
-                                <i class="fas fa-building me-2 text-secondary"></i>
-                            {% endif %}
-                            {{ client.grouper.name }}
-                        </h5>
-                        <span class="badge bg-dark rounded-pill">{{ client.list|length }}</span>
-                    </div>
-                    
-                    <div class="task-list custom-scrollbar" style="max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 5px;">
-                        {% for ticket in client.list %}
-                        <div class="card mb-3 border-0 task-card position-relative" 
-                             onclick="openTaskModal(this)"
-                             data-ticket-id="{{ ticket.formatted_id }}"
-                             data-ticket-real-id="{{ ticket.id }}"
-                             data-title="{{ ticket.get_call_type_display|default:ticket.call_type|default:'Chamado' }}"
-                             data-client="{{ ticket.client.name }}"
-                             data-area="{{ ticket.area|default:'' }}"
-                             data-status="{{ ticket.get_status_display }}"
-                             data-call-type="{{ ticket.get_call_type_display|default:'' }}"
-                             data-deadline="{{ ticket.deadline|date:'d/m/Y'|default:'Indefinido' }}"
-                             data-start-date="{% if ticket.start_date %}{{ ticket.start_date|date:'d/m/Y' }}{% else %}{{ ticket.created_at|date:'d/m/Y' }}{% endif %}"
-                             data-estimated-time="{{ ticket.estimated_time|default:'' }}"
-                             data-technicians='[{% for tech in ticket.technicians.all %}{"name": "{{ tech.first_name|default:tech.username }}", "photo": "{% if tech.profile.photo %}{{ tech.profile.photo.url }}?v={% now "U" %}{% endif %}", "initials": "{{ tech.first_name|first|default:tech.username|first|upper }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
-                             data-systems='[{% for system in ticket.systems.all %}{"name": "{{ system.name }}", "color": "{{ system.color|default:'#fff' }}", "description": "{{ system.description|default:''|escapejs }}"}{% if not forloop.last %}, {% endif %}{% endfor %}]'
-                             style="cursor: pointer;">
-                            
-                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-1" style="z-index: 10;">
-                                <!-- Edit Button -->
-                                <a href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}" 
-                                   class="btn btn-link p-1 text-muted action-btn" 
-                                   onclick="event.stopPropagation();"
-                                   title="Editar Ocorrência">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </a>
-
-                                <!-- Favorite Button -->
-                                <button class="btn btn-link p-1 favorite-btn {% if ticket.is_favorite %}text-warning{% else %}text-muted{% endif %}" 
-                                        data-ticket-id="{{ ticket.id }}" 
-                                        onclick="toggleFavorite(this, {{ ticket.id }}); event.stopPropagation();"
-                                        title="Favoritar">
-                                    <i class="{% if ticket.is_favorite %}fas{% else %}far{% endif %} fa-star"></i>
-                                </button>
-                            </div>
-
-                            <div class="card-body p-3">
-                                <!-- Title/Type -->
-                                <h6 class="card-title fw-bold text-dark mb-2 pe-4" style="font-family: 'Inter', sans-serif;">
-                                    {{ ticket.get_call_type_display|default:ticket.call_type|default:"Chamado" }}
-                                </h6>
-                                
-                                <!-- Ticket Code & Location -->
-                                <p class="card-text small text-secondary mb-3 border-bottom border-dark-subtle pb-2">
-                                    <strong class="text-dark">{{ ticket.formatted_id }}</strong><br>
-                                    {{ ticket.client.name }}
-                                </p>
-
-                                <div class="mb-3">
-                                    <div class="mb-1">
-                                        {% for system in ticket.systems.all %}
-                                            <span class="badge border border-dark text-dark mb-1" style="background-color: {{ system.color|default:'#fff' }}; font-weight: normal;" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ system.description|default:'Sem descrição' }}">{{ system.name }}</span>
-                                        {% endfor %}
-                                    </div>
-                                    <div>
-                                        <span class="badge bg-dark text-white mb-1">{{ ticket.get_status_display }}</span>
-                                        {% if ticket.call_type %}
-                                            <span class="badge bg-secondary text-white mb-1">{{ ticket.get_call_type_display }}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <!-- Footer Info -->
-                                <div class="d-flex justify-content-between align-items-end mt-2">
-                                    <div class="text-muted small" style="font-size: 0.75rem;">
-                                        <i class="far fa-clock me-1"></i>{{ ticket.deadline|date:"d/m"|default:"--" }}
-                                        {% if ticket.calculated_hours %}
-                                        <span class="ms-2" title="Tempo Estimado (Calculado)"><i class="fas fa-hourglass-half me-1"></i>{{ ticket.calculated_hours }}h</span>
-                                        {% elif ticket.estimated_time %}
-                                        <span class="ms-2" title="Tempo Estimado"><i class="fas fa-hourglass-half me-1"></i>{{ ticket.estimated_time }}</span>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <div class="technicians-avatars d-flex justify-content-end ps-2">
-                                        {% for tech in ticket.technicians.all %}
-                                            <div class="tech-avatar-wrapper" style="margin-left: -10px; z-index: {{ forloop.revcounter }}; transition: transform 0.2s;">
-                                                {% if tech.profile.photo %}
-                                                    <img src="{{ tech.profile.photo.url }}?v={% now "U" %}" 
-                                                         class="rounded-circle border border-dark" 
-                                                         width="28" height="28" 
-                                                         title="{{ tech.first_name|default:tech.username }}"
-                                                         style="background-color: #fff;">
-                                                {% else %}
-                                                    <div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" 
-                                                         style="width: 28px; height: 28px; font-size: 0.8rem; background-color: #343a40;"
-                                                         title="{{ tech.first_name|default:tech.username }}">
-                                                        {{ tech.first_name|first|default:tech.username|first|upper }}
-                                                    </div>
-                                                {% endif %}
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                
-                                <a href="{% url 'ticket_list' %}?period=all&open={{ ticket.id }}" class="d-none"></a>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        {% empty %}
-            <div class="col-12 text-center mt-5">
-                <h3 class="text-muted">Nenhuma tarefa pendente</h3>
-            </div>
-        {% endfor %}
-        </div>
-    </div>
-</div>
-
-<!-- Task Detail Modal -->
-<div class="modal fade" id="taskViewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg" style="background-color: #fff9c4;">
-            <div class="modal-header border-bottom border-dark-subtle">
-                <h5 class="modal-title fw-bold" id="modalTicketTitle">Detalhes da Ocorrência</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="row">
-                    <!-- Left Column: Main Info -->
-                    <div class="col-md-8 border-end border-dark-subtle">
-                        <div class="mb-4">
-                            <h2 class="fw-bold mb-1" id="modalTitle">Título da Task</h2>
-                            <p class="text-muted mb-0">
-                                <strong id="modalId" class="text-dark">JMP00000</strong> - 
-                                <span id="modalClient">Cliente</span>
-                                <span id="modalAreaWrapper" class="d-none"> - <span id="modalArea">Área</span></span>
-                            </p>
-                        </div>
-
-                        <div class="row g-3 mb-4">
-                            <div class="col-sm-6">
-                                <div class="p-3 bg-white bg-opacity-50 rounded border border-warning">
-                                    <label class="small text-muted text-uppercase fw-bold">Status</label>
-                                    <div class="fs-5 fw-bold" id="modalStatus">Em Andamento</div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6">
-                                <div class="p-3 bg-white bg-opacity-50 rounded border border-warning">
-                                    <label class="small text-muted text-uppercase fw-bold">Tipo</label>
-                                    <div class="fs-5 fw-bold" id="modalCallType">Preventiva</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="small text-muted text-uppercase fw-bold mb-2">Sistemas Envolvidos</label>
-                            <div id="modalSystems" class="d-flex flex-wrap gap-2">
-                                <!-- Systems injected by JS -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right Column: Meta Info -->
-                    <div class="col-md-4">
-                        <div class="mb-4">
-                            <label class="small text-muted text-uppercase fw-bold mb-2">Datas</label>
-                            <ul class="list-unstyled">
-                                <li class="mb-2 d-flex justify-content-between">
-                                    <span>Início:</span>
-                                    <strong id="modalStartDate">--/--/----</strong>
-                                </li>
-                                <li class="mb-2 d-flex justify-content-between">
-                                    <span>Estimado:</span>
-                                    <strong id="modalEstimatedTime">--:--</strong>
-                                </li>
-                                <li class="d-flex justify-content-between">
-                                    <span>Prazo:</span>
-                                    <strong id="modalDeadline" class="text-danger">--/--/----</strong>
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="small text-muted text-uppercase fw-bold mb-2">Técnico Responsável</label>
-                            <div class="d-flex align-items-center bg-white bg-opacity-50 p-2 rounded">
-                                <div id="modalTechAvatar" class="me-3">
-                                    <!-- Avatar injected by JS -->
-                                </div>
-                                <div>
-                                    <div class="fw-bold" id="modalTechName">Nome do Técnico</div>
-                                    <small class="text-muted">Técnico</small>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="d-grid">
-                            <a href="#" id="modalEditLink" class="btn btn-dark">
-                                <i class="fas fa-pencil-alt me-2"></i>Editar Ocorrência
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <style>
-    /* Dashboard background */
-    body {
-        background-color: #f0f2f5;
+    /* Fonte do Post-it (Passagem de Turno) */
+    .handover-note,
+    .handover-note * {
+        font-family: 'Bebas Neue', sans-serif !important;
+        letter-spacing: 0.2px;
+        text-shadow: none !important; /* sem sombra nas letras */
+        /* evita "bold" sintético que pode parecer borrado */
+        font-synthesis: none;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: geometricPrecision;
     }
-    
-    /* Post-it Card Style */
-    .task-card {
-        background-color: #fff9c4; /* Classic Post-it Yellow */
-        box-shadow: 2px 4px 6px rgba(0,0,0,0.1);
-        border-radius: 2px; /* Sharp-ish corners */
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        transform: rotate(-1deg);
+    /* IMPORTANTE: não sobrescrever a fonte dos ícones do FontAwesome */
+    .handover-note i.fa,
+    .handover-note i.fas,
+    .handover-note i.far,
+    .handover-note i.fab,
+    .handover-note i.fa-solid,
+    .handover-note i.fa-regular,
+    .handover-note i.fa-brands,
+    .handover-note [class^="fa-"],
+    .handover-note [class*=" fa-"] {
+        font-family: "Font Awesome 6 Free" !important;
+        font-weight: 900 !important;
+        letter-spacing: 0 !important;
     }
-    
-    /* Alternate rotation for organic feel */
-    .task-card:nth-of-type(even) {
-        transform: rotate(1deg);
-        background-color: #fffde7; /* Slightly lighter yellow */
+    /* Aumenta legibilidade geral do post-it */
+    .handover-note { font-size: 1.05rem; }
+    .handover-note .small { font-size: 0.98rem !important; }
+    /* "Light" (normal) */
+    .handover-note,
+    .handover-note .handover-meta,
+    .handover-note .handover-ticket-row,
+    .handover-note .handover-entry,
+    .handover-note .form-control,
+    .handover-note .btn,
+    .handover-note .text-muted {
+        font-weight: 400 !important;
     }
-    
-    .task-card:hover {
-        transform: scale(1.05) rotate(0deg) !important;
-        box-shadow: 5px 10px 20px rgba(0,0,0,0.15);
-        z-index: 100;
-        cursor: pointer;
-    }
-    
-    .favorite-btn {
-        transition: transform 0.2s;
-    }
-    .favorite-btn:hover {
-        transform: scale(1.2);
+    /*
+      Observação: "Bebas Neue" no Google Fonts é peso único (400).
+      Para deixar os títulos mais “fortes” sem ficar borrado por bold sintético,
+      usamos stroke leve + tamanho/letter-spacing.
+    */
+    .handover-note .handover-title,
+    .handover-note .handover-section-title,
+    .handover-note .handover-collapse-btn,
+    .handover-note .handover-current-badge {
+        font-weight: 400 !important;
+        -webkit-text-stroke: 0.35px rgba(0,0,0,0.55);
+        text-shadow: none !important;
     }
 
-    /* Scrollbar Styling */
-    .custom-scrollbar::-webkit-scrollbar {
+    .handover-note {
+        background: #fff9c4; /* post-it */
+        border-radius: 14px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+    .handover-note-current {
+        background: #8A00C4; /* destaque (roxo neon) */
+        box-shadow: 0 16px 34px rgba(138, 0, 196, 0.35);
+        border: 2px solid rgba(255, 255, 255, 0.18);
+    }
+    /* Textos diretamente sobre o fundo roxo (deixar claros) */
+    .handover-note-current .card-header {
+        background: rgba(255, 255, 255, 0.08);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    }
+    .handover-note-current .handover-title,
+    .handover-note-current .handover-meta,
+    .handover-note-current .handover-section-title {
+        color: rgba(255, 255, 255, 0.92) !important;
+    }
+    .handover-note-current hr {
+        border-top-color: rgba(255, 255, 255, 0.25);
+        opacity: 1;
+    }
+    .handover-current-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 800;
+        font-size: 0.72rem;
+        background: rgba(245, 158, 11, 0.95); /* amarelo */
+        color: rgba(0, 0, 0, 0.85);
+        border: 1px solid rgba(0, 0, 0, 0.10);
+        padding: 2px 8px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .handover-note .card-header {
+        background: rgba(0,0,0,0.03);
+        border-bottom: 1px solid rgba(0,0,0,0.12);
+    }
+    .handover-title {
+        font-weight: 700;
+        font-size: 1.20rem;
+        color: #1f2937;
+    }
+    .handover-meta {
+        font-size: 1.00rem;
+        color: rgba(0,0,0,0.65);
+    }
+    .handover-section-title {
+        font-size: 0.98rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(0,0,0,0.70);
+        letter-spacing: 0.5px;
+        margin-bottom: 0.35rem;
+    }
+    .handover-list {
+        list-style: none;
+        padding-left: 0;
+        margin-bottom: 0.75rem;
+    }
+    .handover-item {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.55);
+        border: 1px solid rgba(0,0,0,0.06);
+    }
+    .handover-item + .handover-item { margin-top: 6px; }
+    .handover-item a { text-decoration: none; color: #111827; }
+    .handover-item a:hover { text-decoration: underline; }
+
+    .handover-collapse-btn {
+        width: 100%;
+        text-align: left;
+        background: rgba(255,255,255,0.65);
+        border: 1px solid rgba(0,0,0,0.10);
+        border-radius: 12px;
+        padding: 8px 10px;
+        font-weight: 700;
+        font-size: 1.02rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(0,0,0,0.70);
+    }
+    .handover-collapse-btn:hover {
+        background: rgba(255,255,255,0.85);
+    }
+    .handover-collapse-body {
+        margin-top: 8px;
+        padding: 8px;
+        background: rgba(255,255,255,0.45);
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px;
+    }
+
+    .handover-ticket-row {
+        display: block;
+        width: 100%;
+        text-decoration: none;
+        color: #111827;
+        font-size: 1.00rem;
+        padding: 7px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(255,255,255,0.70);
+        transition: transform 0.08s ease, background 0.08s ease, box-shadow 0.08s ease;
+        cursor: pointer;
+        line-height: 1.2;
+    }
+    .handover-ticket-row + .handover-ticket-row { margin-top: 6px; }
+    .handover-ticket-row:hover {
+        background: rgba(255,255,255,0.92);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        transform: translateY(-1px);
+        text-decoration: none;
+    }
+
+    .handover-preview-body {
+        margin-top: 6px;
+        background: rgba(255,255,255,0.75);
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px;
+    }
+    /* Dentro da prévia, NÃO usar Bebas Neue (para parecer "ticket") */
+    .handover-preview-body,
+    .handover-preview-body * {
+        font-family: 'Poppins', sans-serif !important;
+        letter-spacing: 0 !important;
+        -webkit-text-stroke: 0 !important;
+        text-shadow: none !important;
+        font-synthesis: auto;
+    }
+    /* NÃO sobrescrever a fonte dos ícones (FontAwesome) dentro da prévia/ticket */
+    .handover-preview-body i.fa,
+    .handover-preview-body i.fas,
+    .handover-preview-body i.far,
+    .handover-preview-body i.fab,
+    .handover-preview-body i.fa-solid,
+    .handover-preview-body i.fa-regular,
+    .handover-preview-body i.fa-brands,
+    .handover-preview-body [class^="fa-"],
+    .handover-preview-body [class*=" fa-"] {
+        font-family: "Font Awesome 6 Free" !important;
+        font-weight: 900 !important;
+        letter-spacing: 0 !important;
+        text-shadow: none !important;
+        -webkit-text-stroke: 0 !important;
+    }
+    .handover-preview-body .fa-brands {
+        font-family: "Font Awesome 6 Brands" !important;
+        font-weight: 400 !important;
+    }
+
+    /* Ticket preview (estilo "boarding pass") */
+    .ticket-pass {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: #f8fafc;
+        box-shadow: 0 14px 28px rgba(0,0,0,0.12);
+    }
+    .ticket-pass-topbar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: linear-gradient(180deg, #ffc04d, #ffb234);
+        color: rgba(0,0,0,0.82);
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .ticket-pass-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 800;
+    }
+    .ticket-pass-title {
+        text-align: center;
+        opacity: 0.35; /* mais "marca d'água" */
+        color: rgba(0,0,0,0.55);
+        font-weight: 800;
+    }
+    .ticket-pass-title.right { text-align: right; }
+
+    .ticket-pass-content {
+        display: grid;
+        grid-template-columns: 1fr 230px;
+        min-height: 210px;
+        position: relative;
+        background:
+            radial-gradient(circle at 20% 20%, rgba(0,0,0,0.04), rgba(0,0,0,0) 45%),
+            radial-gradient(circle at 80% 40%, rgba(0,0,0,0.03), rgba(0,0,0,0) 50%),
+            linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88));
+    }
+    /* Marca d'água (mapa mundi estilizado) */
+    .ticket-pass-content::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("/media/images/mapa_mundi_watermark.png");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 72% auto;
+        pointer-events: none;
+        opacity: 0.06;
+        filter: blur(0.2px) grayscale(1);
+    }
+    .ticket-pass-main,
+    .ticket-pass-stub {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* separador pontilhado (perfurado) entre corpo e canhoto */
+    .ticket-pass-stub {
+        position: relative;
+        background: rgba(255,255,255,0.96);
+        border-left: 2px dashed rgba(0,0,0,0.22);
+    }
+    .ticket-pass-stub::before,
+    .ticket-pass-stub::after {
+        content: "";
+        position: absolute;
+        left: -12px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #f8fafc;
+        border: 1px solid rgba(0,0,0,0.12);
+        z-index: 2;
+    }
+    .ticket-pass-stub::before { top: 28px; }
+    .ticket-pass-stub::after { bottom: 28px; }
+
+    .ticket-pass-main {
+        display: grid;
+        grid-template-columns: 46px 1fr;
+        gap: 10px;
+        padding: 12px;
+    }
+    .ticket-pass-barcode-vert {
+        border-radius: 10px;
+        background:
+            repeating-linear-gradient(
+                90deg,
+                rgba(0,0,0,0.85) 0px,
+                rgba(0,0,0,0.85) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+        opacity: 0.7;
+    }
+    .ticket-pass-label {
+        font-size: 0.66rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: rgba(0,0,0,0.55);
+        font-weight: 700;
+    }
+    .ticket-pass-big {
+        font-size: 0.96rem;
+        font-weight: 800;
+        color: rgba(0,0,0,0.86);
+        line-height: 1.2;
+    }
+    .ticket-pass-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 12px;
+        margin-top: 10px;
+    }
+    .ticket-pass-value {
+        font-size: 0.84rem;
+        color: rgba(0,0,0,0.86);
+        font-weight: 600;
+        line-height: 1.25;
+    }
+    .ticket-pass-desc {
+        font-size: 0.82rem;
+        color: rgba(0,0,0,0.80);
+        line-height: 1.3;
+        /* mantém quebras de linha, mas evita espaçamento "esquisito" e melhora encaixe */
+        white-space: pre-line;
+        text-align: justify !important;
+        text-justify: inter-word;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(0,0,0,0.02);
+    }
+    .ticket-pass-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: rgba(255,255,255,0.88);
+        font-size: 0.74rem;
+        font-weight: 600;
+        margin: 2px 6px 2px 0;
+    }
+    .ticket-pass-stub-inner {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .ticket-pass-code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        font-size: 0.98rem;
+    }
+    .ticket-pass-barcode {
+        height: 34px;
+        border-radius: 10px;
+        background:
+            repeating-linear-gradient(
+                90deg,
+                rgba(0,0,0,0.86) 0px,
+                rgba(0,0,0,0.86) 2px,
+                transparent 2px,
+                transparent 5px
+            );
+        opacity: 0.75;
+    }
+    @media (max-width: 576px) {
+        .ticket-pass-content { grid-template-columns: 1fr; }
+        .ticket-pass-stub { border-left: none; border-top: 2px dashed rgba(0,0,0,0.22); }
+        .ticket-pass-stub::before, .ticket-pass-stub::after { display: none; }
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-top: 4px;
+        flex: 0 0 10px;
+        border: 1px solid rgba(0,0,0,0.15);
+    }
+    .dot-open { background: #d1d5db; }
+    .dot-in-progress { background: #60a5fa; }
+    .dot-pending { background: #a78bfa; }
+    .dot-finished { background: #22c55e; }
+    .dot-canceled { background: #9ca3af; }
+    .dot-delayed { background: #ef4444; }
+
+    .handover-entries { display: flex; flex-direction: column; gap: 8px; }
+    .handover-entry-form textarea {
+        resize: vertical;
+        min-height: 56px;
+        font-size: 0.9rem;
+    }
+
+    /* Alertas direcionados (prioridade + cor + pisca-pisca mais perceptível) */
+    .handover-entry {
+        position: relative;
+    }
+    .handover-entry-alert {
+        /* velocidade mais rápida e com “respiração” mais evidente */
+        animation: handoverPulse 0.9s ease-in-out infinite;
+        border-color: var(--alert-border, rgba(220, 38, 38, 0.85)) !important;
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.10);
+    }
+    .handover-entry-alert::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
         width: 6px;
+        border-radius: 12px 0 0 12px;
+        background: var(--alert-accent, rgba(220, 38, 38, 0.85));
     }
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent; 
+
+    /* Alta = vermelho */
+    .handover-entry-alert-high {
+        --alert-border: rgba(220, 38, 38, 0.95);
+        --alert-accent: rgba(220, 38, 38, 0.95);
+        --pulse-bg1: rgba(254, 226, 226, 0.55);
+        --pulse-bg2: rgba(254, 226, 226, 0.95);
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
-        border-radius: 3px;
+    /* Média = laranja/âmbar */
+    .handover-entry-alert-medium {
+        --alert-border: rgba(245, 158, 11, 0.95);
+        --alert-accent: rgba(245, 158, 11, 0.95);
+        --pulse-bg1: rgba(254, 243, 199, 0.55);
+        --pulse-bg2: rgba(254, 243, 199, 0.97);
     }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+    /* Baixa = azul */
+    .handover-entry-alert-low {
+        --alert-border: rgba(59, 130, 246, 0.95);
+        --alert-accent: rgba(59, 130, 246, 0.95);
+        --pulse-bg1: rgba(219, 234, 254, 0.55);
+        --pulse-bg2: rgba(219, 234, 254, 0.97);
+    }
+
+    @keyframes handoverPulse {
+        0%   { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
+        50%  { background-color: var(--pulse-bg2, rgba(254, 226, 226, 0.95)); }
+        100% { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
     }
 </style>
 
-{% endblock %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <div>
+        <h1 class="h5 mb-0">Passagem de Turno</h1>
+        <div class="text-muted small">
+            {{ handover_range_label|default:"Últimos 7 turnos" }}. (Configuração atual: {{ handover_settings.day_shift_start|time:"H:i" }}–{{ handover_settings.day_shift_end|time:"H:i" }}
+            {% if handover_settings.enable_night_shift %} | Noturno: {{ handover_settings.night_shift_start|time:"H:i" }}–{{ handover_settings.night_shift_end|time:"H:i" }}{% endif %})
+        </div>
+    </div>
+    <div class="mt-2 mt-md-0">
+        <form method="get" class="d-flex flex-wrap gap-2 align-items-end" id="handoverFilterForm">
+            <div>
+                <label class="form-label small fw-bold mb-1">Filtro</label>
+                <select name="period" class="form-select form-select-sm" id="handoverPeriodSelect">
+                    <option value="recent" {% if handover_period == 'recent' %}selected{% endif %}>Últimos 7 turnos</option>
+                    <option value="week" {% if handover_period == 'week' %}selected{% endif %}>Semana</option>
+                    <option value="month" {% if handover_period == 'month' %}selected{% endif %}>Mês</option>
+                    <option value="year" {% if handover_period == 'year' %}selected{% endif %}>Ano</option>
+                </select>
+            </div>
 
-{% block scripts %}
+            <div id="handoverWeekWrap" {% if handover_period != 'week' %}style="display:none"{% endif %}>
+                <label class="form-label small fw-bold mb-1">Semana</label>
+                <input type="week" name="week" class="form-control form-control-sm" value="{{ current_week|default:'' }}">
+            </div>
+
+            <div id="handoverMonthWrap" {% if handover_period != 'month' %}style="display:none"{% endif %}>
+                <label class="form-label small fw-bold mb-1">Mês</label>
+                <input type="month" name="month" class="form-control form-control-sm" value="{{ current_month|default:'' }}">
+            </div>
+
+            <div id="handoverWeekInMonthWrap" {% if handover_period != 'month' and handover_period != 'year' %}style="display:none"{% endif %}>
+                <label class="form-label small fw-bold mb-1">Semana do mês</label>
+                <select name="week_in_month" class="form-select form-select-sm">
+                    <option value="" {% if not current_week_in_month %}selected{% endif %}>Todas</option>
+                    <option value="1" {% if current_week_in_month == '1' %}selected{% endif %}>Semana 1 (1–7)</option>
+                    <option value="2" {% if current_week_in_month == '2' %}selected{% endif %}>Semana 2 (8–14)</option>
+                    <option value="3" {% if current_week_in_month == '3' %}selected{% endif %}>Semana 3 (15–21)</option>
+                    <option value="4" {% if current_week_in_month == '4' %}selected{% endif %}>Semana 4 (22–28)</option>
+                    <option value="5" {% if current_week_in_month == '5' %}selected{% endif %}>Semana 5 (29–31)</option>
+                </select>
+            </div>
+
+            <div id="handoverYearWrap" {% if handover_period != 'year' %}style="display:none"{% endif %}>
+                <label class="form-label small fw-bold mb-1">Ano</label>
+                <select name="year" class="form-select form-select-sm">
+                    {% for y in year_choices %}
+                        <option value="{{ y }}" {% if current_year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div id="handoverYearMonthWrap" {% if handover_period != 'year' %}style="display:none"{% endif %}>
+                <label class="form-label small fw-bold mb-1">Mês</label>
+                <select name="month_num" class="form-select form-select-sm">
+                    {% for num, label in month_choices %}
+                        <option value="{{ num }}" {% if current_month_num == num %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Aplicar</button>
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'task_list' %}">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    {% for card in handover_cards %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card handover-note border-0 {% if card.is_current %}handover-note-current{% endif %}">
+                <div class="card-header py-3">
+                    <div class="handover-title">
+                        Tarefas Executadas (Dia) - {{ card.weekday_label }} ({{ card.title_date|date:"d/m/Y" }})
+                    </div>
+                    <div class="handover-meta">
+                        Turno: {{ card.shift_label }} ({{ card.shift.start|date:"H:i" }}–{{ card.shift.end|date:"H:i" }})
+                        {% if card.is_current %}
+                            <span class="ms-2 handover-current-badge">Turno Atual</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- OS do turno (colapse/descolapse) -->
+                    <button
+                        class="handover-collapse-btn"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapseCreated{{ card.handover.id }}"
+                        aria-expanded="false"
+                        aria-controls="collapseCreated{{ card.handover.id }}"
+                    >
+                        OS do turno <span class="ms-2 badge bg-dark rounded-pill">{{ card.tickets_created|length }}</span>
+                    </button>
+                    <div class="collapse" id="collapseCreated{{ card.handover.id }}">
+                        <div class="handover-collapse-body">
+                            {% if card.tickets_created %}
+                                <div class="accordion" id="accCreated{{ card.handover.id }}">
+                                    {% for t in card.tickets_created %}
+                                        <div class="accordion-item border-0 bg-transparent">
+                                            <button
+                                                class="handover-ticket-row w-100 text-start"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#previewCreated{{ card.handover.id }}_{{ t.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="previewCreated{{ card.handover.id }}_{{ t.id }}"
+                                            >
+                                                {{ t.status_emoji }} {{ t.client_name }} | OS: {{ t.formatted_id }} | Leankeep: {{ t.leankeep_id }}
+                                            </button>
+                                            <div
+                                                id="previewCreated{{ card.handover.id }}_{{ t.id }}"
+                                                class="collapse ticket-preview-collapse"
+                                                data-bs-parent="#accCreated{{ card.handover.id }}"
+                                            >
+                                                <div class="handover-preview-body" data-preview-url="{{ t.preview_url }}" data-loaded="0">
+                                                    <div class="p-3 text-muted small">
+                                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                                        Carregando prévia...
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-muted small">Nenhuma OS lançada neste turno.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <hr class="my-2">
+                    <!-- Pendências (colapse/descolapse) -->
+                    <button
+                        class="handover-collapse-btn"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#collapsePending{{ card.handover.id }}"
+                        aria-expanded="false"
+                        aria-controls="collapsePending{{ card.handover.id }}"
+                    >
+                        Pendências <span class="ms-2 badge bg-dark rounded-pill">{{ card.pendencias|length }}</span>
+                    </button>
+                    <div class="collapse" id="collapsePending{{ card.handover.id }}">
+                        <div class="handover-collapse-body">
+                            {% if card.pendencias %}
+                                <div class="accordion" id="accPending{{ card.handover.id }}">
+                                    {% for t in card.pendencias %}
+                                        <div class="accordion-item border-0 bg-transparent">
+                                            <button
+                                                class="handover-ticket-row w-100 text-start"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#previewPending{{ card.handover.id }}_{{ t.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="previewPending{{ card.handover.id }}_{{ t.id }}"
+                                            >
+                                                {{ t.status_emoji }} {{ t.client_name }} | OS: {{ t.formatted_id }} | Leankeep: {{ t.leankeep_id }}
+                                            </button>
+                                            <div
+                                                id="previewPending{{ card.handover.id }}_{{ t.id }}"
+                                                class="collapse ticket-preview-collapse"
+                                                data-bs-parent="#accPending{{ card.handover.id }}"
+                                            >
+                                                <div class="handover-preview-body" data-preview-url="{{ t.preview_url }}" data-loaded="0">
+                                                    <div class="p-3 text-muted small">
+                                                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                                        Carregando prévia...
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-muted small">Sem pendências para repasse.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <hr class="my-2">
+                    <div class="handover-section-title">Anotações do turno</div>
+
+                    <div class="handover-entries" id="handoverEntries{{ card.handover.id }}">
+                        {% for entry_data in card.entries_data %}
+                            {% include 'tasks/_handover_entry.html' with entry=entry_data.obj entry_data=entry_data %}
+                        {% empty %}
+                            <div class="text-muted small">Nenhuma anotação ainda.</div>
+                        {% endfor %}
+                    </div>
+
+                    <form class="handover-entry-form mt-2" data-handover-id="{{ card.handover.id }}" action="{% url 'handover_entry_add' %}" method="post">
+                        {% csrf_token %}
+                        <textarea name="text" class="form-control form-control-sm" placeholder="Escreva uma atualização do turno..."></textarea>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="submit" class="btn btn-sm btn-primary-custom">
+                                <i class="fas fa-plus me-1"></i>Adicionar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Modal: Direcionar alerta para usuários -->
+<div class="modal fade" id="handoverNotifyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold mb-0">Direcionar lembrete</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-muted small mb-2">Selecione os usuários que devem receber esse lembrete no próximo login (até darem baixa).</div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-1">Prioridade</label>
+                    <select id="handoverNotifyPriority" class="form-select form-select-sm">
+                        <option value="high">Alta</option>
+                        <option value="medium" selected>Média</option>
+                        <option value="low">Baixa</option>
+                    </select>
+                </div>
+                <div id="handoverNotifyUsers" class="d-flex flex-column gap-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="handoverNotifySaveBtn" class="btn btn-primary-custom">Notificar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar baixa do lembrete -->
+<div class="modal fade" id="handoverAckConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning-subtle">
+                <h6 class="modal-title fw-bold mb-0">Confirmar baixa</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Deseja mesmo dar baixa neste lembrete?</p>
+                <div class="text-muted small">
+                    Importante: os toasts de lembrete só vão parar de aparecer quando você der baixa na mensagem.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="handoverAckConfirmBtn" class="btn btn-warning text-dark fw-bold">Dar baixa</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    // Modal Logic
-    let taskModal;
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.handover-entry-form').forEach((form) => {
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const handoverId = form.dataset.handoverId;
+                const textarea = form.querySelector('textarea[name="text"]');
+                const text = (textarea ? textarea.value : '').trim();
+                if (!text) return;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const modalEl = document.getElementById('taskViewModal');
-        if (modalEl) {
-            // Check if bootstrap is available
-            if (typeof bootstrap !== 'undefined') {
-                taskModal = new bootstrap.Modal(modalEl);
-            } else {
-                console.error('Bootstrap is not defined!');
+                const fd = new FormData(form);
+                fd.set('handover_id', handoverId);
+                fd.set('text', text);
+
+                try {
+                    const resp = await fetch(form.action, {
+                        method: 'POST',
+                        body: fd,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    const data = await resp.json();
+                    if (!data || data.status !== 'success') {
+                        alert((data && data.message) || 'Erro ao salvar anotação.');
+                        return;
+                    }
+                    const container = document.getElementById(`handoverEntries${handoverId}`);
+                    if (container) {
+                        const placeholder = Array.from(container.querySelectorAll('.text-muted.small')).find(el => (el.textContent || '').includes('Nenhuma anotação'));
+                        if (placeholder) placeholder.remove();
+                        container.insertAdjacentHTML('afterbegin', data.html);
+                    }
+                    if (textarea) textarea.value = '';
+                } catch (err) {
+                    alert('Erro ao salvar anotação.');
+                }
+            });
+        });
+
+        function csrfToken() {
+            // pega de qualquer form na página
+            const el = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            return el ? el.value : '';
+        }
+
+        // Confirmação de "Dar baixa"
+        const ackModalEl = document.getElementById('handoverAckConfirmModal');
+        const ackConfirmBtn = document.getElementById('handoverAckConfirmBtn');
+        const ackModal = (ackModalEl && window.bootstrap) ? new bootstrap.Modal(ackModalEl) : null;
+        let pendingAckEntryEl = null;
+
+        async function doAck(entryEl) {
+            const url = entryEl.dataset.ackUrl;
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken() }
+                });
+                const data = await resp.json();
+                if (!data || data.status !== 'success' || !data.html) {
+                    alert((data && data.message) || 'Erro ao dar baixa.');
+                    return;
+                }
+                entryEl.outerHTML = data.html;
+            } catch (err) {
+                alert('Erro ao dar baixa.');
             }
         }
-    });
 
-    function openTaskModal(card) {
-        // Ensure modal is initialized
-        if (!taskModal) {
-            const modalEl = document.getElementById('taskViewModal');
-            if (modalEl && typeof bootstrap !== 'undefined') {
-                taskModal = new bootstrap.Modal(modalEl);
-            } else {
-                console.error('Cannot initialize modal: element or bootstrap missing');
+        // Prévia de OS (miniatura) dentro dos post-its
+        document.querySelectorAll('.ticket-preview-collapse').forEach((collapseEl) => {
+            collapseEl.addEventListener('show.bs.collapse', async function () {
+                const body = collapseEl.querySelector('.handover-preview-body');
+                if (!body) return;
+                const loaded = body.getAttribute('data-loaded');
+                if (loaded === '1') return;
+                const url = body.getAttribute('data-preview-url');
+                if (!url) return;
+
+                try {
+                    const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const html = await resp.text();
+                    body.innerHTML = html;
+                    body.setAttribute('data-loaded', '1');
+                } catch (e) {
+                    body.innerHTML = '<div class="p-3 text-danger small">Erro ao carregar prévia.</div>';
+                }
+            });
+        });
+
+        // Edição de anotação (delegação)
+        document.addEventListener('click', async function (e) {
+            const editBtn = e.target.closest('.handover-entry-edit-btn');
+            if (editBtn) {
+                const entryEl = editBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const view = entryEl.querySelector('.handover-entry-view');
+                const edit = entryEl.querySelector('.handover-entry-edit');
+                if (view) view.classList.add('d-none');
+                if (edit) edit.classList.remove('d-none');
+                const ta = entryEl.querySelector('.handover-entry-textarea');
+                if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
                 return;
             }
-        }
 
-        // Extract data
-        const data = card.dataset;
-        
-        // Populate Modal
-        document.getElementById('modalTitle').textContent = data.title;
-        document.getElementById('modalId').textContent = data.ticketId;
-        document.getElementById('modalClient').textContent = data.client;
-        
-        const areaWrapper = document.getElementById('modalAreaWrapper');
-        if (data.area) {
-            document.getElementById('modalArea').textContent = data.area;
-            areaWrapper.classList.remove('d-none');
-        } else {
-            areaWrapper.classList.add('d-none');
-        }
-        
-        document.getElementById('modalStatus').textContent = data.status;
-        document.getElementById('modalCallType').textContent = data.callType;
-        document.getElementById('modalStartDate').textContent = data.startDate;
-        document.getElementById('modalEstimatedTime').textContent = data.estimatedTime || '--:--';
-        document.getElementById('modalDeadline').textContent = data.deadline;
-        
-        // Technicians
-        const avatarContainer = document.getElementById('modalTechAvatar');
-        const nameContainer = document.getElementById('modalTechName');
-        
-        avatarContainer.innerHTML = '';
-        nameContainer.textContent = '';
-        
-        try {
-            let techsObj;
-            if (typeof data.technicians === 'string') {
-                techsObj = JSON.parse(data.technicians);
-            } else {
-                techsObj = data.technicians;
-            }
-            
-            if (techsObj && techsObj.length > 0) {
-                 const avatarWrapper = document.createElement('div');
-                 avatarWrapper.className = 'd-flex';
-                 
-                 let names = [];
-                 
-                 techsObj.forEach((tech, index) => {
-                     const div = document.createElement('div');
-                     div.style.marginLeft = index > 0 ? '-15px' : '0';
-                     div.style.zIndex = techsObj.length - index;
-                     
-                     if (tech.photo) {
-                         div.innerHTML = `<img src="${tech.photo}" class="rounded-circle border border-dark" width="48" height="48" title="${tech.name}" style="background-color: #fff;">`;
-                     } else {
-                         div.innerHTML = `<div class="rounded-circle bg-dark text-white d-inline-flex align-items-center justify-content-center border border-white" style="width: 48px; height: 48px; font-size: 1.2rem; background-color: #343a40;" title="${tech.name}">${tech.initials}</div>`;
-                     }
-                     avatarWrapper.appendChild(div);
-                     names.push(tech.name);
-                 });
-                 
-                 avatarContainer.appendChild(avatarWrapper);
-                 nameContainer.textContent = names.join(', ');
-            } else {
-                 avatarContainer.innerHTML = '<div class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width: 48px; height: 48px;"><i class="fas fa-user-slash"></i></div>';
-                 nameContainer.textContent = 'Sem técnico';
-            }
-        } catch (e) {
-            console.error('Error parsing technicians:', e);
-             nameContainer.textContent = 'Erro ao carregar técnicos';
-        }
-        
-        // Systems
-        const systemsContainer = document.getElementById('modalSystems');
-        systemsContainer.innerHTML = '';
-        try {
-            // Check if data.systems is already an object (unlikely in dataset but possible in some frameworks) or string
-            let systemsObj;
-            if (typeof data.systems === 'string') {
-                systemsObj = JSON.parse(data.systems);
-            } else {
-                systemsObj = data.systems;
+            const cancelBtn = e.target.closest('.handover-entry-cancel-btn');
+            if (cancelBtn) {
+                const entryEl = cancelBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const view = entryEl.querySelector('.handover-entry-view');
+                const edit = entryEl.querySelector('.handover-entry-edit');
+                if (edit) edit.classList.add('d-none');
+                if (view) view.classList.remove('d-none');
+                return;
             }
 
-            if (systemsObj && systemsObj.length > 0) {
-                systemsObj.forEach(sys => {
-                    const badge = document.createElement('span');
-                    badge.className = 'badge border border-dark text-dark fs-6';
-                    badge.style.backgroundColor = sys.color;
-                    badge.style.fontWeight = 'normal';
-                    badge.textContent = sys.name;
-                    badge.setAttribute('data-bs-toggle', 'tooltip');
-                    badge.setAttribute('data-bs-placement', 'bottom');
-                    badge.setAttribute('title', sys.description || 'Sem descrição');
-                    systemsContainer.appendChild(badge);
-                });
-                var tooltipTriggerList = [].slice.call(systemsContainer.querySelectorAll('[data-bs-toggle="tooltip"]'));
-                tooltipTriggerList.map(function (tooltipTriggerEl) {
-                    return new bootstrap.Tooltip(tooltipTriggerEl);
-                });
-            } else {
-                systemsContainer.innerHTML = '<span class="text-muted small fst-italic">Nenhum sistema vinculado</span>';
-            }
-        } catch (e) {
-            console.error('Error parsing systems:', e);
-            systemsContainer.innerHTML = '<span class="text-muted small">Erro ao carregar sistemas</span>';
-        }
+            const saveBtn = e.target.closest('.handover-entry-save-btn');
+            if (saveBtn) {
+                const entryEl = saveBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const url = entryEl.dataset.editUrl;
+                const entryId = entryEl.dataset.entryId;
+                const ta = entryEl.querySelector('.handover-entry-textarea');
+                const text = (ta ? ta.value : '').trim();
+                if (!text) return;
 
-        // Edit Link
-        document.getElementById('modalEditLink').href = `/tickets/${data.ticketRealId}/`; // Assuming standard URL pattern
-
-        taskModal.show();
-    }
-
-    function toggleFavorite(btn, ticketId) {
-        // Prevent default action (if any) and stop propagation is handled inline
-        let csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
-        if (!csrfToken) {
-            const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
-            if (csrfInput) csrfToken = csrfInput.value;
-        }
-        
-        fetch(`/tasks/${ticketId}/favorite/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': csrfToken,
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.is_favorite) {
-                btn.classList.remove('text-muted');
-                btn.classList.add('text-warning');
-                btn.querySelector('i').classList.remove('far');
-                btn.querySelector('i').classList.add('fas');
-            } else {
-                btn.classList.remove('text-warning');
-                btn.classList.add('text-muted');
-                btn.querySelector('i').classList.remove('fas');
-                btn.querySelector('i').classList.add('far');
-            }
-            fetchUpdates(true); // Force refresh to reorder
-        })
-        .catch(error => console.error('Error:', error));
-    }
-    
-    // Auto-refresh logic
-    let isInteracting = false;
-    document.addEventListener('mousemove', () => {
-        isInteracting = true;
-        clearTimeout(window.interactionTimeout);
-        window.interactionTimeout = setTimeout(() => {
-            isInteracting = false;
-        }, 5000);
-    });
-    
-    function fetchUpdates(force = false) {
-        if (isInteracting && !force) return;
-        
-        fetch(window.location.href)
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const newBoard = doc.getElementById('task-board');
-                if (newBoard) {
-                    document.getElementById('task-board').innerHTML = newBoard.innerHTML;
+                const fd = new FormData();
+                fd.set('text', text);
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        body: fd,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': csrfToken()
+                        }
+                    });
+                    const data = await resp.json();
+                    if (!data || data.status !== 'success' || !data.html) {
+                        alert((data && data.message) || 'Erro ao editar anotação.');
+                        return;
+                    }
+                    // substitui o HTML do item (mantém botões/permissões consistentes)
+                    entryEl.outerHTML = data.html;
+                } catch (err) {
+                    alert('Erro ao editar anotação.');
                 }
-            })
-            .catch(err => console.error('Auto-refresh error:', err));
-    }
-    
-    setInterval(fetchUpdates, 5000);
+            }
 
+            const ackBtn = e.target.closest('.handover-entry-ack-btn');
+            if (ackBtn) {
+                const entryEl = ackBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                if (ackModal) {
+                    pendingAckEntryEl = entryEl;
+                    ackModal.show();
+                } else {
+                    doAck(entryEl);
+                }
+                return;
+            }
+        });
+
+        if (ackConfirmBtn) {
+            ackConfirmBtn.addEventListener('click', async function () {
+                if (!pendingAckEntryEl) return;
+                const entryEl = pendingAckEntryEl;
+                pendingAckEntryEl = null;
+                try { if (ackModal) ackModal.hide(); } catch (e) {}
+                await doAck(entryEl);
+            });
+        }
+
+        // === Alertas direcionados (duplo clique) ===
+        const notifyModalEl = document.getElementById('handoverNotifyModal');
+        const notifyUsersWrap = document.getElementById('handoverNotifyUsers');
+        const notifySaveBtn = document.getElementById('handoverNotifySaveBtn');
+        const notifyPrioritySelect = document.getElementById('handoverNotifyPriority');
+        const notifyModal = (notifyModalEl && window.bootstrap) ? new bootstrap.Modal(notifyModalEl) : null;
+        let notifyEntryEl = null;
+        let notifyUsersCache = null;
+
+        async function loadUsers() {
+            if (notifyUsersCache) return notifyUsersCache;
+            const resp = await fetch("{% url 'handover_users' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+            const data = await resp.json();
+            notifyUsersCache = (data && data.users) ? data.users : [];
+            return notifyUsersCache;
+        }
+
+        function renderUsers(users) {
+            if (!notifyUsersWrap) return;
+            notifyUsersWrap.innerHTML = '';
+            users.forEach(u => {
+                const id = `notifyUser${u.id}`;
+                const div = document.createElement('div');
+                div.className = 'form-check';
+                div.innerHTML = `
+                    <input class="form-check-input" type="checkbox" value="${u.id}" id="${id}">
+                    <label class="form-check-label" for="${id}">${u.name}</label>
+                `;
+                notifyUsersWrap.appendChild(div);
+            });
+        }
+
+        document.addEventListener('dblclick', async function (e) {
+            const entryEl = e.target.closest('.handover-entry');
+            if (!entryEl) return;
+            // Não abrir ao dar duplo clique em textarea/botões
+            if (e.target.closest('textarea, button, a, input, select, label')) return;
+            if (!notifyModal) return;
+
+            notifyEntryEl = entryEl;
+            try {
+                const users = await loadUsers();
+                renderUsers(users);
+                notifyModal.show();
+            } catch (err) {
+                alert('Erro ao carregar usuários.');
+            }
+        });
+
+        if (notifySaveBtn) {
+            notifySaveBtn.addEventListener('click', async function () {
+                if (!notifyEntryEl) return;
+                const entryId = notifyEntryEl.dataset.entryId;
+                const notifyUrl = notifyEntryEl.dataset.notifyUrl;
+                const selected = Array.from(notifyUsersWrap.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
+                if (!selected.length) return;
+
+                const fd = new FormData();
+                selected.forEach(v => fd.append('user_ids[]', v));
+                fd.append('priority', (notifyPrioritySelect ? notifyPrioritySelect.value : 'medium'));
+                try {
+                    const resp = await fetch(notifyUrl, {
+                        method: 'POST',
+                        body: fd,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken() }
+                    });
+                    const data = await resp.json();
+                    if (!data || data.status !== 'success' || !data.html) {
+                        alert((data && data.message) || 'Erro ao notificar.');
+                        return;
+                    }
+                    notifyEntryEl.outerHTML = data.html;
+                    notifyEntryEl = null;
+                    notifyModal.hide();
+                } catch (err) {
+                    alert('Erro ao notificar.');
+                }
+            });
+        }
+    });
+</script>
+
+{% if handover_total_pages > 1 %}
+    <nav class="mt-3" aria-label="Paginação de turnos">
+        <ul class="pagination justify-content-center">
+            {% with p=handover_page tp=handover_total_pages %}
+                <li class="page-item {% if p <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="?{% if request.GET.period %}period={{ request.GET.period }}&{% endif %}{% if request.GET.week %}week={{ request.GET.week }}&{% endif %}{% if request.GET.month %}month={{ request.GET.month }}&{% endif %}{% if request.GET.week_in_month %}week_in_month={{ request.GET.week_in_month }}&{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&{% endif %}{% if request.GET.month_num %}month_num={{ request.GET.month_num }}&{% endif %}page={{ p|add:'-1' }}">Anterior</a>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">Página {{ p }} de {{ tp }}</span>
+                </li>
+                <li class="page-item {% if p >= tp %}disabled{% endif %}">
+                    <a class="page-link" href="?{% if request.GET.period %}period={{ request.GET.period }}&{% endif %}{% if request.GET.week %}week={{ request.GET.week }}&{% endif %}{% if request.GET.month %}month={{ request.GET.month }}&{% endif %}{% if request.GET.week_in_month %}week_in_month={{ request.GET.week_in_month }}&{% endif %}{% if request.GET.year %}year={{ request.GET.year }}&{% endif %}{% if request.GET.month_num %}month_num={{ request.GET.month_num }}&{% endif %}page={{ p|add:'1' }}">Próxima</a>
+                </li>
+            {% endwith %}
+        </ul>
+    </nav>
+{% endif %}
+
+<script>
+    // Mostra/oculta campos conforme o período selecionado e reseta paginação
+    document.addEventListener('DOMContentLoaded', function () {
+        const periodSel = document.getElementById('handoverPeriodSelect');
+        const weekWrap = document.getElementById('handoverWeekWrap');
+        const monthWrap = document.getElementById('handoverMonthWrap');
+        const weekInMonthWrap = document.getElementById('handoverWeekInMonthWrap');
+        const yearWrap = document.getElementById('handoverYearWrap');
+        const yearMonthWrap = document.getElementById('handoverYearMonthWrap');
+        const form = document.getElementById('handoverFilterForm');
+
+        function toggle() {
+            const v = periodSel ? periodSel.value : 'recent';
+            if (weekWrap) weekWrap.style.display = (v === 'week') ? '' : 'none';
+            if (monthWrap) monthWrap.style.display = (v === 'month') ? '' : 'none';
+            if (yearWrap) yearWrap.style.display = (v === 'year') ? '' : 'none';
+            if (yearMonthWrap) yearMonthWrap.style.display = (v === 'year') ? '' : 'none';
+            if (weekInMonthWrap) weekInMonthWrap.style.display = (v === 'month' || v === 'year') ? '' : 'none';
+        }
+
+        toggle();
+        if (periodSel) {
+            periodSel.addEventListener('change', function () {
+                toggle();
+                // reseta paginação
+                if (form) {
+                    const pageInput = form.querySelector('input[name="page"]');
+                    if (pageInput) pageInput.remove();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
+
+{% block extra_fab %}
+<style>
+    .quick-fab {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        width: 90px;
+        height: 90px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #00b85c, #009542);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 0 16px 30px rgba(0,0,0,0.18);
+        z-index: 2060;
+        text-decoration: none;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    }
+    /* “Acender” como interruptor moderno */
+    .quick-fab::after {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.55), rgba(255,255,255,0.0) 55%);
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        pointer-events: none;
+    }
+    .quick-fab:hover {
+        transform: translateY(-2px);
+        box-shadow:
+            0 20px 38px rgba(0,0,0,0.22),
+            0 0 0 6px rgba(6, 78, 59, 0.25),
+            0 0 38px rgba(6, 78, 59, 0.75);
+        filter: brightness(1.12) saturate(1.15);
+        color: #fff;
+        text-decoration: none;
+    }
+    .quick-fab:hover::after { opacity: 1; }
+    .quick-fab:active { transform: translateY(0px) scale(0.98); }
+    .quick-fab i {
+        font-size: 32px;
+        display: inline-flex;
+        transition: filter 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+    .quick-fab:hover i,
+    .quick-fab:hover i::before {
+        color: #eafff4; /* acende (verde escuro no glow) */
+        /* glow no próprio ícone (mais evidente) */
+        text-shadow:
+            0 0 10px rgba(6, 78, 59, 0.95),
+            0 0 22px rgba(6, 78, 59, 0.80);
+        filter: none;
+        transform: scale(1.05);
+    }
+</style>
+
+<a
+    href="{% url 'ticket_list' %}"
+    class="quick-fab"
+    data-bs-toggle="tooltip"
+    data-bs-placement="left"
+    title="OS"
+    aria-label="OS"
+>
+    <i class="fa-solid fa-screwdriver-wrench"></i>
+</a>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.bootstrap && window.bootstrap.Tooltip) {
+            document.querySelectorAll('.quick-fab[data-bs-toggle="tooltip"]').forEach((el) => {
+                try { bootstrap.Tooltip.getOrCreateInstance(el); } catch (e) {}
+            });
+        }
+    });
 </script>
 {% endblock %}
