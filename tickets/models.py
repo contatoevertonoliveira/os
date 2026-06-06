@@ -43,6 +43,11 @@ class UserProfile(models.Model):
     blocked_reason = models.CharField(max_length=200, blank=True, null=True, verbose_name="Motivo do Bloqueio")
     allow_pdf_reports = models.BooleanField(default=True, verbose_name="Permitir relatórios PDF")
 
+    # Controle de toasts da lista de OS (no máximo 2x por dia: primeiro acesso e fim do turno)
+    ticket_toast_state_date = models.DateField(blank=True, null=True, verbose_name="Data do estado de toast (OS)")
+    ticket_toast_morning_shown = models.BooleanField(default=False, verbose_name="Toast (OS) mostrado - primeiro acesso do dia")
+    ticket_toast_end_shown = models.BooleanField(default=False, verbose_name="Toast (OS) mostrado - fim do turno")
+
     def get_role_display(self):
         role = (self.role or '').strip()
         if not role:

@@ -514,11 +514,6 @@ class TicketListView(LoginRequiredMixin, ListView):
         now = timezone.localtime(timezone.now())
         today = timezone.localdate()
 
-        toast_key = f"ticket_list_toast_state_{self.request.user.id}"
-        state = self.request.session.get(toast_key) or {}
-        if state.get('date') != str(today):
-            state = {'date': str(today), 'morning_shown': False, 'end_shown': False}
-
         # Detecta fim do turno com base nas configurações (diurno/noturno)
         try:
             settings_obj = SystemSettings.objects.first() or SystemSettings.objects.create()
@@ -545,15 +540,40 @@ class TicketListView(LoginRequiredMixin, ListView):
             else:
                 shift_end_dt = day_end_dt
 
+        # Persistência por usuário (não depende de sessão, para não repetir após logout/login)
         should_show = False
-        if not state.get('morning_shown'):
-            should_show = True
-            state['morning_shown'] = True
-        elif (not state.get('end_shown')) and (now >= shift_end_dt):
-            should_show = True
-            state['end_shown'] = True
+        try:
+            profile = getattr(self.request.user, 'profile', None)
+            if profile:
+                # Se virou o dia, reseta flags
+                if profile.ticket_toast_state_date != today:
+                    profile.ticket_toast_state_date = today
+                    profile.ticket_toast_morning_shown = False
+                    profile.ticket_toast_end_shown = False
 
-        self.request.session[toast_key] = state
+                # Regra: no máximo 2x/dia:
+                # - antes do fim do turno: mostrar 1x (morning_shown)
+                # - após o fim do turno: mostrar 1x (end_shown)
+                # Se o primeiro acesso do dia for já após o fim do turno, mostra só o "end" e marca ambos.
+                if now >= shift_end_dt:
+                    if not profile.ticket_toast_end_shown:
+                        should_show = True
+                        profile.ticket_toast_end_shown = True
+                        profile.ticket_toast_morning_shown = True
+                else:
+                    if not profile.ticket_toast_morning_shown:
+                        should_show = True
+                        profile.ticket_toast_morning_shown = True
+
+                if should_show:
+                    profile.save(update_fields=[
+                        'ticket_toast_state_date',
+                        'ticket_toast_morning_shown',
+                        'ticket_toast_end_shown',
+                    ])
+        except Exception:
+            # Se falhar (ex.: migração ainda não aplicada), mantém comportamento antigo: mostra.
+            should_show = True
 
         alerts = []
         if should_show:

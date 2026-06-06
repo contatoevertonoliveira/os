@@ -261,8 +261,10 @@
             radial-gradient(circle at 80% 40%, rgba(0,0,0,0.03), rgba(0,0,0,0) 50%),
             linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88));
     }
-    /* Marca d'água (mapa mundi estilizado) */
-    .ticket-pass-content::before {
+    /* Marca d'água (mapa mundi):
+       aplica separadamente na área principal e no canhoto para não ser "tapada" */
+    .ticket-pass-main { position: relative; }
+    .ticket-pass-main::before {
         content: "";
         position: absolute;
         inset: 0;
@@ -273,17 +275,31 @@
         pointer-events: none;
         opacity: 0.06;
         filter: blur(0.2px) grayscale(1);
+        z-index: 0;
     }
-    .ticket-pass-main,
-    .ticket-pass-stub {
-        position: relative;
-        z-index: 1;
+    .ticket-pass-main > * { position: relative; z-index: 1; }
+
+    .ticket-pass-stub-inner { position: relative; }
+    .ticket-pass-stub-inner::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: url("/media/images/mapa_mundi_watermark.png");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 86% auto;
+        pointer-events: none;
+        opacity: 0.05;
+        filter: blur(0.2px) grayscale(1);
+        z-index: 0;
     }
+    .ticket-pass-stub-inner > * { position: relative; z-index: 1; }
 
     /* separador pontilhado (perfurado) entre corpo e canhoto */
     .ticket-pass-stub {
         position: relative;
-        background: rgba(255,255,255,0.96);
+        /* precisa ser translúcido para a marca d'água aparecer também no canhoto */
+        background: rgba(255,255,255,0.78);
         border-left: 2px dashed rgba(0,0,0,0.22);
     }
     .ticket-pass-stub::before,
@@ -303,21 +319,9 @@
 
     .ticket-pass-main {
         display: grid;
-        grid-template-columns: 46px 1fr;
+        grid-template-columns: 1fr;
         gap: 10px;
         padding: 12px;
-    }
-    .ticket-pass-barcode-vert {
-        border-radius: 10px;
-        background:
-            repeating-linear-gradient(
-                90deg,
-                rgba(0,0,0,0.85) 0px,
-                rgba(0,0,0,0.85) 2px,
-                transparent 2px,
-                transparent 4px
-            );
-        opacity: 0.7;
     }
     .ticket-pass-label {
         font-size: 0.66rem;
@@ -804,7 +808,12 @@
                 const body = collapseEl.querySelector('.handover-preview-body');
                 if (!body) return;
                 const loaded = body.getAttribute('data-loaded');
-                if (loaded === '1') return;
+                // Se já carregou, não refaz fetch. Mas se o HTML antigo ainda tem a barra vertical,
+                // recarrega para aplicar o layout novo.
+                if (loaded === '1') {
+                    if (!body.querySelector('.ticket-pass-barcode-vert')) return;
+                    body.setAttribute('data-loaded', '0');
+                }
                 const url = body.getAttribute('data-preview-url');
                 if (!url) return;
 
