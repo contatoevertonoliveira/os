@@ -30,11 +30,17 @@ class Command(BaseCommand):
             default=2,
             help="Indentação do JSON (default: 2).",
         )
+        parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Não imprime mensagens (útil para agendamentos).",
+        )
 
     def handle(self, *args, **options):
         output_dir = Path(options["output_dir"])
         keep_days = int(options["keep_days"] or 0)
         indent = int(options["indent"] or 0)
+        quiet = bool(options.get("quiet"))
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -43,7 +49,8 @@ class Command(BaseCommand):
         stamp = now.strftime("%Y%m%d_%H%M")
         out_file = output_dir / f"backup_{stamp}.json"
 
-        self.stdout.write(f"Gerando backup JSON: {out_file}")
+        if not quiet:
+            self.stdout.write(f"Gerando backup JSON: {out_file}")
 
         with out_file.open("w", encoding="utf-8") as fh:
             # Gera um dump completo (todas as apps/models)
@@ -69,8 +76,8 @@ class Command(BaseCommand):
                 except Exception:
                     # Não falha o backup por causa de um arquivo problemático
                     continue
-            if removed:
+            if removed and (not quiet):
                 self.stdout.write(self.style.WARNING(f"Backups antigos removidos: {removed}"))
 
-        self.stdout.write(self.style.SUCCESS("Backup concluído."))
-
+        if not quiet:
+            self.stdout.write(self.style.SUCCESS("Backup concluído."))

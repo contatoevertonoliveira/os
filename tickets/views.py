@@ -357,7 +357,9 @@ class WelcomeView(TemplateView):
     def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
             return redirect('dashboard')
-        return super().get(request, *args, **kwargs)
+        # Padronização: a home (/) deve levar direto para a tela de login
+        # (o layout do login é mantido em templates/login.html).
+        return redirect('login')
 
 # Ticket Views
 @method_decorator(ensure_csrf_cookie, name='dispatch')

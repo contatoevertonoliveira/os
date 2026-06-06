@@ -1,0 +1,31 @@
+Criei tudo em uma pasta /scripts/ no projeto (vai junto no GitHub) para você rodar no Windows Server e deixar automático até você pausar/parar.
+
+Arquivos criados:
+
+scripts/db_backup_task.ps1 (script principal)
+scripts/backup_auto.cmd (ativar automático 18:00)
+scripts/backup_pause.cmd (pausar)
+scripts/backup_resume.cmd (retomar)
+scripts/backup_stop.cmd (remover/parar)
+scripts/backup_now.cmd (backup manual na hora)
+scripts/backup_status.cmd (status)
+scripts/README_backup.md (como usar)
+Como usar no servidor (depois do git pull):
+
+Rodar uma vez: scripts\backup_auto.cmd
+→ isso cria uma tarefa agendada no Windows (rodando como SYSTEM) para executar todo dia às 18:00.
+Para pausar/parar quando quiser: scripts\backup_pause.cmd / scripts\backup_stop.cmd
+Para backup manual: scripts\backup_now.cmd
+Os backups vão para: data\db_backups\backup_YYYYMMDD_HHMM.json.
+
+
+
+
+
+
+
+python manage.py loaddata data\db_backups\backup_20260606_1736.json
+
+python manage.py flush --no-input
+python manage.py migrate
+python manage.py loaddata data\db_backups\backup_YYYYMMDD_HHMM.json

@@ -57,7 +57,8 @@ function Invoke-Backup {
 
     Push-Location $Root
     try {
-        & $Py $manage backup_db_json --keep-days $Keep
+        # Sem saída desnecessária (preferência: salvar em arquivo apenas)
+        & $Py $manage backup_db_json --keep-days $Keep --quiet
         if ($LASTEXITCODE -ne 0) {
             throw "backup_db_json retornou exit code $LASTEXITCODE"
         }
@@ -128,7 +129,7 @@ $py = Resolve-Python -Root $rootPath -ExplicitPython $PythonPath
 switch ($Mode) {
     'run' {
         Invoke-Backup -Root $rootPath -Py $py -Keep $KeepDays
-        Write-Host "OK: backup executado."
+        # Modo agendado: sem mensagens/ruído
     }
     'backup' {
         Invoke-Backup -Root $rootPath -Py $py -Keep $KeepDays
@@ -164,4 +165,3 @@ switch ($Mode) {
         Write-Host ("NextRun: {0}" -f $info.NextRunTime)
     }
 }
-

@@ -21,7 +21,11 @@ Parâmetros úteis:
 ```bash
 python manage.py backup_db_json --keep-days 30
 python manage.py backup_db_json --output-dir data/db_backups --indent 2
+python manage.py backup_db_json --quiet
 ```
+
+> Observação: o comando `backup_db_json` usa `dumpdata` internamente com
+> `--natural-foreign --natural-primary --indent 2` e grava o JSON em UTF-8.
 
 ### Restaurar backup (um comando)
 
@@ -51,3 +55,7 @@ Em Windows (Task Scheduler), a ação deve executar:
 python manage.py backup_db_json --keep-days 30
 ```
 
+Se você estiver no servidor Windows, já existem atalhos em `scripts\`:
+- Ativar automático (todo dia 18:00): `scripts\backup_auto.cmd`
+- Backup manual agora: `scripts\backup_now.cmd`
+- Status: `scripts\backup_status.cmd`
