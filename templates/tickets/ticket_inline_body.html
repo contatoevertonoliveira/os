@@ -1,7 +1,7 @@
 {% load widget_tweaks %}
 
 <div class="p-3">
-    <form class="ticket-inline-form" id="ticketEditForm" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data">
+    <form class="ticket-inline-form" id="ticketEditForm{{ ticket.id }}" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data">
         {% csrf_token %}
         <input type="hidden" name="pending_delete_updates" id="pendingDeleteUpdates{{ ticket.id }}" value="">
 
@@ -43,7 +43,7 @@
                             <div class="col-md-3">
                                 <div class="ticket-pass-label">Equipamentos</div>
                                 {% render_field form.equipment_selection class="form-select form-select-sm" %}
-                                <div id="modal-selected-equipments-container" class="mt-2 d-flex flex-wrap gap-1"></div>
+                                <div id="modal-selected-equipments-container-{{ ticket.id }}" class="mt-2 d-flex flex-wrap gap-1"></div>
                                 <div class="d-none">{% render_field form.equipments %}</div>
                             </div>
                             <div class="col-md-3">
@@ -364,6 +364,9 @@
 
 <script>
     (function() {
+        const formEl = document.getElementById('ticketEditForm{{ ticket.id }}');
+        if (!formEl) return;
+
         // Define colors from template
         const systemColors = {
             {% for system in form.systems.field.queryset %}
@@ -372,7 +375,7 @@
         };
         const SYSTEM_OFF_COLOR = '#dc3545';
 
-        const checkboxes = document.querySelectorAll('#ticketEditForm input[name="systems"]');
+        const checkboxes = formEl.querySelectorAll('input[name="systems"]');
         function enforceSingleSystemSelection(checkedBox) {
             if (!checkedBox || !checkedBox.checked) return;
             checkboxes.forEach(cb => {
@@ -408,6 +411,72 @@
                 updateStyle();
             }
         });
+
+        // Equipment Selection Logic for inline accordion form
+        const equipmentSelect = formEl.querySelector('#id_equipment_selection');
+        const equipmentsHiddenSelect = formEl.querySelector('#id_equipments');
+        const badgesContainer = document.getElementById('modal-selected-equipments-container-{{ ticket.id }}');
+
+        if (equipmentSelect && equipmentsHiddenSelect && badgesContainer) {
+            function updateEquipmentBadges() {
+                badgesContainer.innerHTML = '';
+                const selectedOptions = Array.from(equipmentsHiddenSelect.options).filter(option => option.selected);
+                const selectedValues = selectedOptions.map(opt => opt.value);
+
+                selectedOptions.forEach(option => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary d-flex align-items-center gap-1 py-1 px-2';
+                    badge.style.fontSize = '0.75rem';
+
+                    const text = document.createElement('span');
+                    text.textContent = option.text;
+
+                    const removeBtn = document.createElement('i');
+                    removeBtn.className = 'fas fa-times';
+                    removeBtn.style.cursor = 'pointer';
+                    removeBtn.style.fontSize = '0.7rem';
+                    removeBtn.onclick = function() {
+                        option.selected = false;
+                        updateEquipmentBadges();
+                    };
+
+                    badge.appendChild(text);
+                    badge.appendChild(removeBtn);
+                    badgesContainer.appendChild(badge);
+                });
+
+                for (let i = 0; i < equipmentSelect.options.length; i++) {
+                    const opt = equipmentSelect.options[i];
+                    if (opt.value && selectedValues.includes(opt.value)) {
+                        opt.style.display = 'none';
+                        opt.hidden = true;
+                    } else {
+                        opt.style.display = '';
+                        opt.hidden = false;
+                    }
+                }
+
+                // mantém o select visual sem item fixo selecionado,
+                // mas com os badges refletindo corretamente os equipamentos já salvos
+                equipmentSelect.value = '';
+            }
+
+            equipmentSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                if (!selectedValue) return;
+
+                for (let i = 0; i < equipmentsHiddenSelect.options.length; i++) {
+                    if (equipmentsHiddenSelect.options[i].value === selectedValue) {
+                        equipmentsHiddenSelect.options[i].selected = true;
+                        break;
+                    }
+                }
+
+                updateEquipmentBadges();
+            });
+
+            updateEquipmentBadges();
+        }
     })();
 </script>
 
@@ -445,7 +514,7 @@
     (function () {
         const evolutionInput = document.getElementById('id_evolution_image');
         const previewContainer = document.getElementById('evolution-images-preview');
-        const modalForm = document.getElementById('ticketEditForm');
+        const modalForm = document.getElementById('ticketEditForm{{ ticket.id }}');
         if (!evolutionInput || !previewContainer || !modalForm) return;
 
         function renderEvolutionPreviews(files) {
