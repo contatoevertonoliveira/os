@@ -1038,25 +1038,23 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
             
         # Determine action
         save_action = self.request.POST.get('save_action')
-        
+
         if save_action == 'close':
-            # Redirect behavior (Standard SuccessMessageMixin behavior)
+            # Close behavior: retorna HTML para o JS fechar (exceto se não for AJAX)
+            if self.request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                context = self.get_context_data(form=form)
+                return render(self.request, self.template_name, context)
+            # Fallback para non-AJAX
             messages.success(self.request, self.success_message)
             return redirect(self.get_success_url())
-            
+
         else:
             # Stay/Refresh behavior (for 'stay' or AutoSave)
             if has_evolution:
                 messages.success(self.request, "Evolução registrada com sucesso!")
             elif save_action == 'stay':
                 messages.success(self.request, "Alterações salvas!")
-            
-            # For AutoSave (save_action is None), we usually don't want a flash message
-            # or we want it handled by JS. 
-            # But the view doesn't know it's AutoSave unless we pass a flag.
-            # However, if we return rendered HTML, the JS replaces the modal content.
-            # The JS for AutoSave does NOT show a toast if isAutoSave is true.
-            
+
             context = self.get_context_data(form=form)
             return render(self.request, self.template_name, context)
 

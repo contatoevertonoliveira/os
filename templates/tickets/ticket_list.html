@@ -745,23 +745,23 @@
 
                                     <div class="ticket-acc-cell text-center" id="ticketStatusCell{{ ticket.id }}">
                                         {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
-                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
-                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'finished' %}
-                                            <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'pending' %}
-                                            <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'canceled' %}
-                                            <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'in_progress' %}
-                                            <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'open' %}
-                                            <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'delayed' %}
-                                            <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% elif ticket.status == 'aguardando' %}
-                                            <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 24px; width: 90px; object-fit: contain;">
+                                            <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
                                         {% else %}
                                             <span class="badge bg-light text-dark border">{{ ticket.get_status_display }}</span>
                                         {% endif %}
@@ -1376,11 +1376,7 @@
                 body: formData,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                    return;
-                }
+                        .then(response => {
                 return response.text().then(html => {
                     // Preserve scroll position
                     const modalBody = modalContent.querySelector('.modal-body');
@@ -1422,6 +1418,8 @@
                                 const idToClose = activeTicketId;
                                 closeTicket(idToClose);
 
+
+                                refreshTicketList();
                                 const toastContainer = document.querySelector('.toast-container');
                                 if (toastContainer) {
                                     const toast = document.createElement('div');
@@ -1448,6 +1446,7 @@
                                 }
                                 return;
                             }
+                            refreshTicketList();
                         } else {
                             const toastContainer = document.querySelector('.toast-container');
                             if (toastContainer) {
@@ -2002,10 +2001,10 @@
                 };
 
                 if (isDelayed) {
-                    statusCell.innerHTML = `<img src="/media/images/vencido.png" alt="Vencido" style="height: 24px; width: 90px; object-fit: contain;">`;
+                    statusCell.innerHTML = `<img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">`;
                 } else if (imgMap[statusVal]) {
                     const info = imgMap[statusVal];
-                    statusCell.innerHTML = `<img src="${info.src}" alt="${info.alt}" style="height: 24px; width: 90px; object-fit: contain;">`;
+                    statusCell.innerHTML = `<img src="${info.src}" alt="${info.alt}" style="height: 26px; width: 100px; object-fit: contain;">`;
                 } else {
                     const label = statusText || statusVal || 'Status';
                     statusCell.innerHTML = `<span class="badge bg-light text-dark border">${label}</span>`;
