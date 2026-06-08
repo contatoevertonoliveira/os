@@ -107,6 +107,39 @@
         font-size: 1.00rem;
         color: rgba(0,0,0,0.65);
     }
+    .handover-card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    .handover-card-filter {
+        min-width: 220px;
+        margin-left: auto;
+    }
+    .handover-card-filter .form-label {
+        font-size: 0.74rem;
+        color: rgba(0,0,0,0.62);
+        margin-bottom: 4px;
+    }
+    .handover-note-current .handover-card-filter .form-label {
+        color: #f1e900;
+    }
+    .handover-card-filter .form-select {
+        border-radius: 10px;
+        border-color: rgba(0,0,0,0.12);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    @media (max-width: 768px) {
+        .handover-card-top {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .handover-card-filter {
+            min-width: 0;
+            width: 100%;
+        }
+    }
     .handover-section-title {
         font-size: 0.98rem;
         font-weight: 700;
@@ -431,6 +464,17 @@
     .handover-entry {
         position: relative;
     }
+    .handover-entry-click-zone {
+        cursor: pointer;
+    }
+    .handover-entry-thread {
+        background: rgba(255,255,255,0.34);
+        border-radius: 10px;
+        padding: 8px;
+    }
+    .handover-reply-item .handover-entry {
+        background: rgba(255,255,255,0.82) !important;
+    }
     .handover-entry-alert {
         /* velocidade mais rápida e com “respiração” mais evidente */
         animation: handoverPulse 0.9s ease-in-out infinite;
@@ -474,6 +518,117 @@
         0%   { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
         50%  { background-color: var(--pulse-bg2, rgba(254, 226, 226, 0.95)); }
         100% { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
+    }
+
+    .modal-content.handover-modal {
+        border: 0;
+        border-radius: 18px;
+        overflow: hidden;
+        box-shadow: 0 24px 48px rgba(0,0,0,0.22);
+    }
+    .handover-modal .modal-header {
+        border-bottom: 0;
+        background: linear-gradient(135deg, #1f2937, #111827);
+        color: #fff;
+        padding: 16px 18px;
+    }
+    .handover-modal .modal-header .btn-close {
+        filter: invert(1) grayscale(1);
+        opacity: .85;
+    }
+    .handover-modal .modal-body {
+        background: linear-gradient(180deg, #f8fafc, #ffffff);
+        padding: 18px;
+    }
+    .handover-modal .modal-footer {
+        background: #fff;
+        border-top: 1px solid rgba(0,0,0,0.06);
+        padding: 14px 18px 18px;
+    }
+    .handover-modal .form-select,
+    .handover-modal .form-control {
+        border-radius: 12px;
+        border-color: rgba(0,0,0,0.10);
+        box-shadow: none;
+    }
+    .handover-modal .form-select:focus,
+    .handover-modal .form-control:focus {
+        border-color: rgba(13,110,253,0.45);
+        box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.10);
+    }
+    .handover-modal-context {
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(255,255,255,0.95);
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.04);
+    }
+    .handover-modal-context-title {
+        font-size: .78rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin-bottom: 4px;
+    }
+    .handover-notify-users-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .handover-notify-user {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(0,0,0,0.08);
+        background: #fff;
+        cursor: pointer;
+        transition: all .18s ease;
+    }
+    .handover-notify-user:hover {
+        transform: translateY(-1px);
+        border-color: rgba(13,110,253,0.30);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.06);
+    }
+    .handover-notify-user input {
+        width: 18px;
+        height: 18px;
+        margin-top: 0;
+        flex: 0 0 auto;
+    }
+    .handover-notify-user-name {
+        font-weight: 700;
+        color: #111827;
+        line-height: 1.1;
+    }
+    .handover-notify-user-role {
+        font-size: .82rem;
+        color: #6b7280;
+        line-height: 1.1;
+    }
+    .handover-notify-user.checked {
+        border-color: rgba(13,110,253,0.48);
+        background: linear-gradient(180deg, #eef5ff, #ffffff);
+    }
+    .handover-priority-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: .78rem;
+        font-weight: 700;
+        background: rgba(245,158,11,0.12);
+        color: #9a3412;
+        margin-bottom: 12px;
+    }
+    @media (max-width: 768px) {
+        .handover-notify-users-grid {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
@@ -550,14 +705,29 @@
         <div class="col-12 col-md-6 col-xl-4">
             <div class="card handover-note border-0 {% if card.is_current %}handover-note-current{% endif %}">
                 <div class="card-header py-3">
-                    <div class="handover-title">
-                        Tarefas Executadas (Dia) - {{ card.weekday_label }} ({{ card.title_date|date:"d/m/Y" }})
-                    </div>
-                    <div class="handover-meta">
-                        Turno: {{ card.shift_label }} ({{ card.shift.start|date:"H:i" }}–{{ card.shift.end|date:"H:i" }})
-                        {% if card.is_current %}
-                            <span class="ms-2 handover-current-badge">Turno Atual</span>
-                        {% endif %}
+                    <div class="handover-card-top">
+                        <div>
+                            <div class="handover-title">
+                                Tarefas Executadas (Dia) - {{ card.weekday_label }} ({{ card.title_date|date:"d/m/Y" }})
+                            </div>
+                            <div class="handover-meta">
+                                Turno: {{ card.shift_label }} ({{ card.shift.start|date:"H:i" }}–{{ card.shift.end|date:"H:i" }})
+                                {% if card.is_current %}
+                                    <span class="ms-2 handover-current-badge">Turno Atual</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="handover-card-filter">
+                            <label class="form-label fw-semibold">Colaborador</label>
+                            <select class="form-select form-select-sm handover-user-filter" data-handover-id="{{ card.handover.id }}">
+                                <option value="">Todos os colaboradores</option>
+                                {% for u in handover_user_choices %}
+                                    <option value="{{ u.id }}">
+                                        {{ u.get_full_name|default:u.username }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -687,13 +857,22 @@
 <!-- Modal: Direcionar alerta para usuários -->
 <div class="modal fade" id="handoverNotifyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content handover-modal">
             <div class="modal-header">
-                <h6 class="modal-title fw-bold mb-0">Direcionar lembrete</h6>
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">Direcionar lembrete</h6>
+                    <div class="small opacity-75">Escolha quem deve receber este alerta no próximo login.</div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="text-muted small mb-2">Selecione os usuários que devem receber esse lembrete no próximo login (até darem baixa).</div>
+                <div class="handover-priority-chip">
+                    <i class="fa-solid fa-bell"></i><span>Direcionamento de alerta</span>
+                </div>
+                <div id="handoverNotifyContext" class="handover-modal-context mb-3">
+                    <div class="handover-modal-context-title">Registro selecionado</div>
+                    <div class="small text-dark">Carregando contexto...</div>
+                </div>
                 <div class="mb-2">
                     <label class="form-label small fw-bold mb-1">Prioridade</label>
                     <select id="handoverNotifyPriority" class="form-select form-select-sm">
@@ -702,7 +881,7 @@
                         <option value="low">Baixa</option>
                     </select>
                 </div>
-                <div id="handoverNotifyUsers" class="d-flex flex-column gap-2"></div>
+                <div id="handoverNotifyUsers" class="handover-notify-users-grid"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
@@ -712,10 +891,77 @@
     </div>
 </div>
 
+<!-- Modal: Responder registro -->
+<div class="modal fade" id="handoverReplyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content handover-modal">
+            <div class="modal-header">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">Responder registro</h6>
+                    <div class="small opacity-75">Adicione uma resposta organizada à anotação selecionada.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="handoverReplyContext" class="handover-modal-context mb-3">
+                    <div class="handover-modal-context-title">Registro original</div>
+                    <div class="small text-dark">Selecione um registro para responder.</div>
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1">Sua resposta</label>
+                    <textarea id="handoverReplyTextarea" class="form-control" rows="4" placeholder="Escreva sua resposta..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="handoverReplySaveBtn" class="btn btn-primary-custom">
+                    <i class="fa-solid fa-paper-plane me-1"></i>Enviar resposta
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar exclusão do registro -->
+<div class="modal fade" id="handoverDeleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content handover-modal">
+            <div class="modal-header">
+                <div>
+                    <h6 class="modal-title fw-bold mb-0">Excluir registro</h6>
+                    <div class="small opacity-75">Esta ação não pode ser desfeita.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="rounded-circle d-flex align-items-center justify-content-center"
+                         style="width:42px;height:42px;background:rgba(220,53,69,0.12);color:#dc3545;flex:0 0 auto;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold mb-1">Deseja realmente excluir este registro?</div>
+                        <div id="handoverDeleteContext" class="handover-modal-context mt-2">
+                            <div class="handover-modal-context-title">Registro selecionado</div>
+                            <div class="small text-dark">Carregando contexto...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="handoverDeleteConfirmBtn" class="btn btn-danger fw-bold">
+                    <i class="fa-solid fa-trash me-1"></i>Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Confirmar baixa do lembrete -->
 <div class="modal fade" id="handoverAckConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
+        <div class="modal-content handover-modal">
             <div class="modal-header bg-warning-subtle">
                 <h6 class="modal-title fw-bold mb-0">Confirmar baixa</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -778,6 +1024,122 @@
             return el ? el.value : '';
         }
 
+        function getImmediateChild(entryEl, selector) {
+            return Array.from(entryEl.children || []).find((el) => el.matches && el.matches(selector)) || null;
+        }
+
+        function updateReplyState(entryEl) {
+            if (!entryEl) return;
+            const thread = getImmediateChild(entryEl, '.handover-entry-thread');
+            const repliesWrap = thread ? thread.querySelector('.handover-entry-replies') : null;
+            const directReplies = repliesWrap ? repliesWrap.querySelectorAll(':scope > .handover-reply-item').length : 0;
+            entryEl.dataset.replyCount = String(directReplies);
+
+            const footerLeft = entryEl.querySelector(':scope > .d-flex.justify-content-between .small.text-muted');
+            const headerMeta = entryEl.querySelector(':scope > .d-flex .handover-entry-click-zone.small.text-muted');
+            if (headerMeta) {
+                const oldBadge = headerMeta.querySelector('.badge.bg-secondary-subtle');
+                if (oldBadge) oldBadge.remove();
+                if (directReplies > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary-subtle text-dark ms-2';
+                    badge.innerHTML = `<i class="fa-solid fa-bookmark me-1"></i>${directReplies}`;
+                    headerMeta.appendChild(badge);
+                }
+            }
+
+            if (footerLeft) {
+                footerLeft.innerHTML = directReplies > 0
+                    ? `<i class="fa-solid fa-comments me-1"></i>${directReplies} resposta${directReplies > 1 ? 's' : ''}`
+                    : `<span class="handover-entry-click-zone" role="button" title="Clique para responder">Clique para responder</span>`;
+            }
+
+            if (repliesWrap) {
+                if (directReplies > 0) repliesWrap.classList.remove('d-none');
+                else repliesWrap.classList.add('d-none');
+            }
+            if (thread && directReplies === 0) {
+                const replyForm = thread.querySelector('.handover-entry-reply-form');
+                if (!replyForm || replyForm.classList.contains('d-none')) {
+                    thread.classList.add('d-none');
+                }
+            }
+        }
+
+        function openReplyThread(entryEl, openForm) {
+            const thread = getImmediateChild(entryEl, '.handover-entry-thread');
+            if (!thread) return;
+            thread.classList.remove('d-none');
+            if (openForm) {
+                const formWrap = thread.querySelector('.handover-entry-reply-form');
+                if (formWrap) {
+                    formWrap.classList.remove('d-none');
+                    const ta = formWrap.querySelector('.handover-entry-reply-textarea');
+                    if (ta) ta.focus();
+                }
+            }
+        }
+
+        function getEntryContextHtml(entryEl) {
+            const author = (entryEl.querySelector(':scope > .d-flex .handover-entry-click-zone strong')?.textContent || 'Sistema').trim();
+            const when = (entryEl.querySelector(':scope > .d-flex .handover-entry-click-zone span')?.textContent || '').trim();
+            const text = (entryEl.querySelector(':scope > .handover-entry-view .handover-entry-text')?.textContent || '').trim();
+            const safeText = text || 'Sem conteúdo.';
+            return `
+                <div class="handover-modal-context-title">${author}${when ? ` • ${when}` : ''}</div>
+                <div class="small text-dark" style="white-space: pre-wrap;">${safeText}</div>
+            `;
+        }
+
+        const replyModalEl = document.getElementById('handoverReplyModal');
+        const replyModal = (replyModalEl && window.bootstrap) ? new bootstrap.Modal(replyModalEl) : null;
+        const replyContextEl = document.getElementById('handoverReplyContext');
+        const replyTextareaEl = document.getElementById('handoverReplyTextarea');
+        const replySaveBtnEl = document.getElementById('handoverReplySaveBtn');
+        let pendingReplyEntryEl = null;
+
+        function openReplyModal(entryEl) {
+            if (!replyModal || !entryEl) return;
+            pendingReplyEntryEl = entryEl;
+            if (replyContextEl) replyContextEl.innerHTML = getEntryContextHtml(entryEl);
+            if (replyTextareaEl) replyTextareaEl.value = '';
+            replyModal.show();
+            setTimeout(() => { try { replyTextareaEl?.focus(); } catch (e) {} }, 180);
+        }
+
+        async function submitReply(entryEl, text) {
+            const url = entryEl.dataset.createUrl;
+            const handoverId = entryEl.dataset.handoverId;
+            const fd = new FormData();
+            fd.set('handover_id', handoverId);
+            fd.set('parent_id', entryEl.dataset.entryId);
+            fd.set('text', text);
+            fd.set('csrfmiddlewaretoken', csrfToken());
+
+            const resp = await fetch(url, {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json();
+            if (!data || data.status !== 'success' || !data.html) {
+                throw new Error((data && data.message) || 'Erro ao salvar resposta.');
+            }
+
+            const thread = getImmediateChild(entryEl, '.handover-entry-thread');
+            const repliesWrap = thread ? thread.querySelector('.handover-entry-replies') : null;
+            if (repliesWrap) {
+                repliesWrap.classList.remove('d-none');
+                const wrapper = document.createElement('div');
+                wrapper.className = 'handover-reply-item ms-3 mt-2 border-start ps-2 border-secondary-subtle';
+                wrapper.innerHTML = data.html;
+                repliesWrap.appendChild(wrapper);
+            }
+            if (thread) thread.classList.remove('d-none');
+            updateReplyState(entryEl);
+            return data;
+        }
+
         // Confirmação de "Dar baixa"
         const ackModalEl = document.getElementById('handoverAckConfirmModal');
         const ackConfirmBtn = document.getElementById('handoverAckConfirmBtn');
@@ -800,6 +1162,36 @@
             } catch (err) {
                 alert('Erro ao dar baixa.');
             }
+        }
+
+        // Confirmação de exclusão (modal personalizada)
+        const deleteModalEl = document.getElementById('handoverDeleteConfirmModal');
+        const deleteConfirmBtn = document.getElementById('handoverDeleteConfirmBtn');
+        const deleteContextEl = document.getElementById('handoverDeleteContext');
+        const deleteModal = (deleteModalEl && window.bootstrap) ? new bootstrap.Modal(deleteModalEl) : null;
+        let pendingDeleteEntryEl = null;
+        let pendingDeleteUrl = null;
+
+        async function doDeleteEntry(entryEl, deleteUrl) {
+            const resp = await fetch(deleteUrl, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrfToken() }
+            });
+            const data = await resp.json();
+            if (!data || data.status !== 'success') {
+                throw new Error((data && data.message) || 'Erro ao excluir anotação.');
+            }
+            const replyWrapper = entryEl.closest('.handover-reply-item');
+            const parentEntry = replyWrapper ? replyWrapper.parentElement.closest('.handover-entry') : null;
+            const entriesContainer = entryEl.closest('.handover-entries');
+            if (replyWrapper) replyWrapper.remove();
+            else entryEl.remove();
+            if (parentEntry) {
+                updateReplyState(parentEntry);
+            } else if (entriesContainer && !entriesContainer.querySelector('.handover-entry')) {
+                entriesContainer.innerHTML = '<div class="text-muted small">Nenhuma anotação ainda.</div>';
+            }
+            return data;
         }
 
         // Prévia de OS (miniatura) dentro dos post-its
@@ -830,6 +1222,96 @@
 
         // Edição de anotação (delegação)
         document.addEventListener('click', async function (e) {
+            const notifyBtn = e.target.closest('.handover-entry-notify-btn');
+            if (notifyBtn) {
+                const entryEl = notifyBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                if (!notifyModal) return;
+
+                notifyEntryEl = entryEl;
+                try {
+                    const users = await loadUsers();
+                    renderUsers(users);
+                    if (notifyContextEl) notifyContextEl.innerHTML = getEntryContextHtml(entryEl);
+                    notifyModal.show();
+                } catch (err) {
+                    alert('Erro ao carregar usuários.');
+                }
+                return;
+            }
+
+            const deleteBtn = e.target.closest('.handover-entry-delete-btn');
+            if (deleteBtn) {
+                const entryEl = deleteBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const deleteUrl = deleteBtn.dataset.deleteUrl;
+                if (deleteModal) {
+                    pendingDeleteEntryEl = entryEl;
+                    pendingDeleteUrl = deleteUrl;
+                    if (deleteContextEl) deleteContextEl.innerHTML = getEntryContextHtml(entryEl);
+                    deleteModal.show();
+                } else {
+                    // fallback (caso bootstrap modal não esteja disponível)
+                    if (!confirm('Deseja excluir este registro?')) return;
+                    try { await doDeleteEntry(entryEl, deleteUrl); } catch (err) { alert(err.message || 'Erro ao excluir anotação.'); }
+                }
+                return;
+            }
+
+            const clickZone = e.target.closest('.handover-entry-click-zone');
+            if (clickZone && !e.target.closest('button, a, textarea, input, select, label')) {
+                const entryEl = clickZone.closest('.handover-entry');
+                if (!entryEl) return;
+                const thread = getImmediateChild(entryEl, '.handover-entry-thread');
+                if (!thread) return;
+                const replyCount = parseInt(entryEl.dataset.replyCount || '0', 10) || 0;
+                if (replyCount > 0) {
+                    thread.classList.toggle('d-none');
+                } else {
+                    openReplyModal(entryEl);
+                }
+                return;
+            }
+
+            const replyToggleBtn = e.target.closest('.handover-entry-reply-toggle-btn');
+            if (replyToggleBtn) {
+                const entryEl = replyToggleBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const thread = getImmediateChild(entryEl, '.handover-entry-thread');
+                if (thread) thread.classList.remove('d-none');
+                openReplyModal(entryEl);
+                return;
+            }
+
+            const replyCancelBtn = e.target.closest('.handover-entry-reply-cancel-btn');
+            if (replyCancelBtn) {
+                const formWrap = replyCancelBtn.closest('.handover-entry-reply-form');
+                const entryEl = replyCancelBtn.closest('.handover-entry');
+                if (formWrap) formWrap.classList.add('d-none');
+                const ta = formWrap ? formWrap.querySelector('.handover-entry-reply-textarea') : null;
+                if (ta) ta.value = '';
+                if (entryEl) updateReplyState(entryEl);
+                return;
+            }
+
+            const replySaveBtn = e.target.closest('.handover-entry-reply-save-btn');
+            if (replySaveBtn) {
+                const entryEl = replySaveBtn.closest('.handover-entry');
+                if (!entryEl) return;
+                const formWrap = replySaveBtn.closest('.handover-entry-reply-form');
+                const ta = formWrap ? formWrap.querySelector('.handover-entry-reply-textarea') : null;
+                const text = (ta ? ta.value : '').trim();
+                if (!text) return;
+                try {
+                    await submitReply(entryEl, text);
+                    if (ta) ta.value = '';
+                    if (formWrap) formWrap.classList.add('d-none');
+                } catch (err) {
+                    alert(err.message || 'Erro ao salvar resposta.');
+                }
+                return;
+            }
+
             const editBtn = e.target.closest('.handover-entry-edit-btn');
             if (editBtn) {
                 const entryEl = editBtn.closest('.handover-entry');
@@ -911,11 +1393,47 @@
             });
         }
 
+        if (replySaveBtnEl) {
+            replySaveBtnEl.addEventListener('click', async function () {
+                if (!pendingReplyEntryEl || !replyTextareaEl) return;
+                const text = (replyTextareaEl.value || '').trim();
+                if (!text) {
+                    replyTextareaEl.focus();
+                    return;
+                }
+                try {
+                    await submitReply(pendingReplyEntryEl, text);
+                    replyTextareaEl.value = '';
+                    pendingReplyEntryEl = null;
+                    if (replyModal) replyModal.hide();
+                } catch (err) {
+                    alert(err.message || 'Erro ao salvar resposta.');
+                }
+            });
+        }
+
+        if (deleteConfirmBtn) {
+            deleteConfirmBtn.addEventListener('click', async function () {
+                if (!pendingDeleteEntryEl || !pendingDeleteUrl) return;
+                const entryEl = pendingDeleteEntryEl;
+                const url = pendingDeleteUrl;
+                pendingDeleteEntryEl = null;
+                pendingDeleteUrl = null;
+                try { if (deleteModal) deleteModal.hide(); } catch (e) {}
+                try {
+                    await doDeleteEntry(entryEl, url);
+                } catch (err) {
+                    alert(err.message || 'Erro ao excluir anotação.');
+                }
+            });
+        }
+
         // === Alertas direcionados (duplo clique) ===
         const notifyModalEl = document.getElementById('handoverNotifyModal');
         const notifyUsersWrap = document.getElementById('handoverNotifyUsers');
         const notifySaveBtn = document.getElementById('handoverNotifySaveBtn');
         const notifyPrioritySelect = document.getElementById('handoverNotifyPriority');
+        const notifyContextEl = document.getElementById('handoverNotifyContext');
         const notifyModal = (notifyModalEl && window.bootstrap) ? new bootstrap.Modal(notifyModalEl) : null;
         let notifyEntryEl = null;
         let notifyUsersCache = null;
@@ -933,32 +1451,23 @@
             notifyUsersWrap.innerHTML = '';
             users.forEach(u => {
                 const id = `notifyUser${u.id}`;
-                const div = document.createElement('div');
-                div.className = 'form-check';
-                div.innerHTML = `
+                const label = document.createElement('label');
+                label.className = 'handover-notify-user';
+                label.setAttribute('for', id);
+                label.innerHTML = `
                     <input class="form-check-input" type="checkbox" value="${u.id}" id="${id}">
-                    <label class="form-check-label" for="${id}">${u.name}</label>
+                    <div>
+                        <div class="handover-notify-user-name">${u.name}</div>
+                        <div class="handover-notify-user-role">Receberá lembrete no próximo login</div>
+                    </div>
                 `;
-                notifyUsersWrap.appendChild(div);
+                const input = label.querySelector('input');
+                input.addEventListener('change', function () {
+                    label.classList.toggle('checked', input.checked);
+                });
+                notifyUsersWrap.appendChild(label);
             });
         }
-
-        document.addEventListener('dblclick', async function (e) {
-            const entryEl = e.target.closest('.handover-entry');
-            if (!entryEl) return;
-            // Não abrir ao dar duplo clique em textarea/botões
-            if (e.target.closest('textarea, button, a, input, select, label')) return;
-            if (!notifyModal) return;
-
-            notifyEntryEl = entryEl;
-            try {
-                const users = await loadUsers();
-                renderUsers(users);
-                notifyModal.show();
-            } catch (err) {
-                alert('Erro ao carregar usuários.');
-            }
-        });
 
         if (notifySaveBtn) {
             notifySaveBtn.addEventListener('click', async function () {
@@ -1042,6 +1551,78 @@
                 }
             });
         }
+
+        function applyUserFilterToCard(cardEl, userId) {
+            if (!cardEl) return;
+            const entries = cardEl.querySelector('.handover-entries');
+            if (!entries) return;
+
+            // Sem filtro: mostra tudo
+            if (!userId) {
+                entries.querySelectorAll('.handover-entry').forEach((e) => e.style.display = '');
+                entries.querySelectorAll('.handover-reply-item').forEach((w) => w.style.display = '');
+                return;
+            }
+
+            function filterEntry(entryEl) {
+                if (!entryEl) return false;
+                const createdBy = String(entryEl.dataset.createdById || '');
+                const isMatch = (createdBy === String(userId));
+
+                // Filtra filhos (replies)
+                let anyChildVisible = false;
+                const thread = Array.from(entryEl.children || []).find((c) => c.matches && c.matches('.handover-entry-thread'));
+                const repliesWrap = thread ? thread.querySelector('.handover-entry-replies') : null;
+                if (repliesWrap) {
+                    const wrappers = repliesWrap.querySelectorAll(':scope > .handover-reply-item');
+                    wrappers.forEach((wrap) => {
+                        const childEntry = wrap.querySelector(':scope > .handover-entry');
+                        const childVisible = filterEntry(childEntry);
+                        wrap.style.display = childVisible ? '' : 'none';
+                        if (childVisible) anyChildVisible = true;
+                    });
+                }
+
+                const visible = isMatch || anyChildVisible;
+                const wrapper = entryEl.closest('.handover-reply-item');
+                if (wrapper) {
+                    // controle do wrapper fica no pai; aqui só garante que o entry não force display
+                    entryEl.style.display = '';
+                } else {
+                    entryEl.style.display = visible ? '' : 'none';
+                }
+
+                return visible;
+            }
+
+            // Só entradas raiz (diretas dentro do container)
+            entries.querySelectorAll(':scope > .handover-entry').forEach((root) => {
+                filterEntry(root);
+            });
+        }
+
+        // Filtro por card (isolado)
+        document.querySelectorAll('.handover-user-filter').forEach((sel) => {
+            const handoverId = sel.dataset.handoverId || '';
+            const cardEl = sel.closest('.handover-note');
+            const storageKey = handoverId ? `handover_user_filter_${handoverId}` : null;
+
+            // restaura filtro salvo (se existir)
+            try {
+                if (storageKey) {
+                    const saved = sessionStorage.getItem(storageKey) || '';
+                    if (saved) sel.value = saved;
+                }
+            } catch (e) {}
+
+            applyUserFilterToCard(cardEl, sel.value || '');
+
+            sel.addEventListener('change', function () {
+                const val = this.value || '';
+                try { if (storageKey) sessionStorage.setItem(storageKey, val); } catch (e) {}
+                applyUserFilterToCard(cardEl, val);
+            });
+        });
     });
 </script>
 {% endblock %}

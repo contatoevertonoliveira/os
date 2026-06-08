@@ -5,12 +5,17 @@
         {% if entry_data and entry_data.has_pending_alert and entry_data.priority %}handover-entry-alert-{{ entry_data.priority }}{% endif %}
     "
     data-entry-id="{{ entry.id }}"
+    data-created-by-id="{{ entry.created_by_id|default:'' }}"
+    data-parent-id="{{ entry.parent_id|default:'' }}"
+    data-handover-id="{{ entry.handover_id }}"
+    data-create-url="{% url 'handover_entry_add' %}"
     data-edit-url="{% url 'handover_entry_edit' entry.id %}"
     data-notify-url="{% url 'handover_entry_notify' entry.id %}"
     data-ack-url="{% url 'handover_entry_ack' entry.id %}"
+    data-reply-count="{{ entry_data.reply_count|default:0 }}"
 >
     <div class="d-flex justify-content-between align-items-start gap-2">
-        <div class="small text-muted">
+        <div class="small text-muted flex-grow-1 handover-entry-click-zone" role="button" title="Clique para responder ou ver respostas">
             <span>{{ entry.created_at|date:"d/m H:i" }}</span>
             <span class="mx-1">|</span>
             <strong class="text-dark">
@@ -29,27 +34,37 @@
                     {% endif %}
                 {% endwith %}
             {% endif %}
+            {% if entry_data and entry_data.has_replies %}
+                <span class="badge bg-secondary-subtle text-dark ms-2">
+                    <i class="fa-solid fa-bookmark me-1"></i>{{ entry_data.reply_count }}
+                </span>
+            {% endif %}
         </div>
-        {% with role=request.user.profile.role|default:'' %}
-            {% if role == 'admin' or role == 'super_admin' or entry.created_by_id == request.user.id %}
-                <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            {% if not entry.parent_id %}
+                <button type="button" class="btn btn-sm btn-link text-primary p-0 handover-entry-notify-btn" title="Direcionar para colaborador">
+                    <i class="fa-solid fa-user-tag"></i>
+                </button>
+            {% endif %}
+            {% with role=request.user.profile.role|default:'' %}
+                {% if role == 'admin' or role == 'super_admin' or entry.created_by_id == request.user.id %}
                     <button type="button" class="btn btn-sm btn-link text-secondary p-0 handover-entry-edit-btn" title="Editar anotação">
                         <i class="fas fa-pen"></i>
                     </button>
                     <button
                         type="button"
-                        class="btn btn-sm btn-link text-danger p-0"
+                        class="btn btn-sm btn-link text-danger p-0 handover-entry-delete-btn"
+                        data-delete-url="{% url 'handover_entry_delete' entry.id %}"
                         title="Excluir anotação"
-                        onclick="confirmAjaxDelete('{% url 'handover_entry_delete' entry.id %}', 'handover-entry-{{ entry.id }}')"
                     >
                         <i class="fas fa-trash"></i>
                     </button>
-                </div>
-            {% endif %}
-        {% endwith %}
+                {% endif %}
+            {% endwith %}
+        </div>
     </div>
 
-    <div class="handover-entry-view">
+    <div class="handover-entry-view handover-entry-click-zone" role="button" title="Clique para responder ou ver respostas">
         <div class="small text-dark mt-1 handover-entry-text" style="white-space: pre-wrap;">{{ entry.text }}</div>
     </div>
 
@@ -63,8 +78,42 @@
         </div>
     </div>
 
+    <div class="handover-entry-thread d-none mt-2">
+        <div class="d-flex justify-content-end gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary handover-entry-reply-toggle-btn">
+                <i class="fa-solid fa-reply me-1"></i>Responder
+            </button>
+        </div>
+
+        <div class="handover-entry-reply-form d-none mb-2">
+            <textarea class="form-control form-control-sm handover-entry-reply-textarea" rows="2" placeholder="Responder este registro..."></textarea>
+            <div class="d-flex justify-content-end gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-light border handover-entry-reply-cancel-btn">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-primary-custom handover-entry-reply-save-btn">
+                    <i class="fa-solid fa-paper-plane me-1"></i>Responder
+                </button>
+            </div>
+        </div>
+
+        <div class="handover-entry-replies {% if not entry_data or not entry_data.has_replies %}d-none{% endif %}">
+            {% for reply_data in entry_data.replies_data %}
+                <div class="handover-reply-item ms-3 mt-2 border-start ps-2 border-secondary-subtle">
+                    {% include 'tasks/_handover_entry.html' with entry=reply_data.obj entry_data=reply_data %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
     <!-- Ações/estado ficam no rodapé do "balão" para não encostar nas badges do topo -->
-    <div class="d-flex justify-content-end mt-2 pt-2 border-top border-dark-subtle">
+    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-dark-subtle">
+        <div class="small text-muted">
+            {% if entry_data and entry_data.has_replies %}
+                <i class="fa-solid fa-comments me-1"></i>{{ entry_data.reply_count }} resposta{{ entry_data.reply_count|pluralize }}
+            {% else %}
+                <span class="handover-entry-click-zone" role="button" title="Clique para responder">Clique para responder</span>
+            {% endif %}
+        </div>
+        <div class="d-flex align-items-center gap-2">
         {% if entry_data and entry_data.has_pending_alert %}
             <button type="button" class="btn btn-sm btn-warning border-0 text-dark handover-entry-ack-btn" title="Dar baixa no lembrete">
                 <i class="fa-solid fa-check me-1"></i>Dar baixa
@@ -82,5 +131,6 @@
                 {{ entry_data.creator_ack_count }}/{{ entry_data.creator_total }} lidos
             </span>
         {% endif %}
+        </div>
     </div>
 </div>

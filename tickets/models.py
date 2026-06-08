@@ -389,6 +389,7 @@ class ShiftHandover(models.Model):
 
 class ShiftHandoverEntry(models.Model):
     handover = models.ForeignKey(ShiftHandover, on_delete=models.CASCADE, related_name='entries', verbose_name="Turno")
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies', verbose_name="Resposta para")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Criado por")
     text = models.TextField(verbose_name="Texto")
     created_at = models.DateTimeField(auto_now_add=True)

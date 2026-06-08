@@ -29,7 +29,7 @@ from .api import TicketAPIView  # Re-export for URL compatibility
 from .views_checklist_config import ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemDeleteView, ChecklistItemUpdateView
 from django.utils import timezone
 from datetime import timedelta, datetime
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Case, When, Value, IntegerField
 from django.db.models.functions import Coalesce
 from collections import defaultdict
 from django.views.decorators.http import require_http_methods
@@ -450,7 +450,29 @@ class TicketListView(LoginRequiredMixin, ListView):
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
         if period == 'all':
-             pass # No date filter
+            # Ordenação especial para "Todos":
+            # 1. vencidos
+            # 2. pendentes
+            # 3. em aberto
+            # 4. em andamento
+            # 5. finalizados
+            # 6. cancelados
+            now_dt = timezone.localtime(timezone.now())
+            queryset = queryset.annotate(
+                sort_priority=Case(
+                    When(
+                        Q(deadline__lt=now_dt) & ~Q(status__in=['finished', 'canceled']),
+                        then=Value(0),
+                    ),
+                    When(status='pending', then=Value(1)),
+                    When(status='open', then=Value(2)),
+                    When(status='in_progress', then=Value(3)),
+                    When(status='finished', then=Value(4)),
+                    When(status='canceled', then=Value(5)),
+                    default=Value(6),
+                    output_field=IntegerField(),
+                )
+            )
         elif period == 'today':
             # Filter range for the whole day to avoid timezone issues
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
@@ -476,7 +498,10 @@ class TicketListView(LoginRequiredMixin, ListView):
             if end_date:
                 queryset = queryset.filter(created_at__date__lte=end_date)
 
-        # Always order by created_at desc
+        # Em "Todos", prioriza o que precisa de atenção no topo.
+        if period == 'all':
+            return queryset.order_by('sort_priority', 'deadline', '-created_at')
+
         return queryset.order_by('-created_at')
 
     def get_context_data(self, **kwargs):
@@ -2166,6 +2191,12 @@ class TaskListView(LoginRequiredMixin, TemplateView):
             6: 'Domingo',
         }
 
+        context['handover_user_choices'] = (
+            User.objects.filter(is_active=True)
+            .select_related('profile')
+            .order_by('first_name', 'last_name', 'username')
+        )
+
         # Prefetch leve para exibir lista
         data = []
         for sh in shifts_page:
@@ -2217,69 +2248,11 @@ class TaskListView(LoginRequiredMixin, TemplateView):
                         to_attr='alerts_for_user'
                     )
                 )
-                .select_related('created_by')
+                .select_related('created_by', 'parent')
                 .all()
             )
 
-            def serialize_entry(e):
-                alerts_for_user = getattr(e, 'alerts_for_user', []) or []
-                alerts_all = getattr(e, 'alerts_all', []) or []
-
-                has_alert = bool(alerts_for_user)
-                has_pending_alert = any(a.acknowledged_at is None for a in alerts_for_user)
-                has_ack_alert = any(a.acknowledged_at is not None for a in alerts_for_user)
-                priority = None
-                if alerts_for_user:
-                    # unique_together garante 1 por usuário, mas mantemos robusto
-                    try:
-                        priority = alerts_for_user[0].priority
-                    except Exception:
-                        priority = None
-
-                # Para o criador da mensagem: mostrar confirmação quando os destinatários derem baixa
-                creator_total = 0
-                creator_ack_count = 0
-                creator_all_ack = False
-                if e.created_by_id == self.request.user.id and alerts_all:
-                    creator_total = len(alerts_all)
-                    creator_ack_count = sum(1 for a in alerts_all if a.acknowledged_at is not None)
-                    creator_all_ack = (creator_total > 0 and creator_ack_count == creator_total)
-
-                # Mostrar para quem foi direcionado (ex.: Everton --> Guilherme [Alta])
-                recipients = ''
-                priority_code = None
-                if alerts_all:
-                    try:
-                        recipients = ', '.join(
-                            [((a.target_user.get_full_name() or a.target_user.username) if getattr(a, 'target_user', None) else '') for a in alerts_all]
-                        ).strip(', ').strip()
-                    except Exception:
-                        recipients = ''
-                    # Caso existam prioridades diferentes, pega a mais alta
-                    pr_order = {'high': 3, 'medium': 2, 'low': 1}
-                    try:
-                        priority_code = sorted(
-                            [a.priority for a in alerts_all if getattr(a, 'priority', None)],
-                            key=lambda p: pr_order.get(p, 0),
-                            reverse=True
-                        )[0]
-                    except Exception:
-                        priority_code = None
-
-                priority_label = {'high': 'Alta', 'medium': 'Média', 'low': 'Baixa'}.get(priority_code) if priority_code else None
-                return {
-                    'obj': e,
-                    'has_alert': has_alert,
-                    'has_pending_alert': has_pending_alert,
-                    'has_ack_alert': has_ack_alert,
-                    'priority': priority,
-                    'creator_total': creator_total,
-                    'creator_ack_count': creator_ack_count,
-                    'creator_all_ack': creator_all_ack,
-                    'recipients': recipients,
-                    'priority_code': priority_code,
-                    'priority_label': priority_label,
-                }
+            entry_tree = build_handover_entry_tree(user_alerts)
 
             data.append({
                 'handover': handover,
@@ -2290,7 +2263,7 @@ class TaskListView(LoginRequiredMixin, TemplateView):
                 'is_current': bool(sh.get('is_current')),
                 'tickets_created': [serialize_ticket(t) for t in tickets_created],
                 'pendencias': [serialize_ticket(t) for t in pendencias],
-                'entries_data': [serialize_entry(e) for e in user_alerts],
+                'entries_data': [build_handover_entry_data(e, self.request.user) for e in entry_tree],
             })
 
         context['handover_cards'] = data
@@ -2346,7 +2319,16 @@ def build_handover_entry_data(entry, user):
         creator_ack_count = sum(1 for a in alerts_all if a.acknowledged_at is not None)
         creator_all_ack = (creator_total > 0 and creator_ack_count == creator_total)
 
+    replies = getattr(entry, 'replies_prefetched', []) or []
+    replies_data = []
+    reply_count = 0
+    for reply in replies:
+        reply_payload = build_handover_entry_data(reply, user)
+        replies_data.append(reply_payload)
+        reply_count += 1 + int(reply_payload.get('reply_count', 0) or 0)
+
     return {
+        'obj': entry,
         'has_alert': has_alert,
         'has_pending_alert': has_pending_alert,
         'has_ack_alert': has_ack_alert,
@@ -2357,25 +2339,77 @@ def build_handover_entry_data(entry, user):
         'recipients': recipients,
         'priority_code': priority_code,
         'priority_label': priority_label,
+        'replies_data': replies_data,
+        'reply_count': reply_count,
+        'has_replies': reply_count > 0,
+        'is_reply': bool(entry.parent_id),
+        'parent_id': entry.parent_id,
     }
+
+
+def build_handover_entry_tree(entries):
+    """
+    Organiza entradas/respostas em árvore:
+    - raízes mais novas primeiro
+    - respostas em ordem cronológica
+    """
+    children_map = defaultdict(list)
+    ordered = sorted(entries, key=lambda e: (e.created_at, e.id))
+    for e in ordered:
+        children_map[getattr(e, 'parent_id', None)].append(e)
+
+    def attach(node):
+        node.replies_prefetched = [attach(child) for child in children_map.get(node.id, [])]
+        return node
+
+    roots = list(children_map.get(None, []))
+    roots.sort(key=lambda e: (e.created_at, e.id), reverse=True)
+    return [attach(root) for root in roots]
+
+
+def render_handover_entry_html(entry, request):
+    entry_data = build_handover_entry_data(entry, request.user)
+    return render_to_string(
+        'tasks/_handover_entry.html',
+        {'entry': entry, 'entry_data': entry_data, 'request': request},
+        request=request
+    )
 
 
 class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         handover_id = request.POST.get('handover_id')
+        parent_id = request.POST.get('parent_id')
         text = (request.POST.get('text') or '').strip()
-        if not handover_id or not str(handover_id).isdigit():
+        if parent_id and not str(parent_id).isdigit():
+            return JsonResponse({'status': 'error', 'message': 'Registro pai inválido.'}, status=400)
+        if not handover_id and not parent_id:
             return JsonResponse({'status': 'error', 'message': 'Turno inválido.'}, status=400)
         if not text:
             return JsonResponse({'status': 'error', 'message': 'Digite uma anotação.'}, status=400)
         if len(text) > 4000:
             return JsonResponse({'status': 'error', 'message': 'Texto muito longo.'}, status=400)
 
-        handover = get_object_or_404(ShiftHandover, pk=int(handover_id))
-        entry = ShiftHandoverEntry.objects.create(handover=handover, created_by=request.user, text=text)
-        entry_data = build_handover_entry_data(entry, request.user)
-        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
-        return JsonResponse({'status': 'success', 'html': html})
+        parent = None
+        if parent_id:
+            parent = get_object_or_404(ShiftHandoverEntry.objects.select_related('handover'), pk=int(parent_id))
+            handover = parent.handover
+        else:
+            handover = get_object_or_404(ShiftHandover, pk=int(handover_id))
+
+        entry = ShiftHandoverEntry.objects.create(handover=handover, parent=parent, created_by=request.user, text=text)
+        entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
+            Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
+        ).select_related('created_by', 'parent').first() or entry
+        html = render_handover_entry_html(entry, request)
+        return JsonResponse({
+            'status': 'success',
+            'html': html,
+            'is_reply': bool(parent),
+            'parent_id': parent.id if parent else None,
+            'entry_id': entry.id,
+        })
 
 
 class ShiftHandoverEntryDeleteView(LoginRequiredMixin, View):
@@ -2385,8 +2419,9 @@ class ShiftHandoverEntryDeleteView(LoginRequiredMixin, View):
         can_delete = bool(role in ['admin', 'super_admin'] or entry.created_by_id == request.user.id)
         if not can_delete:
             return JsonResponse({'status': 'error', 'message': 'Sem permissão para excluir.'}, status=403)
+        parent_id = entry.parent_id
         entry.delete()
-        return JsonResponse({'status': 'success'})
+        return JsonResponse({'status': 'success', 'parent_id': parent_id})
 
 
 class ShiftHandoverEntryEditView(LoginRequiredMixin, View):
@@ -2409,10 +2444,9 @@ class ShiftHandoverEntryEditView(LoginRequiredMixin, View):
         entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
-        ).select_related('created_by').first() or entry
-        entry_data = build_handover_entry_data(entry, request.user)
-        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
-        return JsonResponse({'status': 'success', 'html': html})
+        ).select_related('created_by', 'parent').first() or entry
+        html = render_handover_entry_html(entry, request)
+        return JsonResponse({'status': 'success', 'html': html, 'parent_id': entry.parent_id})
 
 
 class ShiftHandoverUsersView(LoginRequiredMixin, View):
@@ -2472,8 +2506,7 @@ class ShiftHandoverEntryNotifyView(LoginRequiredMixin, View):
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
         ).select_related('created_by').first() or entry
-        entry_data = build_handover_entry_data(entry, request.user)
-        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        html = render_handover_entry_html(entry, request)
         return JsonResponse({'status': 'success', 'html': html})
 
 
@@ -2510,8 +2543,7 @@ class ShiftHandoverEntryAcknowledgeView(LoginRequiredMixin, View):
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
         ).select_related('created_by').first() or entry
-        entry_data = build_handover_entry_data(entry, request.user)
-        html = render_to_string('tasks/_handover_entry.html', {'entry': entry, 'entry_data': entry_data, 'request': request}, request=request)
+        html = render_handover_entry_html(entry, request)
         return JsonResponse({'status': 'success', 'html': html})
 
 
