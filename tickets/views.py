@@ -449,31 +449,7 @@ class TicketListView(LoginRequiredMixin, ListView):
         if ticket_type:
             queryset = queryset.filter(ticket_type_id=ticket_type)
 
-        if period == 'all':
-            # Ordenação especial para "Todos":
-            # 1. vencidos
-            # 2. pendentes
-            # 3. em aberto
-            # 4. em andamento
-            # 5. finalizados
-            # 6. cancelados
-            now_dt = timezone.localtime(timezone.now())
-            queryset = queryset.annotate(
-                sort_priority=Case(
-                    When(
-                        Q(deadline__lt=now_dt) & ~Q(status__in=['finished', 'canceled']),
-                        then=Value(0),
-                    ),
-                    When(status='pending', then=Value(1)),
-                    When(status='open', then=Value(2)),
-                    When(status='in_progress', then=Value(3)),
-                    When(status='finished', then=Value(4)),
-                    When(status='canceled', then=Value(5)),
-                    default=Value(6),
-                    output_field=IntegerField(),
-                )
-            )
-        elif period == 'today':
+        if period == 'today':
             # Filter range for the whole day to avoid timezone issues
             start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
             end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
@@ -498,11 +474,29 @@ class TicketListView(LoginRequiredMixin, ListView):
             if end_date:
                 queryset = queryset.filter(created_at__date__lte=end_date)
 
-        # Em "Todos", prioriza o que precisa de atenção no topo.
-        if period == 'all':
-            return queryset.order_by('sort_priority', 'deadline', '-created_at')
+        # Ordenação SEMPRE priorizando o que precisa de atenção no topo,
+        # independente do filtro selecionado na página:
+        # 1) vencidos, 2) pendentes, 3) em aberto, 4) em andamento, 5) finalizados, 6) cancelados
+        now_dt = timezone.localtime(timezone.now())
+        far_future = timezone.make_aware(datetime(2100, 1, 1))
+        queryset = queryset.annotate(
+            sort_priority=Case(
+                When(
+                    Q(deadline__lt=now_dt) & ~Q(status__in=['finished', 'canceled']),
+                    then=Value(0),
+                ),
+                When(status='pending', then=Value(1)),
+                When(status='open', then=Value(2)),
+                When(status='in_progress', then=Value(3)),
+                When(status='finished', then=Value(4)),
+                When(status='canceled', then=Value(5)),
+                default=Value(6),
+                output_field=IntegerField(),
+            ),
+            sort_deadline=Coalesce('deadline', Value(far_future)),
+        )
 
-        return queryset.order_by('-created_at')
+        return queryset.order_by('sort_priority', 'sort_deadline', '-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

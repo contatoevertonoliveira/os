@@ -18,12 +18,12 @@
         <div class="small text-muted flex-grow-1 handover-entry-click-zone" role="button" title="Clique para responder ou ver respostas">
             <span>{{ entry.created_at|date:"d/m H:i" }}</span>
             <span class="mx-1">|</span>
-            <strong class="text-dark">
+            <strong class="handover-entry-author">
                 {% if entry.created_by %}{{ entry.created_by.get_full_name|default:entry.created_by.username }}{% else %}Sistema{% endif %}
             </strong>
             {% if entry_data and entry_data.recipients %}
                 <span class="mx-1">--&gt;</span>
-                <span class="text-dark">{{ entry_data.recipients }}</span>
+                <span class="handover-entry-recipient">{{ entry_data.recipients }}</span>
                 {% with p=entry_data.priority_code|default:entry_data.priority %}
                     {% if p == 'high' %}
                         <span class="badge bg-danger ms-2">Alta</span>
