@@ -472,9 +472,8 @@
         color: #b45309;
         font-weight: 700;
     }
-    .handover-note-current .handover-entry-author {
-        color: #dc3545;
-    }
+    
+
     .handover-note-current .handover-entry-recipient {
         color: #fde68a;
     }
@@ -1719,6 +1718,56 @@
                 try { bootstrap.Tooltip.getOrCreateInstance(el); } catch (e) {}
             });
         }
+
+        // === Cores distintas para autores no card do dia (Passagem de Turno) ===
+        // Paleta de cores vibrantes e contrastantes para identificar cada criador
+        const AUTHOR_COLORS = [
+            '#0d6efd', // azul bootstrap
+            '#dc3545', // vermelho bootstrap
+            '#198754', // verde bootstrap
+            '#fd7e14', // laranja
+            '#6f42c1', // roxo
+            '#d63384', // rosa/pink
+            '#0dcaf0', // ciano
+            '#ffc107', // amarelo (pode ser difícil de ler em fundo claro, mas usamos bg escuro)
+            '#20c997', // teal/verde-água
+            '#e83e8c', // rosa forte
+        ];
+
+        function applyAuthorColors() {
+            const currentCards = document.querySelectorAll('.handover-note-current');
+            currentCards.forEach(function (card) {
+                const authorEls = card.querySelectorAll('.handover-entry-author');
+                const colorMap = {};
+                let colorIndex = 0;
+
+                authorEls.forEach(function (el) {
+                    // Pega o entry mais próximo para pegar o data-created-by-id
+                    const entry = el.closest('.handover-entry');
+                    if (!entry) return;
+
+                    const creatorId = entry.getAttribute('data-created-by-id') || '0';
+
+                    if (!colorMap[creatorId]) {
+                        colorMap[creatorId] = AUTHOR_COLORS[colorIndex % AUTHOR_COLORS.length];
+                        colorIndex++;
+                    }
+
+                    el.style.color = colorMap[creatorId];
+                });
+            });
+        }
+
+        applyAuthorColors();
+
+        // Reaplica as cores quando novas entries forem adicionadas via AJAX
+        const observer = new MutationObserver(function () {
+            applyAuthorColors();
+        });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
     });
 </script>
 {% endblock %}
