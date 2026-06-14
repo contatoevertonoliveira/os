@@ -139,11 +139,16 @@
                                         <div class="text-danger small">{{ hub_form.address.errors }}</div>
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small fw-bold mb-1">Contato</label>
+                                        <label class="form-label small fw-bold mb-1">Responsável</label>
                                         {% render_field hub_form.contact_name class="form-control form-control-sm" %}
                                         <div class="text-danger small">{{ hub_form.contact_name.errors }}</div>
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-1">
+                                        <label class="form-label small fw-bold mb-1">Email</label>
+                                        {% render_field hub_form.email class="form-control form-control-sm" %}
+                                        <div class="text-danger small">{{ hub_form.email.errors }}</div>
+                                    </div>
+                                    <div class="col-md-1">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
                                         {% render_field hub_form.phone class="form-control form-control-sm phone-mask" %}
                                         <div class="text-danger small">{{ hub_form.phone.errors }}</div>
@@ -194,10 +199,14 @@
                                         {% render_field hubs.empty_form.address class="form-control form-control-sm" %}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small fw-bold mb-1">Contato</label>
+                                        <label class="form-label small fw-bold mb-1">Responsável</label>
                                         {% render_field hubs.empty_form.contact_name class="form-control form-control-sm" %}
                                     </div>
-                                    <div class="col-md-2">
+                                    <div class="col-md-1">
+                                        <label class="form-label small fw-bold mb-1">Email</label>
+                                        {% render_field hubs.empty_form.email class="form-control form-control-sm" %}
+                                    </div>
+                                    <div class="col-md-1">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
                                         {% render_field hubs.empty_form.phone class="form-control form-control-sm phone-mask" %}
                                     </div>

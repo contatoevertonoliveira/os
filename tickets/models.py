@@ -174,6 +174,7 @@ class ClientHub(models.Model):
     address = models.TextField(verbose_name="Endereço", blank=True, null=True)
     contact_name = models.CharField(max_length=100, verbose_name="Contato (Responsável)", blank=True, null=True)
     phone = models.CharField(max_length=20, verbose_name="Telefone", blank=True, null=True)
+    email = models.EmailField(verbose_name="Email", blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -273,12 +274,13 @@ class ContactClient(models.Model):
 
     @property
     def display_label(self):
-        pieces = [self.name]
-        if self.email:
-            pieces.append(self.email)
-        if self.phone:
-            pieces.append(self.phone)
-        return " - ".join(pieces)
+        """Formato: Cliente | Hub -> Nome"""
+        prefix = self.client_name or ''
+        if self.hub_name:
+            prefix += f" | {self.hub_name}"
+        if prefix:
+            return f"{prefix} -> {self.name}"
+        return self.name
 
     class Meta:
         verbose_name = "Contato do Cliente"

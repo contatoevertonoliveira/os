@@ -1205,7 +1205,7 @@ def client_quick_update(request, pk):
     })
 
 def sync_contact_client_from_client(client):
-    """Sincroniza ContactPerson -> ContactClient para aparecer no solicitante da OS."""
+    """Sincroniza ContactPerson + ClientHub contacts -> ContactClient para aparecer no solicitante da OS."""
     # Remove registros antigos para evitar duplicidade
     ContactClient.objects.filter(client_ref_id=client.id).delete()
     for cp in client.contact_persons.filter(is_active=True):
@@ -1216,6 +1216,19 @@ def sync_contact_client_from_client(client):
                 email=cp.email or '',
                 phone=cp.phone or '',
                 client_name=client.name,
+                is_active=True,
+            )
+    # Sincroniza contatos dos hubs/lojas
+    for hub in client.hubs.all():
+        if hub.contact_name and hub.contact_name.strip():
+            ContactClient.objects.create(
+                client_ref_id=client.id,
+                hub_ref_id=hub.id,
+                name=hub.contact_name.strip(),
+                email=hub.email or '',
+                phone=hub.phone or '',
+                client_name=client.name,
+                hub_name=hub.name,
                 is_active=True,
             )
 

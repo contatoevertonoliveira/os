@@ -120,12 +120,13 @@ class ClientForm(forms.ModelForm):
 class ClientHubForm(forms.ModelForm):
     class Meta:
         model = ClientHub
-        fields = ['name', 'address', 'contact_name', 'phone', 'logo']
+        fields = ['name', 'address', 'contact_name', 'phone', 'email', 'logo']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome do Hub/Loja'}),
             'address': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Endereço'}),
             'contact_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Responsável'}),
             'phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'email@exemplo.com'}),
             'logo': forms.ClearableFileInput(attrs={'class': 'form-control form-control-sm'}),
         }
 
