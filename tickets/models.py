@@ -392,6 +392,7 @@ class ShiftHandoverEntry(models.Model):
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies', verbose_name="Resposta para")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Criado por")
     text = models.TextField(verbose_name="Texto")
+    ticket = models.ForeignKey('Ticket', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Ticket gerado", related_name="handover_entries")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

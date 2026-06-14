@@ -5,6 +5,8 @@
         {% if entry_data and entry_data.has_pending_alert and entry_data.priority %}handover-entry-alert-{{ entry_data.priority }}{% endif %}
     "
     data-entry-id="{{ entry.id }}"
+    data-ticket-id="{{ entry.ticket_id|default:'' }}"
+    data-ticket-formatted-id="{{ entry_data.ticket_formatted_id|default:'' }}"
     data-created-by-id="{{ entry.created_by_id|default:'' }}"
     data-parent-id="{{ entry.parent_id|default:'' }}"
     data-handover-id="{{ entry.handover_id }}"
@@ -114,6 +116,11 @@
             {% endif %}
         </div>
         <div class="d-flex align-items-center gap-2">
+        {% if entry_data.ticket_url and entry_data.ticket_formatted_id %}
+             <a href="{{ entry_data.ticket_url }}" class="badge bg-primary text-decoration-none" title="Ver OS na lista">
+                 <i class="fa-solid fa-ticket me-1"></i>{{ entry_data.ticket_formatted_id }}
+             </a>
+         {% endif %}
         {% if entry_data and entry_data.has_pending_alert %}
             <button type="button" class="btn btn-sm btn-warning border-0 text-dark handover-entry-ack-btn" title="Dar baixa no lembrete">
                 <i class="fa-solid fa-check me-1"></i>Dar baixa

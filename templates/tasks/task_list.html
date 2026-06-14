@@ -1262,6 +1262,19 @@
                     pendingDeleteEntryEl = entryEl;
                     pendingDeleteUrl = deleteUrl;
                     if (deleteContextEl) deleteContextEl.innerHTML = getEntryContextHtml(entryEl);
+                    // Mostrar aviso adicional se houver ticket vinculado
+                    const ticketFormatted = entryEl.dataset.ticketFormattedId || '';
+                    if (ticketFormatted) {
+                        const warningEl = deleteModalEl.querySelector('.handover-delete-ticket-warning') || document.createElement('div');
+                        if (!warningEl.classList.contains('handover-delete-ticket-warning')) {
+                            warningEl.className = 'alert alert-warning py-2 px-3 mb-0 mt-2 small handover-delete-ticket-warning';
+                            warningEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1"></i>A OS <strong>${ticketFormatted}</strong> vinculada a este registro também será excluída.`;
+                            deleteContextEl.parentElement.after(warningEl);
+                        }
+                    } else {
+                        const existingWarning = deleteModalEl.querySelector('.handover-delete-ticket-warning');
+                        if (existingWarning) existingWarning.remove();
+                    }
                     deleteModal.show();
                 } else {
                     // fallback (caso bootstrap modal não esteja disponível)

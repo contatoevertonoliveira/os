@@ -102,15 +102,11 @@ class ClientForm(forms.ModelForm):
         model = Client
         fields = [
             'name', 'logo', 'email', 'phone', 'phone2', 'address',
-            'contact1_name', 'contact1_phone', 'contact1_email',
-            'contact2_name', 'contact2_phone', 'contact2_email',
             'is_preferred'
         ]
         widgets = {
             'phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'phone2': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
-            'contact1_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
-            'contact2_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'address': forms.Textarea(attrs={'rows': 2}),
             'is_preferred': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
         }
@@ -136,6 +132,31 @@ class ClientHubForm(forms.ModelForm):
 ClientHubFormSet = forms.inlineformset_factory(
     Client, ClientHub, form=ClientHubForm,
     extra=1, can_delete=True
+)
+
+
+class ContactPersonForm(forms.ModelForm):
+    class Meta:
+        model = ContactPerson
+        fields = ['name', 'email', 'phone', 'is_active']
+        widgets = {
+            'phone': forms.TextInput(attrs={'class': 'form-control form-control-sm phone-mask', 'placeholder': '(00) 0000-0000'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control form-control-sm', 'placeholder': 'email@exemplo.com'}),
+            'name': forms.TextInput(attrs={'class': 'form-control form-control-sm', 'placeholder': 'Nome do contato'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['is_active'].label = 'Ativo'
+        self.fields['name'].required = True
+
+
+ContactPersonFormSet = forms.inlineformset_factory(
+    Client, ContactPerson, form=ContactPersonForm,
+    extra=1, can_delete=True,
+    min_num=0,
+    validate_min=False,
 )
 
 

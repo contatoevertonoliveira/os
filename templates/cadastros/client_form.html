@@ -103,33 +103,30 @@
                             {{ hubs.management_form }}
                             <div id="hubs-container">
                                 {% for hub_form in hubs %}
-                                <div class="hub-item row g-3 mb-2 pb-2 border-bottom align-items-center">
+                                <div class="hub-item row g-2 mb-2 pb-2 border-bottom align-items-end">
                                     {{ hub_form.id }}
-                                    <div class="col-md-2 d-flex justify-content-center">
-                                        <div class="position-relative">
-                                            <div class="hub-logo-container rounded-circle overflow-hidden border border-2 border-light shadow-sm bg-white" style="width: 60px; height: 60px; cursor: pointer; position: relative;">
+                                    <div class="col-md-1 text-center pb-1">
+                                        <div class="position-relative d-inline-block">
+                                            <div class="hub-logo-container rounded-circle overflow-hidden border border-2 border-light shadow-sm bg-white" style="width: 40px; height: 40px; cursor: pointer; position: relative;">
                                                 {% if hub_form.instance.logo %}
                                                     <img src="{{ hub_form.instance.logo.url }}" class="hub-logo-preview w-100 h-100" style="object-fit: cover;" alt="Hub Logo">
                                                     <div class="hub-logo-placeholder w-100 h-100 bg-light d-flex align-items-center justify-content-center text-secondary d-none">
-                                                        <i class="fas fa-camera"></i>
+                                                        <i class="fas fa-camera fa-xs"></i>
                                                     </div>
                                                 {% else %}
                                                     <img src="" class="hub-logo-preview w-100 h-100 d-none" style="object-fit: cover;" alt="Hub Logo">
                                                     <div class="hub-logo-placeholder w-100 h-100 bg-light d-flex align-items-center justify-content-center text-secondary">
-                                                        <i class="fas fa-camera"></i>
+                                                        <i class="fas fa-camera fa-xs"></i>
                                                     </div>
                                                 {% endif %}
-                                                
-                                                <!-- Overlay -->
                                                 <div class="hub-logo-overlay position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center" style="opacity: 0; transition: opacity 0.3s;">
-                                                    <i class="fas fa-camera text-white small"></i>
+                                                    <i class="fas fa-camera text-white fa-xs"></i>
                                                 </div>
                                             </div>
                                             <div class="d-none">
                                                 {% render_field hub_form.logo class="hub-logo-input" %}
                                             </div>
                                         </div>
-                                        <div class="text-danger small position-absolute mt-5 pt-3">{{ hub_form.logo.errors }}</div>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label small fw-bold mb-1">Nome do Hub/Loja</label>
@@ -146,19 +143,17 @@
                                         {% render_field hub_form.contact_name class="form-control form-control-sm" %}
                                         <div class="text-danger small">{{ hub_form.contact_name.errors }}</div>
                                     </div>
-                                    <div class="col-md-1">
+                                    <div class="col-md-2">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
                                         {% render_field hub_form.phone class="form-control form-control-sm phone-mask" %}
                                         <div class="text-danger small">{{ hub_form.phone.errors }}</div>
                                     </div>
-                                    <div class="col-md-1">
+                                    <div class="col-md-1 d-flex justify-content-center pb-1">
                                         {% if hubs.can_delete %}
-                                            <div class="d-none">
-                                                {{ hub_form.DELETE }}
-                                            </div>
-                                            <button type="button" class="btn btn-outline-danger btn-sm remove-hub-btn mb-1" title="Excluir Hub">
+                                            <div class="d-none">{{ hub_form.DELETE }}</div>
+                                            <span role="button" class="text-danger remove-hub-btn" title="Excluir Hub" style="cursor:pointer;font-size:1rem;">
                                                 <i class="fas fa-trash-alt"></i>
-                                            </button>
+                                            </span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -172,19 +167,17 @@
                             
                             <!-- Empty Form Template -->
                             <div id="empty-form" style="display:none;">
-                                <div class="hub-item row g-3 mb-2 pb-2 border-bottom align-items-center">
+                                <div class="hub-item row g-2 mb-2 pb-2 border-bottom align-items-end">
                                     {{ hubs.empty_form.id }}
-                                    <div class="col-md-2 d-flex justify-content-center">
-                                        <div class="position-relative">
-                                            <div class="hub-logo-container rounded-circle overflow-hidden border border-2 border-light shadow-sm bg-white" style="width: 60px; height: 60px; cursor: pointer; position: relative;">
+                                    <div class="col-md-1 text-center pb-1">
+                                        <div class="position-relative d-inline-block">
+                                            <div class="hub-logo-container rounded-circle overflow-hidden border border-2 border-light shadow-sm bg-white" style="width: 40px; height: 40px; cursor: pointer; position: relative;">
                                                 <img src="" class="hub-logo-preview w-100 h-100 d-none" style="object-fit: cover;" alt="Hub Logo">
                                                 <div class="hub-logo-placeholder w-100 h-100 bg-light d-flex align-items-center justify-content-center text-secondary">
-                                                    <i class="fas fa-camera"></i>
+                                                    <i class="fas fa-camera fa-xs"></i>
                                                 </div>
-                                                
-                                                <!-- Overlay -->
                                                 <div class="hub-logo-overlay position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center" style="opacity: 0; transition: opacity 0.3s;">
-                                                    <i class="fas fa-camera text-white small"></i>
+                                                    <i class="fas fa-camera text-white fa-xs"></i>
                                                 </div>
                                             </div>
                                             <div class="d-none">
@@ -204,18 +197,16 @@
                                         <label class="form-label small fw-bold mb-1">Contato</label>
                                         {% render_field hubs.empty_form.contact_name class="form-control form-control-sm" %}
                                     </div>
-                                    <div class="col-md-1">
+                                    <div class="col-md-2">
                                         <label class="form-label small fw-bold mb-1">Telefone</label>
                                         {% render_field hubs.empty_form.phone class="form-control form-control-sm phone-mask" %}
                                     </div>
-                                    <div class="col-md-1">
+                                    <div class="col-md-1 d-flex justify-content-center pb-1">
                                         {% if hubs.can_delete %}
-                                            <div class="d-none">
-                                                {{ hubs.empty_form.DELETE }}
-                                            </div>
-                                            <button type="button" class="btn btn-outline-danger btn-sm remove-hub-btn mb-1" title="Excluir Hub">
+                                            <div class="d-none">{{ hubs.empty_form.DELETE }}</div>
+                                            <span role="button" class="text-danger remove-hub-btn" title="Excluir Hub" style="cursor:pointer;font-size:1rem;">
                                                 <i class="fas fa-trash-alt"></i>
-                                            </button>
+                                            </span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -224,59 +215,128 @@
 
                         <!-- Seção 2: Contatos de Suporte -->
                         <div class="mb-2">
-                            <h6 class="text-secondary text-uppercase fw-bold small mb-3 border-top pt-3">
-                                <i class="fas fa-users-cog me-2"></i>Contatos de Suporte
-                            </h6>
-                            <div class="row g-4">
-                                <!-- Contato 1 -->
-                                <div class="col-md-6 border-end-md">
-                                    <div class="bg-light p-3 rounded-3 border h-100">
-                                        <div class="d-flex align-items-center mb-3">
-                                            <span class="badge bg-primary me-2">1</span>
-                                            <span class="fw-bold small text-primary">Contato Principal</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label for="{{ form.contact1_name.id_for_label }}" class="form-label small fw-bold mb-1">Nome</label>
-                                            {% render_field form.contact1_name class="form-control form-control-sm" %}
-                                            <div class="text-danger small">{{ form.contact1_name.errors }}</div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-md-6">
-                                                <label for="{{ form.contact1_phone.id_for_label }}" class="form-label small fw-bold mb-1">Telefone</label>
-                                                {% render_field form.contact1_phone class="form-control form-control-sm" %}
-                                                <div class="text-danger small">{{ form.contact1_phone.errors }}</div>
+                            <div class="d-flex justify-content-between align-items-center mb-3 border-top pt-3">
+                                <h6 class="text-secondary text-uppercase fw-bold small mb-0">
+                                    <i class="fas fa-users-cog me-2"></i>Contatos de Suporte
+                                </h6>
+                                <button type="button" id="add-contact" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-plus me-1"></i> Adicionar Contato
+                                </button>
+                            </div>
+                            {{ contacts_formset.management_form }}
+                            <div id="contacts-container" class="accordion">
+                                {% for cp_form in contacts_formset %}
+                                <div class="contact-item accordion-item border rounded-3 mb-2 overflow-hidden">
+                                    {{ cp_form.id }}
+                                    <div class="accordion-header" id="contactHeading{{ forloop.counter0 }}">
+                                        <button class="accordion-button collapsed bg-light px-3 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#contactCollapse{{ forloop.counter0 }}" aria-expanded="false">
+                                            <div class="d-flex align-items-center gap-3 w-100">
+                                                <span class="badge bg-primary rounded-circle" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                                    <i class="fa-solid fa-user text-white small"></i>
+                                                </span>
+                                                <div class="flex-grow-1">
+                                                    <strong class="contact-card-name small">{{ cp_form.instance.name|default:"Novo contato" }}</strong>
+                                                    <div class="contact-card-info text-muted" style="font-size:0.75rem;">
+                                                        {% if cp_form.instance.email %}{{ cp_form.instance.email }}{% endif %}
+                                                        {% if cp_form.instance.phone %}{% if cp_form.instance.email %} · {% endif %}{{ cp_form.instance.phone }}{% endif %}
+                                                        {% if not cp_form.instance.email and not cp_form.instance.phone %}Preencha nome, email e telefone{% endif %}
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-2" style="margin-right: 8px;">
+                                                    {% if cp_form.instance.pk %}
+                                                        <span class="badge {% if cp_form.instance.is_active %}bg-success{% else %}bg-secondary{% endif %} small" style="font-size:0.65rem;">
+                                                            {{ cp_form.instance.is_active|yesno:"Ativo,Inativo" }}
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="badge bg-info small" style="font-size:0.65rem;">Novo</span>
+                                                    {% endif %}
+                                                    {% if contacts_formset.can_delete %}
+                                                        <div class="d-none">{{ cp_form.DELETE }}</div>
+                                                        <span role="button" class="text-danger remove-contact-btn" title="Excluir contato" style="cursor:pointer;font-size:0.8rem;">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
                                             </div>
-                                            <div class="col-md-6">
-                                                <label for="{{ form.contact1_email.id_for_label }}" class="form-label small fw-bold mb-1">Email</label>
-                                                {% render_field form.contact1_email class="form-control form-control-sm" %}
-                                                <div class="text-danger small">{{ form.contact1_email.errors }}</div>
+                                        </button>
+                                    </div>
+                                    <div id="contactCollapse{{ forloop.counter0 }}" class="accordion-collapse collapse {% if forloop.last and not cp_form.instance.pk %}show{% endif %}" data-bs-parent="#contacts-container">
+                                        <div class="accordion-body px-3 py-3 bg-white">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold mb-1">Nome <span class="text-danger">*</span></label>
+                                                    {% render_field cp_form.name class="form-control form-control-sm contact-name-input" %}
+                                                    <div class="text-danger small">{{ cp_form.name.errors }}</div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold mb-1">Email</label>
+                                                    {% render_field cp_form.email class="form-control form-control-sm" %}
+                                                    <div class="text-danger small">{{ cp_form.email.errors }}</div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label small fw-bold mb-1">Telefone</label>
+                                                    {% render_field cp_form.phone class="form-control form-control-sm phone-mask" %}
+                                                    <div class="text-danger small">{{ cp_form.phone.errors }}</div>
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end pb-2">
+                                                    <div class="form-check form-switch mb-0">
+                                                        {% render_field cp_form.is_active class="form-check-input" %}
+                                                        <label class="form-check-label small" for="{{ cp_form.is_active.id_for_label }}">Ativo</label>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
+                                {% endfor %}
+                            </div>
 
-                                <!-- Contato 2 -->
-                                <div class="col-md-6">
-                                    <div class="bg-light p-3 rounded-3 border h-100">
-                                        <div class="d-flex align-items-center mb-3">
-                                            <span class="badge bg-secondary me-2">2</span>
-                                            <span class="fw-bold small text-secondary">Contato Secundário</span>
-                                        </div>
-                                        <div class="mb-2">
-                                            <label for="{{ form.contact2_name.id_for_label }}" class="form-label small fw-bold mb-1">Nome</label>
-                                            {% render_field form.contact2_name class="form-control form-control-sm" %}
-                                            <div class="text-danger small">{{ form.contact2_name.errors }}</div>
-                                        </div>
-                                        <div class="row g-2">
-                                            <div class="col-md-6">
-                                                <label for="{{ form.contact2_phone.id_for_label }}" class="form-label small fw-bold mb-1">Telefone</label>
-                                                {% render_field form.contact2_phone class="form-control form-control-sm" %}
-                                                <div class="text-danger small">{{ form.contact2_phone.errors }}</div>
+                            <!-- Empty form template -->
+                            <div id="contact-empty-form" style="display:none;">
+                                <div class="contact-item accordion-item border rounded-3 mb-2 overflow-hidden">
+                                    {{ contacts_formset.empty_form.id }}
+                                    <div class="accordion-header" id="contactHeading__prefix__">
+                                        <button class="accordion-button collapsed bg-light px-3 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#contactCollapse__prefix__" aria-expanded="false">
+                                            <div class="d-flex align-items-center gap-3 w-100">
+                                                <span class="badge bg-primary rounded-circle" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                                    <i class="fa-solid fa-user text-white small"></i>
+                                                </span>
+                                                <div class="flex-grow-1">
+                                                    <strong class="contact-card-name small">Novo contato</strong>
+                                                    <div class="contact-card-info text-muted" style="font-size:0.75rem;">Preencha nome, email e telefone</div>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-2" style="margin-right: 8px;">
+                                                    {% if contacts_formset.can_delete %}
+                                                        <div class="d-none">{{ contacts_formset.empty_form.DELETE }}</div>
+                                                        <span role="button" class="text-danger remove-contact-btn" title="Excluir contato" style="cursor:pointer;font-size:0.8rem;">
+                                                            <i class="fas fa-trash-alt"></i>
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
                                             </div>
-                                            <div class="col-md-6">
-                                                <label for="{{ form.contact2_email.id_for_label }}" class="form-label small fw-bold mb-1">Email</label>
-                                                {% render_field form.contact2_email class="form-control form-control-sm" %}
-                                                <div class="text-danger small">{{ form.contact2_email.errors }}</div>
+                                        </button>
+                                    </div>
+                                    <div id="contactCollapse__prefix__" class="accordion-collapse collapse show" data-bs-parent="#contacts-container">
+                                        <div class="accordion-body px-3 py-3 bg-white">
+                                            <div class="row g-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold mb-1">Nome <span class="text-danger">*</span></label>
+                                                    {% render_field contacts_formset.empty_form.name class="form-control form-control-sm contact-name-input" %}
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small fw-bold mb-1">Email</label>
+                                                    {% render_field contacts_formset.empty_form.email class="form-control form-control-sm" %}
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label small fw-bold mb-1">Telefone</label>
+                                                    {% render_field contacts_formset.empty_form.phone class="form-control form-control-sm phone-mask" %}
+                                                </div>
+                                                <div class="col-md-1 d-flex align-items-end pb-2">
+                                                    <div class="form-check form-switch mb-0">
+                                                        {% render_field contacts_formset.empty_form.is_active class="form-check-input" %}
+                                                        <label class="form-check-label small">Ativo</label>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -377,16 +437,16 @@
         const emptyForm = document.getElementById('empty-form').firstElementChild;
         
         // Find the TOTAL_FORMS input to determine prefix
-        const totalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+        const hubTotalFormsInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
         let prefix = 'hubs'; 
         
-        if (totalFormsInput) {
-            prefix = totalFormsInput.name.replace('-TOTAL_FORMS', '');
+        if (hubTotalFormsInput) {
+            prefix = hubTotalFormsInput.name.replace('-TOTAL_FORMS', '');
         }
         
-        if (addHubBtn && hubsContainer && emptyForm && totalFormsInput) {
+        if (addHubBtn && hubsContainer && emptyForm && hubTotalFormsInput) {
             addHubBtn.addEventListener('click', function() {
-                const formCount = parseInt(totalFormsInput.value);
+                const formCount = parseInt(hubTotalFormsInput.value);
                 
                 // Clone the empty form
                 const newForm = emptyForm.cloneNode(true);
@@ -398,7 +458,7 @@
                 hubsContainer.appendChild(newForm);
                 
                 // Update TOTAL_FORMS
-                totalFormsInput.value = formCount + 1;
+                hubTotalFormsInput.value = formCount + 1;
                 
                 // Initialize phone mask if jQuery mask plugin is available
                 if (typeof $ !== 'undefined' && $.fn.mask) {
@@ -407,7 +467,7 @@
             });
         }
         
-        // Event delegation for delete buttons
+        // Event delegation for delete buttons (hubs)
         if (hubsContainer) {
             hubsContainer.addEventListener('click', function(e) {
                 const btn = e.target.closest('.remove-hub-btn');
@@ -423,6 +483,88 @@
                 } else {
                     // Fallback if no checkbox found (should not happen based on template)
                     hubItem.remove();
+                }
+            });
+        }
+
+        // === CONTATOS (ContactPerson) ===
+        const contactTotalFormsInput = document.querySelector('#id_contact_persons-TOTAL_FORMS');
+        const contactsContainer = document.getElementById('contacts-container');
+        const contactEmptyForm = document.getElementById('contact-empty-form').firstElementChild;
+        const addContactBtn = document.getElementById('add-contact');
+
+        // Atualiza nome e info do card do contato ao digitar
+        if (contactsContainer) {
+            contactsContainer.addEventListener('input', function(e) {
+                const input = e.target;
+                const contactItem = input.closest('.contact-item');
+                if (!contactItem) return;
+                const nameLabel = contactItem.querySelector('.contact-card-name');
+                const infoLabel = contactItem.querySelector('.contact-card-info');
+                if (input.classList.contains('contact-name-input') && nameLabel) {
+                    nameLabel.textContent = input.value.trim() || 'Novo contato';
+                }
+                // Atualiza info (email/telefone) no header
+                if (infoLabel && (input.type === 'email' || input.type === 'tel' || input.classList.contains('phone-mask'))) {
+                    const emailInput = contactItem.querySelector('input[type="email"]');
+                    const phoneInput = contactItem.querySelector('.phone-mask');
+                    const email = emailInput ? emailInput.value.trim() : '';
+                    const phone = phoneInput ? phoneInput.value.trim() : '';
+                    let info = '';
+                    if (email) info = email;
+                    if (phone) { if (info) info += ' · '; info += phone; }
+                    infoLabel.textContent = info || 'Preencha nome, email e telefone';
+                }
+            });
+        }
+
+        if (addContactBtn && contactsContainer && contactEmptyForm && contactTotalFormsInput) {
+            addContactBtn.addEventListener('click', function() {
+                const formCount = parseInt(contactTotalFormsInput.value);
+                const newForm = contactEmptyForm.cloneNode(true);
+                newForm.innerHTML = newForm.innerHTML.replace(/__prefix__/g, formCount);
+                // Abre o accordion (mostrar) no novo card
+                const collapseId = 'contactCollapse' + formCount;
+                contactsContainer.appendChild(newForm);
+                contactTotalFormsInput.value = formCount + 1;
+                // Abre automaticamente
+                const collapseEl = newForm.querySelector('.accordion-collapse');
+                if (collapseEl) {
+                    collapseEl.id = collapseId;
+                    collapseEl.classList.add('show');
+                }
+                const headingBtn = newForm.querySelector('.accordion-button');
+                if (headingBtn) {
+                    headingBtn.setAttribute('data-bs-target', '#' + collapseId);
+                    headingBtn.setAttribute('aria-controls', collapseId);
+                    headingBtn.classList.add('collapsed');
+                }
+                const heading = newForm.querySelector('.accordion-header');
+                if (heading) heading.id = 'contactHeading' + formCount;
+                // Foca no nome
+                setTimeout(() => {
+                    const nameInput = newForm.querySelector('.contact-name-input');
+                    if (nameInput) nameInput.focus();
+                }, 100);
+                // Phone mask
+                if (typeof $ !== 'undefined' && $.fn.mask) {
+                    $(newForm).find('.phone-mask').mask('(00) 0000-0000');
+                }
+            });
+        }
+
+        // Exclusão de contatos
+        if (contactsContainer) {
+            contactsContainer.addEventListener('click', function(e) {
+                const btn = e.target.closest('.remove-contact-btn');
+                if (!btn) return;
+                const contactItem = btn.closest('.contact-item');
+                const deleteCheckbox = contactItem.querySelector('input[type="checkbox"][name$="-DELETE"]');
+                if (deleteCheckbox) {
+                    deleteCheckbox.checked = true;
+                    contactItem.classList.add('d-none');
+                } else {
+                    contactItem.remove();
                 }
             });
         }

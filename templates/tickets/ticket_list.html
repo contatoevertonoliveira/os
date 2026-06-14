@@ -2695,7 +2695,11 @@
                     if (accordionItem) accordionItem.remove();
                     else if (row) row.remove();
                     modal.hide();
-                    _showToast('success', `${state.label}: excluída com sucesso.`);
+                    if (data.linked_entries > 0) {
+                        _showToast('warning', `${state.label}: excluída com sucesso. ${data.linked_entries} anotação(ões) vinculada(s) na Passagem de Turno também foi(ram) removida(s).`);
+                    } else {
+                        _showToast('success', `${state.label}: excluída com sucesso.`);
+                    }
                     return;
                 }
 

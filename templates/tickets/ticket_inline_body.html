@@ -481,6 +481,55 @@
 </script>
 
 <script>
+    // Carregamento dinâmico dos contatos ao alterar cliente/hub no formulário inline
+    // Cada OS tem seu próprio form (id="ticketEditForm{{ ticket.id }}"), portanto o JS
+    // escuta eventos em qualquer .ticket-inline-form e opera dentro do mesmo form.
+    (function () {
+        const contactsUrl = "{% url 'ajax_load_os_contacts' %}";
+
+        document.addEventListener('change', function (e) {
+            const field = e.target;
+            const form = field.closest('.ticket-inline-form');
+            if (!form) return;
+
+            const isClient = field.id && field.id.startsWith('id_client');
+            const isHub = field.id && field.id.startsWith('id_hub');
+
+            if (isClient || isHub) {
+                const clientSelect = form.querySelector('[id^="id_client"]');
+                const hubSelect = form.querySelector('[id^="id_hub"]');
+                const requesterSelect = form.querySelector('[id^="id_contact_client_requester"]');
+                if (!clientSelect || !requesterSelect) return;
+
+                const clientId = clientSelect.value;
+                const hubId = hubSelect ? hubSelect.value : '';
+
+                requesterSelect.innerHTML = '<option value="">Carregando...</option>';
+                const params = new URLSearchParams();
+                if (clientId) params.append('client_id', clientId);
+                if (hubId) params.append('hub_id', hubId);
+                fetch(`${contactsUrl}?${params.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    requesterSelect.innerHTML = '<option value="">Selecione um solicitante...</option>';
+                    (data.requesters || []).forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.label;
+                        requesterSelect.appendChild(opt);
+                    });
+                })
+                .catch(() => {
+                    requesterSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                });
+            }
+        });
+    })();
+</script>
+
+<script>
     // Exclusão de evolução: não exclui imediatamente do banco.
     // Marca para excluir e só aplica ao clicar em "Salvar e recolher".
     function confirmPendingUpdateDelete(updateId) {

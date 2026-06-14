@@ -535,62 +535,20 @@ class TicketListView(LoginRequiredMixin, ListView):
         now = timezone.localtime(timezone.now())
         today = timezone.localdate()
 
-        # Detecta fim do turno com base nas configurações (diurno/noturno)
-        try:
-            settings_obj = SystemSettings.objects.first() or SystemSettings.objects.create()
-        except Exception:
-            settings_obj = None
-
-        day_end = getattr(settings_obj, 'day_shift_end', None) or datetime.strptime('20:00', '%H:%M').time()
-        night_enabled = bool(getattr(settings_obj, 'enable_night_shift', False))
-        night_start = getattr(settings_obj, 'night_shift_start', None) or datetime.strptime('20:00', '%H:%M').time()
-        night_end = getattr(settings_obj, 'night_shift_end', None) or datetime.strptime('08:00', '%H:%M').time()
-
-        def aware(dt):
-            return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
-
-        day_end_dt = aware(datetime.combine(today, day_end))
-
-        shift_end_dt = day_end_dt
-        if night_enabled:
-            t = now.time()
-            in_night = (t >= night_start) or (t < night_end)
-            if in_night:
-                end_day = today + timedelta(days=1) if t >= night_start else today
-                shift_end_dt = aware(datetime.combine(end_day, night_end))
-            else:
-                shift_end_dt = day_end_dt
-
         # Persistência por usuário (não depende de sessão, para não repetir após logout/login)
         should_show = False
         try:
             profile = getattr(self.request.user, 'profile', None)
             if profile:
-                # Se virou o dia, reseta flags
+                # Mostrar apenas UMA vez por dia: na primeira visita do dia à página.
+                # Quando a data do último toast for diferente de hoje, mostra e grava a data.
                 if profile.ticket_toast_state_date != today:
                     profile.ticket_toast_state_date = today
-                    profile.ticket_toast_morning_shown = False
-                    profile.ticket_toast_end_shown = False
-
-                # Regra: no máximo 2x/dia:
-                # - antes do fim do turno: mostrar 1x (morning_shown)
-                # - após o fim do turno: mostrar 1x (end_shown)
-                # Se o primeiro acesso do dia for já após o fim do turno, mostra só o "end" e marca ambos.
-                if now >= shift_end_dt:
-                    if not profile.ticket_toast_end_shown:
-                        should_show = True
-                        profile.ticket_toast_end_shown = True
-                        profile.ticket_toast_morning_shown = True
-                else:
-                    if not profile.ticket_toast_morning_shown:
-                        should_show = True
-                        profile.ticket_toast_morning_shown = True
+                    should_show = True
 
                 if should_show:
                     profile.save(update_fields=[
                         'ticket_toast_state_date',
-                        'ticket_toast_morning_shown',
-                        'ticket_toast_end_shown',
                     ])
         except Exception:
             # Se falhar (ex.: migração ainda não aplicada), mantém comportamento antigo: mostra.
@@ -982,9 +940,13 @@ class TicketDeleteView(LoginRequiredMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('ticket_list')
+        ticket = self.get_object()
+        context['linked_entries_count'] = ShiftHandoverEntry.objects.filter(ticket=ticket).count()
         return context
 
     def form_valid(self, form):
+        ticket = self.get_object()
+        ShiftHandoverEntry.objects.filter(ticket=ticket).delete()
         messages.success(self.request, "Ordem de Serviço excluída com sucesso!")
         return super().form_valid(form)
 
@@ -1242,6 +1204,22 @@ def client_quick_update(request, pk):
         }
     })
 
+def sync_contact_client_from_client(client):
+    """Sincroniza ContactPerson -> ContactClient para aparecer no solicitante da OS."""
+    # Remove registros antigos para evitar duplicidade
+    ContactClient.objects.filter(client_ref_id=client.id).delete()
+    for cp in client.contact_persons.filter(is_active=True):
+        if cp.name.strip():
+            ContactClient.objects.create(
+                client_ref_id=client.id,
+                name=cp.name,
+                email=cp.email or '',
+                phone=cp.phone or '',
+                client_name=client.name,
+                is_active=True,
+            )
+
+
 class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Client
     form_class = ClientForm
@@ -1255,20 +1233,27 @@ class ClientCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         context['back_url'] = reverse_lazy('client_list')
         if self.request.POST:
             context['hubs'] = ClientHubFormSet(self.request.POST, self.request.FILES)
+            context['contacts_formset'] = ContactPersonFormSet(self.request.POST)
         else:
             context['hubs'] = ClientHubFormSet()
+            context['contacts_formset'] = ContactPersonFormSet()
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         hubs = context['hubs']
-        if hubs.is_valid():
+        contacts_formset = context['contacts_formset']
+        if hubs.is_valid() and contacts_formset.is_valid():
             self.object = form.save()
             hubs.instance = self.object
             hubs.save()
+            contacts_formset.instance = self.object
+            contacts_formset.save()
+            sync_contact_client_from_client(self.object)
             return super().form_valid(form)
         else:
             return self.render_to_response(self.get_context_data(form=form))
+
 
 class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Client
@@ -1283,17 +1268,23 @@ class ClientUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         context['back_url'] = reverse_lazy('client_list')
         if self.request.POST:
             context['hubs'] = ClientHubFormSet(self.request.POST, self.request.FILES, instance=self.object)
+            context['contacts_formset'] = ContactPersonFormSet(self.request.POST, instance=self.object)
         else:
             context['hubs'] = ClientHubFormSet(instance=self.object)
+            context['contacts_formset'] = ContactPersonFormSet(instance=self.object)
         return context
 
     def form_valid(self, form):
         context = self.get_context_data()
         hubs = context['hubs']
-        if hubs.is_valid():
+        contacts_formset = context['contacts_formset']
+        if hubs.is_valid() and contacts_formset.is_valid():
             self.object = form.save()
             hubs.instance = self.object
             hubs.save()
+            contacts_formset.instance = self.object
+            contacts_formset.save()
+            sync_contact_client_from_client(self.object)
             return super().form_valid(form)
         else:
             return self.render_to_response(self.get_context_data(form=form))
@@ -2336,6 +2327,9 @@ def build_handover_entry_data(entry, user):
         'has_replies': reply_count > 0,
         'is_reply': bool(entry.parent_id),
         'parent_id': entry.parent_id,
+        'ticket_id': entry.ticket_id,
+        'ticket_formatted_id': entry.ticket.formatted_id if getattr(entry, 'ticket_id', None) and getattr(entry, 'ticket', None) else None,
+        'ticket_url': reverse('ticket_list') + f'?period=all&open={entry.ticket_id}' if entry.ticket_id else None,
     }
 
 
@@ -2369,6 +2363,7 @@ def render_handover_entry_html(entry, request):
 
 
 class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
+    @transaction.atomic
     def post(self, request, *args, **kwargs):
         handover_id = request.POST.get('handover_id')
         parent_id = request.POST.get('parent_id')
@@ -2389,11 +2384,61 @@ class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
         else:
             handover = get_object_or_404(ShiftHandover, pk=int(handover_id))
 
-        entry = ShiftHandoverEntry.objects.create(handover=handover, parent=parent, created_by=request.user, text=text)
+        # Criar ticket automaticamente para anotações raiz (não replies)
+        ticket = None
+        if not parent:
+            now = timezone.localtime(timezone.now())
+            try:
+                # Fixo: JUMPERFOUR TECNOLOGIA como cliente padrão para OS geradas da passagem de turno
+                client = Client.objects.filter(name__icontains='JUMPERFOUR').first()
+                if not client:
+                    client = Client.objects.filter(is_preferred=True).first()
+                if not client:
+                    client = Client.objects.create(name='JUMPERFOUR TECNOLOGIA', is_preferred=True)
+
+                hub = client.hubs.filter(name__icontains='Matriz').first()
+                if not hub:
+                    hub = client.hubs.create(name='Matriz')
+
+                system = System.objects.filter(name__iexact='Informe').first()
+                if not system:
+                    system = System.objects.create(name='Informe', color='#6c757d')
+
+                ticket_type = TicketType.objects.filter(name__iexact='Ticket').first()
+                if not ticket_type:
+                    ticket_type = TicketType.objects.create(name='Ticket')
+
+                problem_type = ProblemType.objects.filter(name__icontains='Nenhum').first()
+                if not problem_type:
+                    problem_type = ProblemType.objects.create(name='Nenhum Problema')
+
+                ticket = Ticket.objects.create(
+                    client=client,
+                    hub=hub,
+                    created_by=request.user,
+                    status='in_progress',
+                    description=text,
+                    start_date=now,
+                    deadline=timezone.make_aware(datetime.combine(now.date(), datetime.max.time().replace(hour=23, minute=59, second=0))),
+                    ticket_type=ticket_type,
+                    problem_type=problem_type,
+                )
+                ticket.systems.add(system)
+                ticket.technicians.add(request.user)
+            except Exception:
+                ticket = None
+
+        entry = ShiftHandoverEntry.objects.create(
+            handover=handover,
+            parent=parent,
+            created_by=request.user,
+            text=text,
+            ticket=ticket,
+        )
         entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
-        ).select_related('created_by', 'parent').first() or entry
+        ).select_related('created_by', 'parent', 'ticket').first() or entry
         html = render_handover_entry_html(entry, request)
         return JsonResponse({
             'status': 'success',
@@ -2401,19 +2446,32 @@ class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
             'is_reply': bool(parent),
             'parent_id': parent.id if parent else None,
             'entry_id': entry.id,
+            'ticket_id': ticket.id if ticket else None,
+            'ticket_formatted_id': ticket.formatted_id if ticket else None,
         })
 
 
 class ShiftHandoverEntryDeleteView(LoginRequiredMixin, View):
     def post(self, request, pk, *args, **kwargs):
-        entry = get_object_or_404(ShiftHandoverEntry, pk=pk)
+        entry = get_object_or_404(ShiftHandoverEntry.objects.select_related('ticket'), pk=pk)
         role = getattr(getattr(request.user, 'profile', None), 'role', None)
         can_delete = bool(role in ['admin', 'super_admin'] or entry.created_by_id == request.user.id)
         if not can_delete:
             return JsonResponse({'status': 'error', 'message': 'Sem permissão para excluir.'}, status=403)
         parent_id = entry.parent_id
+        ticket_id = None
+        ticket_formatted_id = None
+        if entry.ticket_id:
+            ticket_id = entry.ticket_id
+            ticket_formatted_id = entry.ticket.formatted_id
+            entry.ticket.delete()
         entry.delete()
-        return JsonResponse({'status': 'success', 'parent_id': parent_id})
+        return JsonResponse({
+            'status': 'success',
+            'parent_id': parent_id,
+            'ticket_deleted': bool(ticket_id),
+            'ticket_formatted_id': ticket_formatted_id,
+        })
 
 
 class ShiftHandoverEntryEditView(LoginRequiredMixin, View):
@@ -3067,16 +3125,18 @@ def ticket_delete_request(request, pk):
     if _is_admin_or_super(actor):
         ticket_id = ticket.id
         ticket_label = ticket.formatted_id
+        linked_entries = ShiftHandoverEntry.objects.filter(ticket=ticket).delete()[0]
         ticket.delete()
-        return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+        return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label, 'linked_entries': linked_entries})
 
     # Operador: só exclui sua própria OS
     if _is_operator(actor):
         if creator and creator.id == actor.id:
             ticket_id = ticket.id
             ticket_label = ticket.formatted_id
+            linked_entries = ShiftHandoverEntry.objects.filter(ticket=ticket).delete()[0]
             ticket.delete()
-            return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+            return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label, 'linked_entries': linked_entries})
         return JsonResponse({'status': 'error', 'message': 'Operador só pode excluir a própria OS.'}, status=403)
 
     # Se já existe solicitação pendente, não recria
@@ -3172,8 +3232,9 @@ def ticket_delete_approve(request, pk):
             notification_type='alert',
         )
 
+    linked_entries = ShiftHandoverEntry.objects.filter(ticket=ticket).delete()[0]
     ticket.delete()
-    return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label})
+    return JsonResponse({'status': 'ok', 'mode': 'deleted', 'ticket_id': ticket_id, 'ticket': ticket_label, 'linked_entries': linked_entries})
 
 
 @login_required

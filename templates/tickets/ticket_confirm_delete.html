@@ -13,7 +13,12 @@
                     Você está prestes a excluir a Ordem de Serviço <strong>{{ object.formatted_id }}</strong>.<br>
                     Esta ação não pode ser desfeita.
                 </p>
-                
+                {% if linked_entries_count > 0 %}
+                    <div class="alert alert-warning mb-4 py-2 small">
+                        <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                        Esta OS está vinculada a <strong>{{ linked_entries_count }} anotação{{ linked_entries_count|pluralize }}</strong> na Passagem de Turno, que também será{{ linked_entries_count|pluralize:"á,ão" }} excluída{{ linked_entries_count|pluralize }}.
+                    </div>
+                {% endif %}
                 <form method="post">
                     {% csrf_token %}
                     <div class="d-flex justify-content-center gap-3">
