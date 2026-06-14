@@ -486,6 +486,7 @@
     // escuta eventos em qualquer .ticket-inline-form e opera dentro do mesmo form.
     (function () {
         const contactsUrl = "{% url 'ajax_load_os_contacts' %}";
+        const hubUrl = "{% url 'ajax_load_hubs' %}";
 
         document.addEventListener('change', function (e) {
             const field = e.target;
@@ -495,35 +496,87 @@
             const isClient = field.id && field.id.startsWith('id_client');
             const isHub = field.id && field.id.startsWith('id_hub');
 
-            if (isClient || isHub) {
-                const clientSelect = form.querySelector('[id^="id_client"]');
+            if (isClient) {
+                const clientId = field.value;
                 const hubSelect = form.querySelector('[id^="id_hub"]');
                 const requesterSelect = form.querySelector('[id^="id_contact_client_requester"]');
-                if (!clientSelect || !requesterSelect) return;
 
-                const clientId = clientSelect.value;
-                const hubId = hubSelect ? hubSelect.value : '';
+                // Atualizar hubs dinamicamente
+                if (hubSelect) {
+                    hubSelect.innerHTML = '<option value="">Carregando...</option>';
+                    if (clientId) {
+                        fetch(`${hubUrl}?client_id=${encodeURIComponent(clientId)}`)
+                            .then(r => r.json())
+                            .then(data => {
+                                hubSelect.innerHTML = '<option value="">Todas as Lojas / Sem Hub Específico</option>';
+                                (data || []).forEach(hub => {
+                                    const opt = document.createElement('option');
+                                    opt.value = hub.id;
+                                    opt.textContent = hub.name;
+                                    hubSelect.appendChild(opt);
+                                });
+                            })
+                            .catch(() => {
+                                hubSelect.innerHTML = '<option value="">Erro ao carregar hubs</option>';
+                            });
+                    } else {
+                        hubSelect.innerHTML = '<option value="">Selecione um cliente primeiro</option>';
+                    }
+                }
 
-                requesterSelect.innerHTML = '<option value="">Carregando...</option>';
-                const params = new URLSearchParams();
-                if (clientId) params.append('client_id', clientId);
-                if (hubId) params.append('hub_id', hubId);
-                fetch(`${contactsUrl}?${params.toString()}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    requesterSelect.innerHTML = '<option value="">Selecione um solicitante...</option>';
-                    (data.requesters || []).forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.id;
-                        opt.textContent = c.label;
-                        requesterSelect.appendChild(opt);
+                // Atualizar contatos dinamicamente
+                if (requesterSelect) {
+                    const hubId = hubSelect ? hubSelect.value : '';
+                    requesterSelect.innerHTML = '<option value="">Carregando...</option>';
+                    const params = new URLSearchParams();
+                    if (clientId) params.append('client_id', clientId);
+                    if (hubId) params.append('hub_id', hubId);
+                    fetch(`${contactsUrl}?${params.toString()}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        requesterSelect.innerHTML = '<option value="">Selecione um solicitante...</option>';
+                        (data.requesters || []).forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            opt.textContent = c.label;
+                            requesterSelect.appendChild(opt);
+                        });
+                    })
+                    .catch(() => {
+                        requesterSelect.innerHTML = '<option value="">Erro ao carregar</option>';
                     });
-                })
-                .catch(() => {
-                    requesterSelect.innerHTML = '<option value="">Erro ao carregar</option>';
-                });
+                }
+            }
+
+            if (isHub) {
+                const clientSelect = form.querySelector('[id^="id_client"]');
+                const requesterSelect = form.querySelector('[id^="id_contact_client_requester"]');
+                if (clientSelect && requesterSelect) {
+                    const clientId = clientSelect.value;
+                    const hubId = field.value;
+                    requesterSelect.innerHTML = '<option value="">Carregando...</option>';
+                    const params = new URLSearchParams();
+                    if (clientId) params.append('client_id', clientId);
+                    if (hubId) params.append('hub_id', hubId);
+                    fetch(`${contactsUrl}?${params.toString()}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        requesterSelect.innerHTML = '<option value="">Selecione um solicitante...</option>';
+                        (data.requesters || []).forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c.id;
+                            opt.textContent = c.label;
+                            requesterSelect.appendChild(opt);
+                        });
+                    })
+                    .catch(() => {
+                        requesterSelect.innerHTML = '<option value="">Erro ao carregar</option>';
+                    });
+                }
             }
         });
     })();
