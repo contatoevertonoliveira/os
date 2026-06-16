@@ -432,6 +432,7 @@
 
     /* As classes row-* eram para <tr>. Aqui aplicamos também no header do accordion */
     .accordion-button.row-open { background-color: rgba(245, 236, 220, 0.95) !important; }      /* bege claro */
+    .accordion-button:not([class*="row-"]) { background-color: rgba(245, 236, 220, 0.95) !important; }
     .accordion-button.row-pending { background-color: rgba(180, 160, 255, 0.22) !important; }   /* roxo claro */
     .accordion-button.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
     .accordion-button.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
@@ -441,6 +442,7 @@
 
     /* Ações com a mesma cor do header */
     .ticket-acc-actions.row-open { background-color: rgba(245, 236, 220, 0.95) !important; }      /* bege claro */
+    .ticket-acc-actions:not([class*="row-"]) { background-color: rgba(245, 236, 220, 0.95) !important; }
     .ticket-acc-actions.row-pending { background-color: rgba(180, 160, 255, 0.22) !important; }   /* roxo claro */
     .ticket-acc-actions.row-finished { background-color: rgba(38, 146, 59, 0.25) !important; }
     .ticket-acc-actions.row-canceled { background-color: rgba(108, 117, 125, 0.25) !important; }
@@ -659,7 +661,7 @@
                     <div class="d-flex align-items-stretch">
                         <button
                                 id="ticketAccordionButton{{ ticket.id }}"
-                                class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                                class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-{{ ticket.status }}{% endif %}"
                                 type="button"
                                 data-bs-toggle="collapse"
                                 data-bs-target="#collapse{{ ticket.id }}"
@@ -744,27 +746,7 @@
                                     </div>
 
                                     <div class="ticket-acc-cell text-center" id="ticketStatusCell{{ ticket.id }}">
-                                        {% if ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}
-                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}
-                                            <img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'finished' %}
-                                            <img src="/media/images/solucionado.png" alt="Finalizado" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'pending' %}
-                                            <img src="/media/images/aprovacao.png" alt="Aguardando Aprovação" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'canceled' %}
-                                            <img src="/media/images/cancelado.png" alt="Cancelado" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'in_progress' %}
-                                            <img src="/media/images/emandamento.png" alt="Em Andamento" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'open' %}
-                                            <img src="/media/images/emaberto.png" alt="Em Aberto" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'delayed' %}
-                                            <img src="/media/images/vencido.png" alt="Atrasado/Vencido" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% elif ticket.status == 'aguardando' %}
-                                            <img src="/media/images/aguardando.png" alt="Aguardando" style="height: 26px; width: 100px; object-fit: contain;">
-                                        {% else %}
-                                            <span class="badge bg-light text-dark border">{{ ticket.get_status_display }}</span>
-                                        {% endif %}
+                                        {{ ticket.status_display_html|safe }}
                                     </div>
 
                                     <div class="ticket-acc-cell ticket-acc-truncate ticket-acc-hide-xl">{{ ticket.start_date|date:"d/m/Y H:i"|default:"-" }}</div>
@@ -772,7 +754,7 @@
                                 </div>
                             </button>
 
-                        <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
+                        <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-{{ ticket.status }}{% endif %}">
                                 <button
                                     type="button"
                                     class="btn btn-sm btn-outline-info"
@@ -1935,6 +1917,37 @@
             } catch (e) {}
         }
 
+        // Função auxiliar: converte HEX para rgba com alpha
+        function hexToRgba(hex, alpha) {
+            hex = (hex || '').replace('#', '');
+            if (hex.length === 3) {
+                hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            }
+            if (hex.length !== 6) return '';
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            if (isNaN(r) || isNaN(g) || isNaN(b)) return '';
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        // Mapeamento de status code -> row_color HEX (preenchido pelo Django)
+        const statusRowColors = {
+            {% for ts in status_list %}
+            "{{ ts.code }}": "{{ ts.row_color|default:'' }}",
+            {% endfor %}
+        };
+
+        function applyRowBg() {
+            document.querySelectorAll('[data-status-row-bg]').forEach(function(el) {
+                const color = el.getAttribute('data-status-row-bg');
+                const rgba = color && color.startsWith('#') ? hexToRgba(color, 0.22) : '';
+                if (rgba) {
+                    el.style.setProperty('background-color', rgba, 'important');
+                }
+            });
+        }
+
         function execScripts(container) {
             const scripts = container.querySelectorAll('script');
             scripts.forEach(script => {
@@ -1959,13 +1972,22 @@
                 const statusCell = document.getElementById(`ticketStatusCell${ticketId}`);
                 if (!btn || !actions || !statusCell || !inlineContainer) return;
 
+                // Atualiza etiqueta/imagem do status no header via AJAX
+                const statusHtmlUrl = "{% url 'ticket_status_html' 999999 %}".replace('999999', ticketId);
+                fetch(statusHtmlUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(r => r.text())
+                    .then(html => { if (statusCell) statusCell.innerHTML = html; })
+                    .catch(() => {});
+
+                // Cor da linha baseada no status + prazo
                 const statusSelect = inlineContainer.querySelector('select[name="status"]');
                 const deadlineInput = inlineContainer.querySelector('input[name="deadline"]');
                 const statusVal = statusSelect ? String(statusSelect.value || '').trim() : '';
-                const statusText = statusSelect ? (statusSelect.options[statusSelect.selectedIndex]?.textContent || '').trim() : '';
                 const deadlineVal = deadlineInput ? String(deadlineInput.value || '').trim() : '';
 
-                // calcula "delayed" (vencido) se prazo < agora e status aberto/em andamento
+                // Lê row_color do mapeamento com base no novo status
+                const rowColorVal = statusRowColors[statusVal] || '';
+
                 let isDelayed = false;
                 if (deadlineVal) {
                     const dt = new Date(deadlineVal);
@@ -1977,8 +1999,13 @@
                     }
                 }
 
+                // Remove classes antigas e inline style de bg
                 const rowClasses = ['row-open', 'row-pending', 'row-in-progress', 'row-finished', 'row-canceled', 'row-delayed', 'row-delete-requested'];
                 rowClasses.forEach(c => { btn.classList.remove(c); actions.classList.remove(c); });
+                btn.style.backgroundColor = '';
+                actions.style.backgroundColor = '';
+                btn.removeAttribute('data-status-row-bg');
+                actions.removeAttribute('data-status-row-bg');
 
                 let rowClass = 'row-open';
                 if (isDelayed) rowClass = 'row-delayed';
@@ -1991,23 +2018,15 @@
                 btn.classList.add(rowClass);
                 actions.classList.add(rowClass);
 
-                // Atualiza etiqueta/imagem do status no header
-                const imgMap = {
-                    open: { src: '/media/images/emaberto.png', alt: 'Em Aberto' },
-                    in_progress: { src: '/media/images/emandamento.png', alt: 'Em Andamento' },
-                    pending: { src: '/media/images/aprovacao.png', alt: 'Aguardando Aprovação' },
-                    finished: { src: '/media/images/solucionado.png', alt: 'Finalizado' },
-                    canceled: { src: '/media/images/cancelado.png', alt: 'Cancelado' },
-                };
-
-                if (isDelayed) {
-                    statusCell.innerHTML = `<img src="/media/images/vencido.png" alt="Vencido" style="height: 26px; width: 100px; object-fit: contain;">`;
-                } else if (imgMap[statusVal]) {
-                    const info = imgMap[statusVal];
-                    statusCell.innerHTML = `<img src="${info.src}" alt="${info.alt}" style="height: 26px; width: 100px; object-fit: contain;">`;
-                } else {
-                    const label = statusText || statusVal || 'Status';
-                    statusCell.innerHTML = `<span class="badge bg-light text-dark border">${label}</span>`;
+                // Se tiver row_color personalizada, aplica o inline style
+                if (rowColorVal && rowColorVal.startsWith('#')) {
+                    const rgba = hexToRgba(rowColorVal, 0.22);
+                    if (rgba) {
+                        btn.style.setProperty('background-color', rgba, 'important');
+                        actions.style.setProperty('background-color', rgba, 'important');
+                        btn.setAttribute('data-status-row-bg', rowColorVal);
+                        actions.setAttribute('data-status-row-bg', rowColorVal);
+                    }
                 }
             } catch (e) {}
         }
@@ -2041,6 +2060,7 @@
                     container.innerHTML = html;
                     execScripts(container);
                     initTooltips(container);
+                    applyRowBg();
 
                     // Depois de renderizar, garante que a OS continue enquadrada (o conteúdo pode aumentar a altura)
                     setTimeout(() => scrollToTicket(ticketId), 50);
@@ -2073,6 +2093,7 @@
         // Bind inicial
         accordionEl.querySelectorAll('.accordion-collapse').forEach(bindCollapseEvents);
         window.bindTicketCollapseEvents = bindCollapseEvents;
+        applyRowBg();
 
         // Submit inline (AJAX) - substitui o conteúdo do card com o HTML retornado
         accordionEl.addEventListener('submit', async function (e) {
@@ -2101,6 +2122,7 @@
                 container.innerHTML = html;
                 execScripts(container);
                 initTooltips(container);
+                applyRowBg();
                 updateTicketHeaderFromInline(ticketId, container);
 
                 // Se clicou em "Salvar e recolher" (somente no form principal)
@@ -2148,6 +2170,7 @@
                 container.innerHTML = html;
                 execScripts(container);
                 initTooltips(container);
+                applyRowBg();
             } catch (err) {
                 alert('Erro ao salvar a evolução.');
             }
@@ -2181,6 +2204,7 @@
             }
 
             initTooltips(accordionEl);
+            applyRowBg();
             setTimeout(() => scrollToTicket(ticketId), 100);
         }
 

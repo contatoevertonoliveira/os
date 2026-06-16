@@ -1,7 +1,7 @@
 {% load widget_tweaks %}
 
 <div class="p-3">
-    <form class="ticket-inline-form" id="ticketEditForm{{ ticket.id }}" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data">
+    <form class="ticket-inline-form" id="ticketEditForm{{ ticket.id }}" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data" {% if ticket.status_row_bg %}data-status-row-bg="{{ ticket.status_row_bg }}"{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="pending_delete_updates" id="pendingDeleteUpdates{{ ticket.id }}" value="">
 

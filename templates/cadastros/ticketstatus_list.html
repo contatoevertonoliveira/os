@@ -17,7 +17,8 @@
                     <tr>
                         <th>Código</th>
                         <th>Nome</th>
-                        <th>Cor</th>
+                        <th>Visual</th>
+                        <th>Fundo Card</th>
                         <th>Ordem</th>
                         <th>Ativo</th>
                         <th>Ações</th>
@@ -27,10 +28,24 @@
                     {% for status in status_list %}
                     <tr>
                         <td><code>{{ status.code }}</code></td>
+                        <td>{{ status.name }}</td>
                         <td>
-                            <span class="badge bg-{{ status.color }}">{{ status.name }}</span>
+                            {% if status.image %}
+                                <img src="{{ status.image.url }}" alt="{{ status.name }}"
+                                     style="width: {{ status.image_width|default:100 }}px; height: {{ status.image_height|default:26 }}px; object-fit:contain;"
+                                     class="border rounded p-1 bg-light">
+                            {% else %}
+                                <span class="badge" style="background-color:{{ status.color|default:'#6c757d' }};color:{{ status.font_color|default:'' }};">{{ status.name }}</span>
+                            {% endif %}
                         </td>
-                        <td><code>{{ status.color }}</code></td>
+                        <td>
+                            {% if status.row_color %}
+                                <span class="border rounded d-inline-block" style="width:24px;height:24px;background-color:{{ status.row_color }};" title="{{ status.row_color }}"></span>
+                                <code class="ms-1 small">{{ status.row_color }}</code>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
                         <td>{{ status.order }}</td>
                         <td>
                             {% if status.is_active %}
@@ -50,7 +65,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-4">Nenhum status cadastrado.</td>
+                        <td colspan="7" class="text-center py-4">Nenhum status cadastrado.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

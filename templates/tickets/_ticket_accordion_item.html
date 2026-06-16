@@ -4,6 +4,7 @@
             <button
                     id="ticketAccordionButton{{ ticket.id }}"
                     class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                    {% if ticket.status_row_bg %}data-status-row-bg="{{ ticket.status_row_bg }}"{% endif %}
                     type="button"
                     data-bs-toggle="collapse"
                     data-bs-target="#collapse{{ ticket.id }}"
@@ -116,7 +117,8 @@
                     </div>
                 </button>
 
-            <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}">
+            <div id="ticketActions{{ ticket.id }}" class="ticket-acc-actions {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"
+                 {% if ticket.status_row_bg %}data-status-row-bg="{{ ticket.status_row_bg }}"{% endif %}>
                     <button
                         type="button"
                         class="btn btn-sm btn-outline-info"

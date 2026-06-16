@@ -455,8 +455,18 @@ class ClientSyncState(models.Model):
 class TicketStatus(models.Model):
     code = models.SlugField(max_length=50, unique=True, verbose_name="Código")
     name = models.CharField(max_length=100, verbose_name="Nome do Status")
-    color = models.CharField(max_length=20, verbose_name="Cor (Bootstrap)", default="secondary",
-                             help_text="Ex: primary, warning, success, danger, info")
+    color = models.CharField(max_length=20, verbose_name="Cor de Fundo (Hex)", default="#6c757d",
+                             help_text="Código HEX da cor de fundo da badge (ex: #28a745).")
+    font_color = models.CharField(max_length=20, blank=True, default="",
+                                   verbose_name="Cor da Fonte (Hex)",
+                                   help_text="Código HEX da cor do texto da badge (ex: #ffffff). Deixe em branco para contraste automático.")
+    image = models.ImageField(upload_to='ticket_status_icons/', verbose_name="Imagem do Status", blank=True, null=True,
+                               help_text="Imagem personalizada (se não definir, usa a badge com a cor escolhida)")
+    image_width = models.PositiveIntegerField(default=100, verbose_name="Largura da Imagem (px)")
+    image_height = models.PositiveIntegerField(default=26, verbose_name="Altura da Imagem (px)")
+    row_color = models.CharField(max_length=20, blank=True, default="",
+                                  verbose_name="Cor de Fundo (Hex)",
+                                  help_text="Código HEX da cor de fundo do card na lista (ex: #28a745). Deixe em branco para usar o padrão.")
     order = models.PositiveIntegerField(default=0, verbose_name="Ordem")
     is_active = models.BooleanField(default=True, verbose_name="Ativo")
 
@@ -541,7 +551,7 @@ class Ticket(models.Model):
     deadline = models.DateTimeField(null=True, blank=True, verbose_name="Data Limite para Execução")
     estimated_time = models.DurationField(null=True, blank=True, verbose_name="Tempo Estimado")
     
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open', verbose_name="Status")
+    status = models.CharField(max_length=50, default='open', verbose_name="Status")
 
     # Fluxo de exclusão com aprovação
     delete_status = models.CharField(
@@ -681,14 +691,83 @@ class Ticket(models.Model):
 
     @property
     def status_color(self):
+        """Retorna HEX do status, ou fallback para nomes Bootstrap antigos."""
+        try:
+            ts = TicketStatus.objects.filter(code=self.status).first()
+            if ts and ts.color:
+                return ts.color
+        except Exception:
+            pass
         colors = {
-            'open': 'primary',
-            'in_progress': 'warning',
-            'pending': 'info',
-            'finished': 'success',
-            'canceled': 'danger'
+            'open': '#0d6efd',
+            'in_progress': '#ffc107',
+            'pending': '#0dcaf0',
+            'finished': '#198754',
+            'canceled': '#dc3545',
+            'delayed': '#dc3545',
         }
-        return colors.get(self.status, 'secondary')
+        return colors.get(self.status, '#6c757d')
+
+    def get_status_display(self):
+        """Sobrescreve o método padrão para buscar o nome do status no TicketStatus."""
+        try:
+            ts = TicketStatus.objects.filter(code=self.status).first()
+            if ts:
+                return ts.name
+        except Exception:
+            pass
+        return dict(self.STATUS_CHOICES).get(self.status, self.status)
+
+    def _badge_style(self, bg_hex, text, font_hex=None, width=None, height=None):
+        """Gera HTML de badge com cor HEX via inline style."""
+        if not bg_hex or not bg_hex.startswith('#'):
+            return f'<span class="badge bg-secondary">{text}</span>'
+        # Se font_hex for informado e for HEX, usa-o; senão calcula contraste automático
+        if font_hex and font_hex.startswith('#') and len(font_hex) >= 4:
+            text_color = font_hex
+        else:
+            h = bg_hex.lstrip('#')
+            if len(h) == 3:
+                h = h[0]*2 + h[1]*2 + h[2]*2
+            try:
+                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                luminance = (0.299*r + 0.587*g + 0.114*b) / 255
+                text_color = '#000000' if luminance > 0.5 else '#ffffff'
+            except (ValueError, IndexError):
+                text_color = '#ffffff'
+        style = f'background-color:{bg_hex};color:{text_color};'
+        if width:
+            style += f'min-width:{width}px;'
+        if height:
+            fs = max(10, round(height * 0.46))
+            style += f'font-size:{fs}px;padding-top:{max(2, round(height*0.12))}px;padding-bottom:{max(2, round(height*0.12))}px;'
+        return f'<span class="badge" style="{style}">{text}</span>'
+
+    @property
+    def status_display_html(self):
+        """Retorna HTML para exibir o status (imagem se houver, ou badge colorida)."""
+        try:
+            ts = TicketStatus.objects.filter(code=self.status, is_active=True).first()
+            if not ts:
+                return self._badge_style(self.status_color, self.get_status_display())
+            if ts.image and ts.image.name:
+                w = ts.image_width or 100
+                h = ts.image_height or 26
+                return f'<img src="{ts.image.url}" alt="{ts.name}" style="height:{h}px;width:{w}px;object-fit:contain;">'
+            return self._badge_style(ts.color, ts.name, ts.font_color, ts.image_width, ts.image_height)
+        except Exception:
+            return f'<span class="badge bg-light text-dark border">{self.get_status_display()}</span>'
+
+    @property
+    def status_row_bg(self):
+        """Retorna a cor de fundo em rgba para o card na lista, ou None."""
+        try:
+            ts = TicketStatus.objects.filter(code=self.status, is_active=True).first()
+            if ts and ts.row_color:
+                return ts.row_color
+        except Exception:
+            pass
+        return None
 
     def __str__(self):
         return f"{self.formatted_id} - {self.client.name}"

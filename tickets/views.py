@@ -95,10 +95,18 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         # Charts Data - Status
         status_counts = []
         status_labels = []
-        for status_code, status_label in Ticket.STATUS_CHOICES:
-            count = tickets_qs.filter(status=status_code).count()
-            status_counts.append(count)
-            status_labels.append(status_label)
+        from .models import TicketStatus
+        all_statuses = list(TicketStatus.objects.filter(is_active=True).order_by('order', 'name'))
+        if not all_statuses:
+            for status_code, status_label in Ticket.STATUS_CHOICES:
+                count = tickets_qs.filter(status=status_code).count()
+                status_counts.append(count)
+                status_labels.append(status_label)
+        else:
+            for ts in all_statuses:
+                count = tickets_qs.filter(status=ts.code).count()
+                status_counts.append(count)
+                status_labels.append(ts.name)
         
         context['chart_status_labels'] = status_labels
         context['chart_status_data'] = status_counts
@@ -502,7 +510,10 @@ class TicketListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         # Context for filters
         context['ticket_types'] = TicketType.objects.all().order_by('name')
-        context['status_choices'] = Ticket.STATUS_CHOICES
+        context['status_list'] = TicketStatus.objects.filter(is_active=True).order_by('order', 'name')
+        context['status_choices'] = list(context['status_list'].values_list('code', 'name'))
+        if not context['status_choices']:
+            context['status_choices'] = Ticket.STATUS_CHOICES
         
         # Determine if any filter is active
         is_filtered = any([
@@ -1848,7 +1859,7 @@ class TicketStatusListView(LoginRequiredMixin, ListView):
 
 class TicketStatusCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = TicketStatus
-    fields = ['code', 'name', 'color', 'order', 'is_active']
+    form_class = TicketStatusForm
     template_name = 'cadastros/ticketstatus_form.html'
     success_url = reverse_lazy('ticketstatus_list')
     success_message = "Status de OS criado com sucesso!"
@@ -1859,9 +1870,10 @@ class TicketStatusCreateView(LoginRequiredMixin, SuccessMessageMixin, CreateView
         context['back_url'] = reverse_lazy('ticketstatus_list')
         return context
 
+
 class TicketStatusUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = TicketStatus
-    fields = ['code', 'name', 'color', 'order', 'is_active']
+    form_class = TicketStatusForm
     template_name = 'cadastros/ticketstatus_form.html'
     success_url = reverse_lazy('ticketstatus_list')
     success_message = "Status de OS atualizado com sucesso!"
@@ -3071,6 +3083,15 @@ def load_os_contacts(request):
     responsibles = [{"id": c.id, "label": c.display_label} for c in responsibles_qs]
 
     return JsonResponse({"requesters": requesters, "responsibles": responsibles})
+
+
+@login_required
+def ticket_status_html(request, pk):
+    """Retorna o HTML do status de uma OS (para atualização AJAX)."""
+    from django.http import HttpResponse
+    from .models import Ticket
+    ticket = get_object_or_404(Ticket, pk=pk)
+    return HttpResponse(ticket.status_display_html)
 
 
 def _role_code(user):

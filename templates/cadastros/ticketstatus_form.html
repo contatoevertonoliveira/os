@@ -11,45 +11,165 @@
 </div>
 
 <div class="row justify-content-center">
-    <div class="col-md-6">
+    <div class="col-md-7">
         <div class="card card-custom">
             <div class="card-body">
-                <form method="post" novalidate>
+                <form method="post" enctype="multipart/form-data" novalidate>
                     {% csrf_token %}
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Código</label>
-                        {% render_field form.code class="form-control" placeholder="Ex: finished, in_progress" %}
-                        <small class="text-muted">Identificador único (apenas letras, números, hífen e underscore).</small>
-                        <div class="text-danger small">{{ form.code.errors }}</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Nome do Status</label>
-                        {% render_field form.name class="form-control" placeholder="Ex: Finalizado, Em Andamento" %}
-                        <div class="text-danger small">{{ form.name.errors }}</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">Cor (Bootstrap)</label>
-                        {% render_field form.color class="form-control" placeholder="Ex: success, warning, danger, info, primary" %}
-                        <small class="text-muted">Use as cores do Bootstrap: primary, secondary, success, danger, warning, info, dark.</small>
-                        <div class="text-danger small">{{ form.color.errors }}</div>
-                    </div>
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3">
                         <div class="col-md-6">
+                            <label class="form-label small fw-bold">Código</label>
+                            {% render_field form.code class="form-control" placeholder="Ex: finished, in_progress" %}
+                            <small class="text-muted">Identificador único (apenas letras, números, hífen e underscore).</small>
+                            <div class="text-danger small">{{ form.code.errors }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Nome do Status</label>
+                            {% render_field form.name class="form-control" placeholder="Ex: Finalizado, Em Andamento" %}
+                            <div class="text-danger small">{{ form.name.errors }}</div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Cor de Fundo da Badge (Hex)</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% with default_color=form.color.value|default:'#6c757d' %}
+                                        <input type="color" class="form-control form-control-color" id="colorPicker"
+                                               value="{{ default_color }}"
+                                               title="Cor de fundo" style="max-width: 60px;">
+                                        {% render_field form.color class="form-control" id="colorInput" placeholder="#6c757d" style="max-width: 120px;" %}
+                                        {% endwith %}
+                                    </div>
+                                    <div class="text-danger small">{{ form.color.errors }}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Cor da Fonte (Hex)</label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% with default_font=form.font_color.value|default:'#ffffff' %}
+                                        <input type="color" class="form-control form-control-color" id="fontColorPicker"
+                                               value="{{ default_font }}"
+                                               title="Cor da fonte" style="max-width: 60px;">
+                                        {% render_field form.font_color class="form-control" id="fontColorInput" placeholder="#ffffff" style="max-width: 120px;" %}
+                                        {% endwith %}
+                                    </div>
+                                    <div class="text-danger small">{{ form.font_color.errors }}</div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="small text-muted">Pré-visualização:</span>
+                                        <span id="colorBadgePreview"
+                                              class="badge border border-dark mb-0"
+                                              style="background-color:{{ form.color.value|default:'#6c757d' }};color:{{ form.font_color.value|default:'#ffffff' }};min-width:80px;font-weight:normal;">
+                                            Badge
+                                        </span>
+                                        <small class="text-muted" style="font-size: 0.7rem;">Deixe "Cor da Fonte" em branco para contraste automático.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold">Ordem</label>
                             {% render_field form.order class="form-control" type="number" %}
                             <div class="text-danger small">{{ form.order.errors }}</div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Ativo</label>
-                            <div class="form-check form-switch mt-2">
+                        <div class="col-md-4 d-flex align-items-end pb-3">
+                            <div class="form-check form-switch">
                                 {% render_field form.is_active class="form-check-input" role="switch" %}
+                                <label class="form-check-label small fw-bold">{{ form.is_active.label }}</label>
                             </div>
                             <div class="text-danger small">{{ form.is_active.errors }}</div>
                         </div>
                     </div>
-                    <div class="d-flex justify-content-end gap-2">
-                        <a href="{{ back_url }}" class="btn btn-light border btn-sm">Cancelar</a>
-                        <button type="submit" class="btn btn-primary-custom btn-sm fw-bold">
+
+                    <hr class="my-3">
+                    <h6 class="text-secondary text-uppercase fw-bold small mb-3">
+                        <i class="fa-solid fa-image me-1"></i>Imagem do Status
+                    </h6>
+
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold">Imagem Personalizada</label>
+                            {% render_field form.image class="form-control form-control-sm" %}
+                            <small class="text-muted">Formatos: PNG, JPG. Se não definir, exibe a badge com a cor escolhida.</small>
+                            <div class="text-danger small">{{ form.image.errors }}</div>
+
+                            {% if form.instance.pk and form.instance.image %}
+                            <div class="mt-2">
+                                <label class="small fw-bold text-muted">Imagem atual:</label>
+                                <div class="mt-1">
+                                    <img src="{{ form.instance.image.url }}" alt="{{ form.instance.name }}"
+                                         style="max-width:100px; max-height:26px; object-fit:contain;"
+                                         class="border rounded p-1 bg-light">
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Largura (px)</label>
+                            {% render_field form.image_width class="form-control" type="number" %}
+                            <small class="text-muted">Padrão: 100</small>
+                            <div class="text-danger small">{{ form.image_width.errors }}</div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Altura (px)</label>
+                            {% render_field form.image_height class="form-control" type="number" %}
+                            <small class="text-muted">Padrão: 26</small>
+                            <div class="text-danger small">{{ form.image_height.errors }}</div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+                    <h6 class="text-secondary text-uppercase fw-bold small mb-3">
+                        <i class="fa-solid fa-palette me-1"></i>Cor de fundo do card na lista
+                    </h6>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Cor de Fundo (Hex)</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- Color Picker Helper (not sent in form) -->
+                            {% with default_bg=form.row_color.value|default:'#6c757d' %}
+                            <input type="color" class="form-control form-control-color" id="rowColorPicker"
+                                   value="{{ default_bg }}"
+                                   title="Escolha a cor" style="max-width: 60px;">
+
+                            <!-- Real Form Field -->
+                            {% render_field form.row_color class="form-control" id="rowColorInput" placeholder="#6c757d" style="max-width: 120px;" %}
+
+                            <!-- Preview Badge -->
+                            <div class="d-flex flex-column align-items-center ms-2">
+                                <span class="badge border border-dark text-dark mb-1" id="rowColorPreview"
+                                      style="background-color: {{ default_bg }}40; min-width: 80px; font-weight: normal;">
+                                    Card
+                                </span>
+                                <small class="text-muted" style="font-size: 0.7rem;">Pré-visualização</small>
+                            </div>
+                            {% endwith %}
+                        </div>
+                        <div class="text-danger small">{{ form.row_color.errors }}</div>
+                        <small class="text-muted">Selecione no seletor ou digite o código HEX. Deixe vazio para usar a cor automática do sistema.</small>
+                    </div>
+
+                    <!-- Preview único combinado -->
+                    <div class="mt-4 p-3 rounded border" id="combinedPreview" style="background-color: transparent;">
+                        <label class="small fw-bold mb-2"><i class="fas fa-eye me-1"></i>Pré-visualização</label>
+                        <div class="d-flex align-items-center gap-3 p-3 rounded border" id="previewCard">
+                            <div id="statusPreviewBadge">
+                                {% if form.instance.pk and form.instance.image %}
+                                    <img src="{{ form.instance.image.url }}" alt="Preview"
+                                         style="width:{{ form.instance.image_width|default:100 }}px;height:{{ form.instance.image_height|default:26 }}px;object-fit:contain;"
+                                         class="border rounded p-1 bg-white">
+                                    <span class="text-muted small mx-1">ou</span>
+                                    <span id="initialBadge" class="badge" style="background-color:{{ form.instance.color|default:'#6c757d' }};color:#fff;">{{ form.instance.name }}</span>
+                                {% else %}
+                                    <span id="initialBadge" class="badge" style="background-color:#6c757d;color:#fff;">Preview do Status</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="small text-muted mt-1">O card na lista de OS aparecerá com esta aparência.</div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                        <a href="{{ back_url }}" class="btn btn-light border btn-sm px-4">Cancelar</a>
+                        <button type="submit" class="btn btn-primary-custom btn-sm fw-bold px-5">
                             <i class="fas fa-save me-1"></i> Salvar
                         </button>
                     </div>
@@ -58,4 +178,176 @@
         </div>
     </div>
 </div>
+
+<style>
+    .form-control-sm, .form-select-sm { font-size: 0.875rem; }
+</style>
+
+<script>
+    // Função auxiliar: converte HEX para rgba com alpha
+    function hexToRgba(hex, alpha) {
+        hex = (hex || '').replace('#', '');
+        if (hex.length === 3) {
+            hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+        }
+        if (hex.length !== 6) return '';
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return '';
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const nameInput = document.querySelector('[name="name"]');
+        const colorPicker = document.getElementById('colorPicker');
+        const colorInput = document.getElementById('colorInput');
+        const fontColorPicker = document.getElementById('fontColorPicker');
+        const fontColorInput = document.getElementById('fontColorInput');
+        const colorBadgePreview = document.getElementById('colorBadgePreview');
+        const imageInput = document.querySelector('[name="image"]');
+        const imageWidthInput = document.querySelector('[name="image_width"]');
+        const imageHeightInput = document.querySelector('[name="image_height"]');
+        const rowColorPicker = document.getElementById('rowColorPicker');
+        const rowColorInput = document.getElementById('rowColorInput');
+        const rowColorPreview = document.getElementById('rowColorPreview');
+        const previewCard = document.getElementById('previewCard');
+        const previewBadge = document.getElementById('statusPreviewBadge');
+
+        // ---- Atualiza preview da badge (bg + font) ----
+        function updateBadgePreview() {
+            const bg = colorInput ? colorInput.value.trim() || '#6c757d' : '#6c757d';
+            const font = fontColorInput ? fontColorInput.value.trim() : '';
+            if (colorBadgePreview) {
+                colorBadgePreview.style.backgroundColor = bg;
+                colorBadgePreview.style.color = font || (isLight(bg) ? '#000000' : '#ffffff');
+            }
+        }
+
+        function isLight(hex) {
+            hex = (hex || '').replace('#', '');
+            if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+            if (hex.length !== 6) return false;
+            const r = parseInt(hex.substring(0,2),16);
+            const g = parseInt(hex.substring(2,4),16);
+            const b = parseInt(hex.substring(4,6),16);
+            return (0.299*r + 0.587*g + 0.114*b) / 255 > 0.5;
+        }
+
+        // ---- Color picker da Badge (fundo) ----
+        if (colorPicker && colorInput) {
+            colorPicker.addEventListener('input', function () {
+                colorInput.value = this.value;
+                updateBadgePreview();
+                renderBadgePreview();
+            });
+            colorInput.addEventListener('input', function () {
+                const val = this.value.trim();
+                if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
+                    colorPicker.value = val;
+                    updateBadgePreview();
+                    renderBadgePreview();
+                }
+            });
+        }
+
+        // ---- Color picker da Fonte ----
+        if (fontColorPicker && fontColorInput) {
+            fontColorPicker.addEventListener('input', function () {
+                fontColorInput.value = this.value;
+                updateBadgePreview();
+                renderBadgePreview();
+            });
+            fontColorInput.addEventListener('input', function () {
+                const val = this.value.trim();
+                if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
+                    fontColorPicker.value = val;
+                    updateBadgePreview();
+                    renderBadgePreview();
+                } else if (!val) {
+                    // Se limpou o campo, recalcula com contraste automático
+                    updateBadgePreview();
+                    renderBadgePreview();
+                }
+            });
+        }
+
+        // ---- Color picker da Cor de Fundo ----
+        function updateRowPreview(colorHex) {
+            if (!colorHex || colorHex.length < 4) {
+                rowColorPreview.style.backgroundColor = 'transparent';
+                previewCard.style.backgroundColor = 'transparent';
+                return;
+            }
+            const rgba = hexToRgba(colorHex, 0.22);
+            if (rgba) {
+                rowColorPreview.style.backgroundColor = rgba;
+                previewCard.style.backgroundColor = rgba;
+            }
+        }
+
+        if (rowColorPicker && rowColorInput) {
+            rowColorPicker.addEventListener('input', function () {
+                rowColorInput.value = this.value;
+                updateRowPreview(this.value);
+            });
+            rowColorInput.addEventListener('input', function () {
+                const val = this.value.trim();
+                if (val.startsWith('#') && (val.length === 4 || val.length === 7)) {
+                    rowColorPicker.value = val;
+                    updateRowPreview(val);
+                } else if (!val) {
+                    rowColorPreview.style.backgroundColor = 'transparent';
+                    previewCard.style.backgroundColor = 'transparent';
+                }
+            });
+            updateRowPreview(rowColorInput.value);
+        }
+
+        // ---- Preview da badge/etiqueta no card combinado ----
+        function renderBadgePreview() {
+            const name = nameInput ? nameInput.value.trim() || 'Preview do Status' : 'Preview do Status';
+            const bg = colorInput ? colorInput.value.trim() || '#6c757d' : '#6c757d';
+            const font = fontColorInput ? fontColorInput.value.trim() : '';
+            const finalFont = font || (isLight(bg) ? '#000000' : '#ffffff');
+            const imgFile = imageInput && imageInput.files && imageInput.files[0];
+            const width = (imageWidthInput ? parseInt(imageWidthInput.value) : 100) || 100;
+            const height = (imageHeightInput ? parseInt(imageHeightInput.value) : 26) || 26;
+
+            previewBadge.innerHTML = '';
+
+            if (imgFile) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(imgFile);
+                img.alt = 'Preview';
+                img.style.width = width + 'px';
+                img.style.height = height + 'px';
+                img.style.objectFit = 'contain';
+                img.className = 'border rounded p-1 bg-white';
+                previewBadge.appendChild(img);
+                const orSpan = document.createElement('span');
+                orSpan.className = 'text-muted small mx-1';
+                orSpan.textContent = 'ou';
+                previewBadge.appendChild(orSpan);
+            }
+
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.style.backgroundColor = bg;
+            badge.style.color = finalFont;
+            badge.textContent = name;
+            previewBadge.appendChild(badge);
+        }
+
+        if (nameInput) nameInput.addEventListener('input', renderBadgePreview);
+        if (colorInput) colorInput.addEventListener('input', renderBadgePreview);
+        if (fontColorInput) fontColorInput.addEventListener('input', renderBadgePreview);
+        if (imageInput) imageInput.addEventListener('change', renderBadgePreview);
+        if (imageWidthInput) imageWidthInput.addEventListener('input', renderBadgePreview);
+        if (imageHeightInput) imageHeightInput.addEventListener('input', renderBadgePreview);
+
+        updateBadgePreview();
+        renderBadgePreview();
+    });
+</script>
 {% endblock %}

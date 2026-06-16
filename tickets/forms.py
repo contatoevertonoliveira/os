@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
 
 
 class ContactClientForm(forms.ModelForm):
@@ -159,6 +159,24 @@ ContactPersonFormSet = forms.inlineformset_factory(
     min_num=0,
     validate_min=False,
 )
+
+
+class TicketStatusForm(forms.ModelForm):
+    class Meta:
+        model = TicketStatus
+        fields = ['code', 'name', 'color', 'font_color', 'image', 'image_width', 'image_height', 'row_color', 'order', 'is_active']
+        widgets = {
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: finished, in_progress'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Finalizado'}),
+            'color': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '#28a745'}),
+            'font_color': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '#ffffff'}),
+            'image': forms.ClearableFileInput(attrs={'class': 'form-control form-control-sm'}),
+            'image_width': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'image_height': forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
+            'row_color': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '#6c757d'}),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
+        }
 
 
 class TechnicianForm(forms.ModelForm):
@@ -354,6 +372,12 @@ class TicketForm(forms.ModelForm):
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_equipment_selection'})
     )
 
+    status = forms.ChoiceField(
+        choices=[],
+        label="Status",
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
     ticket_type = forms.ModelChoiceField(
         queryset=TicketType.objects.all().order_by('name'),
         required=False,
@@ -385,6 +409,10 @@ class TicketForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Status dinâmico a partir do TicketStatus
+        from .models import TicketStatus
+        status_qs = TicketStatus.objects.filter(is_active=True).order_by('order', 'name')
+        self.fields['status'].choices = [('', 'Selecione o status')] + [(s.code, s.name) for s in status_qs]
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()

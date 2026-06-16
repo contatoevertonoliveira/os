@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth.views import LogoutView
 from .views import (
     DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketMiniPreviewView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
+    ticket_status_html,
     TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView, TicketPDFStatusView, TicketsDailyReportPDFStatusView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView, client_quick_update,
     EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
@@ -104,6 +105,7 @@ urlpatterns = [
     path('tickets/<int:pk>/modal/', TicketModalView.as_view(), name='ticket_modal'),
     path('tickets/<int:pk>/inline/', TicketInlineView.as_view(), name='ticket_inline'),
     path('tickets/create/modal/', TicketCreateModalView.as_view(), name='ticket_create_modal'),
+    path('tickets/<int:pk>/status-html/', ticket_status_html, name='ticket_status_html'),
     path('tickets/<int:pk>/accordion-item/', TicketAccordionItemView.as_view(), name='ticket_accordion_item'),
     path('tickets/<int:pk>/edit/', TicketUpdateView.as_view(), name='ticket_update'),
     path('tickets/<int:pk>/delete/', TicketDeleteView.as_view(), name='ticket_delete'),
