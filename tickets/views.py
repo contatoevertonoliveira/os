@@ -514,6 +514,15 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['status_choices'] = list(context['status_list'].values_list('code', 'name'))
         if not context['status_choices']:
             context['status_choices'] = Ticket.STATUS_CHOICES
+
+        # Mapa de badge HTML por status (para atualização AJAX inline)
+        from django.utils.safestring import mark_safe
+        badge_map = {}
+        for ts in context['status_list']:
+            dummy_ticket = Ticket(status=ts.code)
+            badge_map[ts.code] = dummy_ticket.status_display_html
+        entries = ',\n'.join(f'  "{k}": {json.dumps(v)}' for k, v in badge_map.items())
+        context['status_badge_html_map'] = mark_safe(f'{{\n{entries}\n}}')
         
         # Determine if any filter is active
         is_filtered = any([

@@ -769,6 +769,28 @@ class Ticket(models.Model):
             pass
         return None
 
+    @property
+    def status_row_bg_rgba(self):
+        """
+        Retorna o valor rgba() pronto para usar inline no HTML,
+        ex: 'rgba(218, 246, 4, 0.22)' ou None.
+        """
+        hex_color = self.status_row_bg
+        if not hex_color or not hex_color.startswith('#'):
+            return None
+        h = hex_color.lstrip('#')
+        if len(h) == 3:
+            h = h[0]*2 + h[1]*2 + h[2]*2
+        if len(h) != 6:
+            return None
+        try:
+            r = int(h[0:2], 16)
+            g = int(h[2:4], 16)
+            b = int(h[4:6], 16)
+            return f'rgba({r},{g},{b},0.6)'
+        except (ValueError, IndexError):
+            return None
+
     def __str__(self):
         return f"{self.formatted_id} - {self.client.name}"
     

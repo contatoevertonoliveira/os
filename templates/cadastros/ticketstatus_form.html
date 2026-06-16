@@ -137,7 +137,7 @@
                             <!-- Preview Badge -->
                             <div class="d-flex flex-column align-items-center ms-2">
                                 <span class="badge border border-dark text-dark mb-1" id="rowColorPreview"
-                                      style="background-color: {{ default_bg }}40; min-width: 80px; font-weight: normal;">
+                                      style="background-color: {{ default_bg }}; min-width: 80px; font-weight: normal;">
                                     Card
                                 </span>
                                 <small class="text-muted" style="font-size: 0.7rem;">Pré-visualização</small>
@@ -279,7 +279,7 @@
                 previewCard.style.backgroundColor = 'transparent';
                 return;
             }
-            const rgba = hexToRgba(colorHex, 0.22);
+            const rgba = hexToRgba(colorHex, 0.6);
             if (rgba) {
                 rowColorPreview.style.backgroundColor = rgba;
                 previewCard.style.backgroundColor = rgba;
