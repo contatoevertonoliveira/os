@@ -111,124 +111,26 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['chart_status_labels'] = status_labels
         context['chart_status_data'] = status_counts
         
-        # Charts Data - Produtividade Recente (Criadores de OS)
-        # Janela fixa: últimos 15 dias (inclui hoje) + próximos 15 dias = 30 dias no gráfico.
-        # Assim o gráfico fica sempre preenchido visualmente, mesmo no início do mês.
-        prod_start = (now - timedelta(days=14)).replace(hour=0, minute=0, second=0, microsecond=0)
-        prod_end = (now + timedelta(days=15)).replace(hour=23, minute=59, second=59, microsecond=999999)
-        prod_data_end = now  # não existe produção no futuro
-
-        prod_tickets_qs = Ticket.objects.filter(created_at__range=(prod_start, prod_data_end))
-
-        # Observação: algumas OS podem estar sem created_by (legado), usando requester.
-        creator_ids = (
-            prod_tickets_qs.annotate(_creator_id=Coalesce('created_by_id', 'requester_id'))
-            .exclude(_creator_id__isnull=True)
-            .values_list('_creator_id', flat=True)
-            .distinct()
+        # Charts Data - Produtividade Recente (OS por Cliente no mês)
+        # Agrupa tickets do período por cliente
+        from django.db.models import Count
+        client_counts = (
+            tickets_qs
+            .values('client__name')
+            .annotate(total=Count('id'))
+            .order_by('-total')[:20]  # Top 20 clientes
         )
-        creators = User.objects.filter(is_active=True, id__in=creator_ids).select_related('profile')
-        tech_chart_datasets = []
-        
-        # Labels do gráfico (30 dias: 15 para trás + 15 para frente)
-        date_labels = []
-        date_labels_objs = []
-        current_d = prod_start
-        while current_d <= prod_end:
-            date_labels.append(current_d.strftime('%d/%m'))
-            date_labels_objs.append(current_d)
-            current_d += timedelta(days=1)
-            
-        context['chart_tech_labels'] = date_labels
-        
-        # Define a list of colors to cycle through
-        colors = [
-            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', 
-            '#858796', '#5a5c69', '#6610f2', '#fd7e14', '#20c997'
-        ]
-        
-        for idx, user in enumerate(creators):
-            user_tickets = (
-                prod_tickets_qs.filter(
-                    Q(created_by=user) | (Q(created_by__isnull=True) & Q(requester=user))
-                )
-                .exclude(status='canceled')
-            )
 
-            data_points = []
-            has_activity_in_period = False
-            for label_date in date_labels_objs:
-                # Futuro: mantém 0 (para completar 30 dias no gráfico)
-                if label_date.date() > now.date():
-                    data_points.append(0)
-                    continue
+        # Separa em labels e dados
+        client_labels = []
+        client_data = []
+        for item in client_counts:
+            name = item['client__name'] or 'Sem Cliente'
+            client_labels.append(name)
+            client_data.append(item['total'])
 
-                d_start = label_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                d_end = label_date.replace(hour=23, minute=59, second=59, microsecond=999999)
-                count_day = user_tickets.filter(created_at__range=(d_start, d_end)).count()
-                data_points.append(count_day)
-                if count_day > 0:
-                    has_activity_in_period = True
-
-            if not has_activity_in_period:
-                continue
-
-            total_in_period = sum(data_points)
-            last_day_count = data_points[-1] if data_points else 0
-
-            photo_url = None
-            job_title = ""
-            email = user.email
-            personal_phone = ""
-            company_phone = ""
-            department = ""
-            station = ""
-            supervisor_name = ""
-
-            profile = getattr(user, 'profile', None)
-            if profile:
-                if getattr(profile, 'photo', None):
-                    try:
-                        photo_url = profile.photo.url
-                    except Exception:
-                        photo_url = None
-                job_title = (getattr(profile, 'job_title', '') or '').strip()
-                station = (getattr(profile, 'station', '') or '').strip()
-                personal_phone = (getattr(profile, 'personal_phone', '') or '').strip()
-                company_phone = (getattr(profile, 'company_phone', '') or '').strip()
-                department = (getattr(profile, 'department', '') or '').strip()
-                try:
-                    if profile.supervisor and profile.supervisor.user:
-                        supervisor_name = f"{profile.supervisor.user.get_full_name()}"
-                except Exception:
-                    supervisor_name = ""
-
-            hierarchy_parts = []
-            if department: hierarchy_parts.append(department)
-            if job_title: hierarchy_parts.append(job_title)
-            if station: hierarchy_parts.append(station)
-            hierarchy_str = " / ".join(hierarchy_parts)
-
-            tech_chart_datasets.append({
-                'label': f"{user.get_full_name() or user.username} ({user.username}) - Produção: {total_in_period}",
-                'data': data_points,
-                'photo': photo_url,
-                'borderColor': colors[idx % len(colors)],
-                'open_tickets': total_in_period,
-                'status_color': colors[idx % len(colors)],
-                'pointBorderColors': [],  # mantido por compatibilidade do template/JS
-                # Extra info para tooltip/modal
-                'full_name': user.get_full_name() or user.username,
-                'job_title': job_title,
-                'email': email,
-                'hierarchy': hierarchy_str,
-                'phones': [p for p in [personal_phone, company_phone] if p],
-                'profile_id': user.id,
-                'supervisor': supervisor_name,
-                'last_day': last_day_count,
-            })
-        
-        context['chart_tech_datasets'] = tech_chart_datasets
+        context['chart_client_labels'] = client_labels
+        context['chart_client_data'] = client_data
         
         # Charts Data - Systems
         systems = System.objects.all()

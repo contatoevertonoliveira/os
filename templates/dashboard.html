@@ -213,7 +213,7 @@
     <div class="col-md-4">
         <div class="card chart-card">
             <div class="card-header chart-header">
-                <span><i class="fas fa-chart-line me-2 text-success"></i>Produtividade Recente</span>
+                <span><i class="fas fa-chart-bar me-2 text-primary"></i>OS por Cliente (Mês)</span>
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
             <div class="card-body chart-body">
@@ -440,6 +440,50 @@
                 ctx.shadowOffsetX = 5;
                 ctx.shadowOffsetY = 5;
             }
+        }, {
+            id: 'doughnutLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                const meta = chart.getDatasetMeta(0);
+                if (!meta.data || meta.data.length === 0) return;
+                const centerX = meta.data[0].x;
+                const centerY = meta.data[0].y;
+
+                // Total no centro
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 24px Inter, system-ui, sans-serif';
+                ctx.fillText(total, centerX, centerY - 6);
+                ctx.fillStyle = '#888';
+                ctx.font = '11px Inter, system-ui, sans-serif';
+                ctx.fillText('Total', centerX, centerY + 14);
+                ctx.restore();
+
+                // Valor em cada segmento
+                meta.data.forEach(function(arc, index) {
+                    const data = chart.data.datasets[0].data[index];
+                    if (data === 0) return;
+                    const angle = arc.startAngle + (arc.endAngle - arc.startAngle) / 2;
+                    // Meio exato do segmento (entre innerRadius e outerRadius)
+                    const innerR = arc.innerRadius || arc.outerRadius * 0.35;
+                    const outerR = arc.outerRadius;
+                    const radius = innerR + (outerR - innerR) / 2;
+                    const x = arc.x + Math.cos(angle) * radius;
+                    const y = arc.y + Math.sin(angle) * radius;
+                    ctx.save();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    ctx.shadowBlur = 3;
+                    ctx.fillText(data, x, y);
+                    ctx.restore();
+                });
+            }
         }]
     });
 
@@ -491,310 +535,109 @@
                 ctx.shadowOffsetX = 3;
                 ctx.shadowOffsetY = 3;
             }
+        }, {
+            id: 'polarLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta.data) return;
+                meta.data.forEach(function(arc, index) {
+                    const data = chart.data.datasets[0].data[index];
+                    if (data === 0) return;
+                    const angle = arc.startAngle + (arc.endAngle - arc.startAngle) / 2;
+                    const radius = arc.outerRadius * 0.55;
+                    const x = arc.x + Math.cos(angle) * radius;
+                    const y = arc.y + Math.sin(angle) * radius;
+                    ctx.save();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                    ctx.shadowBlur = 3;
+                    ctx.fillText(data, x, y);
+                    ctx.restore();
+                });
+            }
         }]
     });
 
-    // Produtividade Recente (Line with Photos)
-    const ctxTech = document.getElementById('techChart').getContext('2d');
-    
-    const techDatasets = [];
-    const techDetailsMap = {}; // Map to store details for click event
-    
-    {% for dataset in chart_tech_datasets %}
-        // Detalhes do usuário (para tooltip/modal) - armazenamos por índice do dataset
-        techDetailsMap[{{ forloop.counter0 }}] = {
-            photo: '{{ dataset.photo|default:"" }}',
-            fullName: '{{ dataset.full_name }}',
-            jobTitle: '{{ dataset.job_title|default:"" }}',
-            hierarchy: '{{ dataset.hierarchy|default:"" }}',
-            email: '{{ dataset.email }}',
-            phones: {{ dataset.phones|safe }},
-            supervisor: '{{ dataset.supervisor }}',
-            profileUrl: "{% url 'user_update' dataset.profile_id %}",
-            openTickets: {{ dataset.open_tickets }}
-        };
+    // Produtividade Recente (Barras por Cliente)
+    const ctxClient = document.getElementById('techChart').getContext('2d');
 
-        var img_{{ forloop.counter }} = new Image(40, 40);
-        img_{{ forloop.counter }}.crossOrigin = 'anonymous';
-        // Pre-load logic for circular image
-        const originalSrc_{{ forloop.counter }} = '{{ dataset.photo|default:"" }}';
-        
-        if (originalSrc_{{ forloop.counter }} && originalSrc_{{ forloop.counter }} !== 'None') {
-            const tempImg = new Image();
-            tempImg.crossOrigin = 'anonymous';
-            tempImg.src = originalSrc_{{ forloop.counter }};
-            tempImg.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const size = 60; // Higher resolution for retina
-                canvas.width = size;
-                canvas.height = size;
-                
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2, true);
-                ctx.closePath();
-                ctx.clip();
-                
-                ctx.drawImage(tempImg, 0, 0, size, size);
-                ctx.restore();
-                
-                // Update the image object used by chart
-                img_{{ forloop.counter }}.src = canvas.toDataURL();
-                techChart.update(); // Trigger update
-            };
-        }
-        
-        // Construct arrays for point styling
-        // We only want the photo at the LAST point (current status)
-        // Previous points should be simple small circles
-        var dataLength_{{ forloop.counter }} = {{ dataset.data|length }};
-        var pointStyles_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('circle');
-        var pointRadii_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(3); // Small dots for history
-        
-        var pointBorderColors_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill('{{ dataset.borderColor }}');
+    const clientColors = [
+        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+        '#858796', '#6610f2', '#fd7e14', '#20c997', '#e83e8c',
+    ];
 
-        var pointBorderWidths_{{ forloop.counter }} = new Array(dataLength_{{ forloop.counter }}).fill(1);
-        
-        // Configure the LAST point (Current Status)
-        if (dataLength_{{ forloop.counter }} > 0) {
-            var lastIdx = dataLength_{{ forloop.counter }} - 1;
-            
-            // Set image if available, otherwise keep circle but larger
-            if ('{{ dataset.photo }}' !== 'None' && '{{ dataset.photo }}' !== '') {
-                pointStyles_{{ forloop.counter }}[lastIdx] = img_{{ forloop.counter }};
-            } else {
-                pointStyles_{{ forloop.counter }}[lastIdx] = 'circle';
-            }
-            
-            pointRadii_{{ forloop.counter }}[lastIdx] = 20; // Larger for the photo/status
-            pointBorderColors_{{ forloop.counter }}[lastIdx] = '{{ dataset.status_color }}'; // Status Color (Red/Yellow/Green)
-            pointBorderWidths_{{ forloop.counter }}[lastIdx] = 4; // Thick border to act as "shadow"
-        }
-
-        techDatasets.push({
-            label: '{{ dataset.label }}',
-            data: {{ dataset.data|safe }},
-            borderColor: '{{ dataset.borderColor }}',
-            backgroundColor: '{{ dataset.borderColor }}',
-            borderWidth: 3,
-            // Evita cortar a foto quando o último ponto fica na borda do gráfico
-            clip: false,
-            
-            // Point Styling Arrays
-            pointStyle: pointStyles_{{ forloop.counter }},
-            pointRadius: pointRadii_{{ forloop.counter }},
-            pointHoverRadius: pointRadii_{{ forloop.counter }}.map(r => r + 5),
-            pointBorderColor: pointBorderColors_{{ forloop.counter }},
-            pointBorderWidth: pointBorderWidths_{{ forloop.counter }},
-            pointBackgroundColor: '#fff', // White background behind photo/circle
-            
-            fill: false,
-            tension: 0.2
-        });
-    {% endfor %}
-
-    const techChart = new Chart(ctxTech, {
-        type: 'line',
+    const clientChart = new Chart(ctxClient, {
+        type: 'bar',
         data: {
-            labels: {{ chart_tech_labels|safe }},
-            datasets: techDatasets
+            labels: {{ chart_client_labels|safe }},
+            datasets: [{
+                label: 'OS no mês',
+                data: {{ chart_client_data|safe }},
+                backgroundColor: clientColors,
+                borderColor: clientColors.map(c => c),
+                borderWidth: 1,
+                borderRadius: 4,
+                maxBarThickness: 50,
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            indexAxis: 'y',
             layout: {
-                // Dá espaço para a bolinha/foto e evita ficar encostado nas bordas
-                padding: { top: 10, right: 40, bottom: 28, left: 10 }
-            },
-            onClick: (e) => {
-                const points = techChart.getElementsAtEventForMode(e, 'nearest', { intersect: true }, true);
-                if (points.length) {
-                    const firstPoint = points[0];
-                    const datasetIndex = firstPoint.datasetIndex;
-                    const index = firstPoint.index;
-                    
-                    // Check if it's the last point (the one with photo)
-                    const dataLength = techChart.data.datasets[datasetIndex].data.length;
-                    if (index === dataLength - 1) {
-                        const details = techDetailsMap[datasetIndex];
-                        showTechModal(details);
-                    }
-                }
-            },
-            onHover: (e, elements) => {
-                 e.native.target.style.cursor = elements[0] ? 'pointer' : 'default';
+                padding: { top: 10, right: 10, bottom: 10, left: 10 }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0, 0, 0, 0.05)', borderDash: [5, 5] },
-                    ticks: { stepSize: 1, padding: 5, font: { size: 10 } },
-                    title: {
-                        display: true,
-                        text: 'OS criadas (Produção)'
-                    }
-                },
                 x: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, font: { size: 11 } },
+                    grid: { color: 'rgba(0, 0, 0, 0.05)', borderDash: [5, 5] },
+                    title: { display: true, text: 'Quantidade de OS', font: { size: 11 } }
+                },
+                y: {
                     grid: { display: false },
-                    ticks: { padding: 5, font: { size: 10 } }
+                    ticks: { font: { size: 10 } }
                 }
             },
             plugins: {
-                legend: { 
-                    position: 'bottom',
-                    labels: { usePointStyle: true, boxWidth: 10, padding: 20 }
-                },
+                legend: { display: false },
                 tooltip: {
-                    enabled: false,
-                    external: function(context) {
-                        // Custom tooltip com foto + nome + cargo + produção
-                        const tooltipModel = context.tooltip;
-                        let tooltipEl = document.getElementById('techChartExternalTooltip');
-
-                        if (!tooltipEl) {
-                            tooltipEl = document.createElement('div');
-                            tooltipEl.id = 'techChartExternalTooltip';
-                            tooltipEl.style.position = 'absolute';
-                            tooltipEl.style.pointerEvents = 'none';
-                            tooltipEl.style.zIndex = '2000';
-                            tooltipEl.innerHTML = `
-                                <div style="
-                                    background: rgba(255,255,255,0.98);
-                                    border: 1px solid rgba(0,0,0,0.12);
-                                    box-shadow: 0 0.75rem 1.5rem rgba(0,0,0,0.15);
-                                    border-radius: 12px;
-                                    padding: 10px 12px;
-                                    min-width: 220px;
-                                ">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <img id="techChartTooltipImg" src="" alt="" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,0,0,0.15);background:#fff;">
-                                        <div style="line-height: 1.1;">
-                                            <div id="techChartTooltipName" style="font-weight:700;"></div>
-                                            <div id="techChartTooltipRole" style="font-size:0.82rem;opacity:0.85;"></div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-2" style="font-size:0.85rem;">
-                                        <div><strong>Produção:</strong> <span id="techChartTooltipValue"></span></div>
-                                        <div style="opacity:0.75;"><span id="techChartTooltipDate"></span></div>
-                                    </div>
-                                </div>
-                            `;
-                            document.body.appendChild(tooltipEl);
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.parsed.x + ' OS';
                         }
-
-                        if (tooltipModel.opacity === 0) {
-                            tooltipEl.style.opacity = 0;
-                            return;
-                        }
-
-                        const dp = tooltipModel.dataPoints && tooltipModel.dataPoints[0] ? tooltipModel.dataPoints[0] : null;
-                        if (!dp) return;
-
-                        const details = techDetailsMap[dp.datasetIndex] || {};
-                        const imgSrc = (details.photo && details.photo !== 'None') ? details.photo : '/static/images/user.png';
-                        const name = details.fullName || dp.dataset.label || '';
-                        const cargo = details.jobTitle ? `Cargo: ${details.jobTitle}` : 'Cargo: -';
-
-                        tooltipEl.querySelector('#techChartTooltipImg').src = imgSrc;
-                        tooltipEl.querySelector('#techChartTooltipName').textContent = name;
-                        tooltipEl.querySelector('#techChartTooltipRole').textContent = cargo;
-                        tooltipEl.querySelector('#techChartTooltipValue').textContent = `${dp.parsed.y} OS`;
-                        tooltipEl.querySelector('#techChartTooltipDate').textContent = `Dia: ${dp.label}`;
-
-                        const canvasRect = context.chart.canvas.getBoundingClientRect();
-                        tooltipEl.style.opacity = 1;
-
-                        // Posicionamento com "anti-corte" (clamp no viewport)
-                        let left = canvasRect.left + window.pageXOffset + tooltipModel.caretX + 12;
-                        let top = canvasRect.top + window.pageYOffset + tooltipModel.caretY - 12;
-                        tooltipEl.style.left = left + 'px';
-                        tooltipEl.style.top = top + 'px';
-
-                        const rect = tooltipEl.getBoundingClientRect();
-                        const margin = 10;
-
-                        // Se estourar à direita, joga para a esquerda do ponto
-                        if (rect.right > window.innerWidth - margin) {
-                            left = left - rect.width - 24;
-                        }
-                        // Se estourar embaixo, sobe
-                        if (rect.bottom > window.innerHeight - margin) {
-                            top = top - rect.height - 24;
-                        }
-                        // Clamp final para não sair da tela
-                        left = Math.max(margin, Math.min(left, window.pageXOffset + window.innerWidth - rect.width - margin));
-                        top = Math.max(margin, Math.min(top, window.pageYOffset + window.innerHeight - rect.height - margin));
-                        tooltipEl.style.left = left + 'px';
-                        tooltipEl.style.top = top + 'px';
                     }
                 }
             }
         },
         plugins: [{
-            id: 'statusShadowPlugin',
-            beforeDatasetDraw: (chart, args, options) => {
+            id: 'barLabels',
+            afterDraw: function(chart) {
                 const ctx = chart.ctx;
-                const meta = chart.getDatasetMeta(args.index);
-                const dataset = chart.data.datasets[args.index];
-                
-                // Only draw shadow for the last point
-                if (meta.data.length > 0) {
-                    const lastPoint = meta.data[meta.data.length - 1];
-                    const statusColor = dataset.pointBorderColor[dataset.pointBorderColor.length - 1];
-                    
-                    ctx.save();
-                    ctx.shadowColor = statusColor;
-                    ctx.shadowBlur = 15;
-                    ctx.shadowOffsetX = 0;
-                    ctx.shadowOffsetY = 0;
-                    
-                    // Draw a circle to cast the shadow (since image might not cast it how we want)
-                    ctx.beginPath();
-                    ctx.arc(lastPoint.x, lastPoint.y, 18, 0, 2 * Math.PI);
-                    ctx.fillStyle = statusColor;
-                    ctx.fill();
-                    
-                    ctx.restore();
-                }
+                chart.data.datasets.forEach(function(dataset, i) {
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach(function(bar, index) {
+                        const data = dataset.data[index];
+                        if (data === 0) return;
+                        const centerX = (bar.x + bar.base) / 2;
+                        ctx.save();
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                        ctx.shadowBlur = 3;
+                        ctx.fillText(data, centerX, bar.y);
+                        ctx.restore();
+                    });
+                });
             }
         }]
     });
-    
-    // Function to show Tech Modal
-    function showTechModal(details) {
-        const modalEl = document.getElementById('techDetailsModal');
-        const modal = new bootstrap.Modal(modalEl);
-        
-        // Populate modal
-        document.getElementById('techModalPhoto').src = details.photo || 'https://via.placeholder.com/150';
-        document.getElementById('techModalName').textContent = details.fullName;
-        document.getElementById('techModalHierarchy').textContent = details.hierarchy;
-        document.getElementById('techModalEmail').textContent = details.email || 'Não informado';
-        
-        const phonesContainer = document.getElementById('techModalPhones');
-        phonesContainer.innerHTML = '';
-        if (details.phones && details.phones.length > 0) {
-            details.phones.forEach(phone => {
-                phonesContainer.innerHTML += `<div><i class="fas fa-phone-alt me-2 text-muted"></i>${phone}</div>`;
-            });
-        } else {
-             phonesContainer.innerHTML = '<span class="text-muted">Sem telefone</span>';
-        }
-        
-        if (details.supervisor && details.supervisor !== 'None') {
-             document.getElementById('techModalSupervisor').textContent = 'Supervisor: ' + details.supervisor;
-             document.getElementById('techModalSupervisor').parentElement.style.display = 'block';
-        } else {
-             document.getElementById('techModalSupervisor').parentElement.style.display = 'none';
-        }
-        
-        // Buttons
-        document.getElementById('btnTechProfile').href = details.profileUrl;
-        // document.getElementById('btnTechMessage').href = `mailto:${details.email}`; // Simple mailto for now
-        
-        modal.show();
-    }
 
     // System Health Chart (Stacked Bar)
     const ctxSysHealth = document.getElementById('systemHealthChart').getContext('2d');
@@ -852,18 +695,64 @@
                     borderColor: '#ddd',
                     borderWidth: 1
                 }
-            },
-            plugins: [{
-                id: 'shadowPlugin',
-                beforeDraw: (chart) => {
-                    const ctx = chart.ctx;
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
-                    ctx.shadowBlur = 5;
-                    ctx.shadowOffsetX = 2;
-                    ctx.shadowOffsetY = 2;
+            }
+        },
+        plugins: [{
+            id: 'shadowPlugin',
+            beforeDraw: (chart) => {
+                const ctx = chart.ctx;
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+            }
+        }, {
+            id: 'stackedBarLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta.data || meta.data.length === 0) return;
+                const dsCount = chart.data.datasets.length;
+                for (let i = 0; i < meta.data.length; i++) {
+                    let cumSum = 0;
+                    let prevBottom = null;
+                    for (let ds = 0; ds < dsCount; ds++) {
+                        const dsMeta = chart.getDatasetMeta(ds);
+                        const bar = dsMeta.data[i];
+                        if (!bar) continue;
+                        const val = chart.data.datasets[ds].data[i];
+                        if (val === 0) continue;
+                        cumSum += val;
+                        const topY = bar.y;
+                        const bottomY = (prevBottom !== null) ? prevBottom : bar.base;
+                        const centerY = (topY + bottomY) / 2;
+                        prevBottom = topY;
+                        ctx.save();
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+                        ctx.shadowBlur = 3;
+                        ctx.fillText(val, bar.x, centerY);
+                        ctx.restore();
+                    }
+                    // Total label at top of stack
+                    if (dsCount > 0 && cumSum > 0) {
+                        const lastBar = chart.getDatasetMeta(dsCount - 1).data[i];
+                        if (lastBar) {
+                            ctx.save();
+                            ctx.fillStyle = '#222';
+                            ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillText('Total: ' + cumSum, lastBar.x, lastBar.y - 6);
+                            ctx.restore();
+                        }
+                    }
                 }
-            }]
-        }
+            }
+        }]
     });
 
     // Auto Refresh Logic
@@ -917,7 +806,7 @@
         let originalChart;
         if (originalChartId === 'statusChart') originalChart = statusChart;
         else if (originalChartId === 'systemChart') originalChart = systemChart;
-        else if (originalChartId === 'techChart') originalChart = techChart;
+        else if (originalChartId === 'techChart') originalChart = clientChart;
         else if (originalChartId === 'systemHealthChart') originalChart = sysHealthChart;
         
         if (!originalChart) return;
