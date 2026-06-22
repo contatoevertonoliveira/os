@@ -305,6 +305,7 @@ class TicketListView(LoginRequiredMixin, ListView):
         end_date = self.request.GET.get('end_date') or None
         leankeep_id = self.request.GET.get('leankeep_id') or None
         client_id = self.request.GET.get('client') or None
+        creator = self.request.GET.get('creator') or None
 
         # Mantém comportamento padrão: se nenhum filtro "principal" foi informado,
         # lista apenas as OS de hoje (mesmo que o filtro de cliente esteja ativo).
@@ -355,6 +356,15 @@ class TicketListView(LoginRequiredMixin, ListView):
 
         if status:
             queryset = queryset.filter(status=status)
+
+        if creator:
+            try:
+                creator_id = int(creator)
+                queryset = queryset.filter(
+                    Q(created_by_id=creator_id) | (Q(created_by__isnull=True) & Q(requester_id=creator_id))
+                )
+            except (TypeError, ValueError):
+                pass
 
         if ticket_type:
             queryset = queryset.filter(ticket_type_id=ticket_type)
@@ -432,9 +442,8 @@ class TicketListView(LoginRequiredMixin, ListView):
             self.request.GET.get('status'),
             self.request.GET.get('ticket_type'),
             self.request.GET.get('period'),
-            self.request.GET.get('start_date'),
-            self.request.GET.get('end_date'),
             self.request.GET.get('leankeep_id'),
+            self.request.GET.get('creator'),
         ])
 
         # If no filter is active, default visual state to 'today'
@@ -442,10 +451,26 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
         context['current_q'] = self.request.GET.get('q', '')
-        context['current_start_date'] = self.request.GET.get('start_date', '')
-        context['current_end_date'] = self.request.GET.get('end_date', '')
         context['current_leankeep_id'] = self.request.GET.get('leankeep_id', '')
         context['current_client'] = self.request.GET.get('client', '')
+        context['current_creator'] = self.request.GET.get('creator', '')
+
+        # Lista de criadores (colaboradores que abriram OS)
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        creator_ids = (
+            Ticket.objects.annotate(
+                _cid=Coalesce('created_by_id', 'requester_id')
+            )
+            .exclude(_cid__isnull=True)
+            .values_list('_cid', flat=True)
+            .distinct()
+        )
+        context['creators_filter_list'] = (
+            User.objects.filter(is_active=True, id__in=creator_ids)
+            .order_by('first_name', 'username')
+            .only('id', 'first_name', 'username')
+        )
 
         # Lista de clientes para filtro (select)
         context['clients_filter_list'] = Client.objects.all().order_by('name').only('id', 'name')
