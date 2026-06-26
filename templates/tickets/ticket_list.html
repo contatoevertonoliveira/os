@@ -508,7 +508,7 @@
             <input type="hidden" name="client" value="{{ current_client|default:'' }}">
 
             <!-- Period Filters -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold mb-1">Período</label>
                 <div class="btn-group w-100" role="group">
                     <input type="radio" class="btn-check" name="period" id="period_all" value="all" {% if current_period == 'all' %}checked{% endif %} onchange="this.form.submit()">
@@ -519,12 +519,15 @@
 
                     <input type="radio" class="btn-check" name="period" id="period_week" value="week" {% if current_period == 'week' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="btn btn-outline-secondary btn-sm" for="period_week">Semana</label>
+                </div>
+            </div>
 
-                    <input type="radio" class="btn-check" name="period" id="period_fortnight" value="fortnight" {% if current_period == 'fortnight' %}checked{% endif %} onchange="this.form.submit()">
-                    <label class="btn btn-outline-secondary btn-sm" for="period_fortnight">Quinzenal</label>
-
-                    <input type="radio" class="btn-check" name="period" id="period_month" value="month" {% if current_period == 'month' %}checked{% endif %} onchange="this.form.submit()">
-                    <label class="btn btn-outline-secondary btn-sm" for="period_month">Mês</label>
+            <!-- Date Range -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Data Início / Fim</label>
+                <div class="d-flex gap-1">
+                    <input type="date" class="form-control form-control-sm" name="start_date" value="{{ current_start_date }}" onchange="this.form.submit()" style="min-width:0;">
+                    <input type="date" class="form-control form-control-sm" name="end_date" value="{{ current_end_date }}" onchange="this.form.submit()" style="min-width:0;">
                 </div>
             </div>
 
@@ -564,11 +567,11 @@
             </div>
 
             <!-- Search -->
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold mb-1">Buscar</label>
                 <div class="input-group input-group-sm">
                     <input type="text" name="q" class="form-control" placeholder="ID, Cliente, Equipamento, Status, Colaborador..." value="{{ current_q }}">
-                    {% if current_q or current_status or current_ticket_type or current_leankeep_id or current_period != 'today' or current_creator %}
+                    {% if current_q or current_status or current_ticket_type or current_leankeep_id or current_period != 'today' or current_creator or current_start_date or current_end_date %}
                     <a href="{% url 'ticket_list' %}" class="btn btn-outline-danger" title="Limpar Filtros">
                         <i class="fas fa-times"></i>
                     </a>

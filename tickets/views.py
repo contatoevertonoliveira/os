@@ -380,19 +380,26 @@ class TicketListView(LoginRequiredMixin, ListView):
             start_week = today - timedelta(days=days_to_subtract)
             start_week_dt = timezone.make_aware(datetime.combine(start_week, datetime.min.time()))
             queryset = queryset.filter(created_at__gte=start_week_dt)
-        elif period == 'fortnight':
-            start_fortnight = today - timedelta(days=15)
-            start_fortnight_dt = timezone.make_aware(datetime.combine(start_fortnight, datetime.min.time()))
-            queryset = queryset.filter(created_at__gte=start_fortnight_dt)
         elif period == 'month':
             start_month = today.replace(day=1)
             start_month_dt = timezone.make_aware(datetime.combine(start_month, datetime.min.time()))
             queryset = queryset.filter(created_at__gte=start_month_dt)
-        elif period == 'custom':
-            if start_date:
-                queryset = queryset.filter(created_at__date__gte=start_date)
-            if end_date:
-                queryset = queryset.filter(created_at__date__lte=end_date)
+
+        # Data inicial/fim (funciona independente do radio de período)
+        if start_date:
+            try:
+                sd = datetime.strptime(start_date, '%Y-%m-%d')
+                sd_dt = timezone.make_aware(datetime.combine(sd, datetime.min.time()))
+                queryset = queryset.filter(created_at__gte=sd_dt)
+            except (ValueError, TypeError):
+                pass
+        if end_date:
+            try:
+                ed = datetime.strptime(end_date, '%Y-%m-%d')
+                ed_dt = timezone.make_aware(datetime.combine(ed, datetime.max.time()))
+                queryset = queryset.filter(created_at__lte=ed_dt)
+            except (ValueError, TypeError):
+                pass
 
         # Ordenação SEMPRE priorizando o que precisa de atenção no topo,
         # independente do filtro selecionado na página:
@@ -442,6 +449,8 @@ class TicketListView(LoginRequiredMixin, ListView):
             self.request.GET.get('status'),
             self.request.GET.get('ticket_type'),
             self.request.GET.get('period'),
+            self.request.GET.get('start_date'),
+            self.request.GET.get('end_date'),
             self.request.GET.get('leankeep_id'),
             self.request.GET.get('creator'),
         ])
@@ -451,6 +460,8 @@ class TicketListView(LoginRequiredMixin, ListView):
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
         context['current_q'] = self.request.GET.get('q', '')
+        context['current_start_date'] = self.request.GET.get('start_date', '')
+        context['current_end_date'] = self.request.GET.get('end_date', '')
         context['current_leankeep_id'] = self.request.GET.get('leankeep_id', '')
         context['current_client'] = self.request.GET.get('client', '')
         context['current_creator'] = self.request.GET.get('creator', '')
