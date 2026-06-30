@@ -1019,15 +1019,24 @@ class TicketInlineView(TicketModalView):
                     if hasattr(img, 'seek'):
                         img.seek(0)
                     TicketUpdateImage.objects.create(update=update, image=img)
-                messages.success(request, "Evolução registrada com sucesso!")
+                inline_save_status = 'ok'
+                inline_save_message = 'Evolução registrada com sucesso!'
             else:
-                messages.warning(request, "Informe a evolução ou selecione uma imagem.")
+                inline_save_status = 'warning'
+                inline_save_message = 'Informe a evolução ou selecione uma imagem.'
 
             form = self.form_class(instance=self.object)
             context = self.get_context_data(form=form)
+            context['inline_save_status'] = inline_save_status
+            context['inline_save_message'] = inline_save_message
             return render(request, self.template_name, context)
 
         return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        context = self.get_context_data(form=form)
+        context['inline_save_status'] = 'error'
+        return render(self.request, self.template_name, context)
 
     def form_valid(self, form):
         # Reaproveita a regra da modal, mas sem redirect ao "fechar".
@@ -1083,11 +1092,15 @@ class TicketInlineView(TicketModalView):
 
         save_action = self.request.POST.get('save_action')
         if has_evolution:
-            messages.success(self.request, "Evolução registrada com sucesso!")
+            inline_save_message = "Evolução registrada com sucesso!"
         elif save_action in ['stay', 'collapse']:
-            messages.success(self.request, "Alterações salvas!")
+            inline_save_message = "Alterações salvas!"
+        else:
+            inline_save_message = ""
 
         context = self.get_context_data(form=form)
+        context['inline_save_status'] = 'ok'
+        context['inline_save_message'] = inline_save_message
         return render(self.request, self.template_name, context)
 
 # Client Views

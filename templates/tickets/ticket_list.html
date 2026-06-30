@@ -2126,13 +2126,24 @@
                 applyRowBg();
                 updateTicketHeaderFromInline(ticketId, container);
 
-                // Se clicou em "Salvar e recolher" (somente no form principal)
-                if (e.submitter && e.submitter.value === 'collapse' && collapseEl) {
-                    try { bootstrap.Collapse.getOrCreateInstance(collapseEl).hide(); } catch (err) {}
+                // Lê o resultado do save via data-attribute no container retornado
+                const resultEl = container.querySelector('[data-inline-save-status]');
+                const saveStatus = resultEl ? resultEl.getAttribute('data-inline-save-status') : '';
+                if (saveStatus === 'ok') {
+                    const msg = resultEl.getAttribute('data-inline-save-message') || 'Alterações salvas!';
+                    _showToast('success', msg);
+                    if (e.submitter && e.submitter.value === 'collapse' && collapseEl) {
+                        try { bootstrap.Collapse.getOrCreateInstance(collapseEl).hide(); } catch (err) {}
+                    }
+                } else if (saveStatus === 'warning') {
+                    const msg = resultEl.getAttribute('data-inline-save-message') || 'Atenção.';
+                    _showToast('warning', msg);
+                } else if (saveStatus === 'error') {
+                    _showToast('danger', '<strong>Erro ao salvar.</strong> Verifique os campos destacados na OS.');
                 }
             } catch (err) {
                 // fallback simples
-                alert('Erro ao salvar a OS.');
+                _showToast('danger', 'Erro inesperado ao salvar a OS.');
             }
         }, true);
 

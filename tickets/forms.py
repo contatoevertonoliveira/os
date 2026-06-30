@@ -416,7 +416,14 @@ class TicketForm(forms.ModelForm):
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()
-        
+
+        # Garante que o responsável já salvo na OS sempre apareça no queryset (mesmo inativo)
+        existing_responsible_id = getattr(self.instance, 'contact_jumper_responsible_id', None)
+        if existing_responsible_id:
+            self.fields['contact_jumper_responsible'].queryset = (
+                ContactJumper.objects.filter(is_active=True) | ContactJumper.objects.filter(pk=existing_responsible_id)
+            ).order_by('name')
+
         # Rename description label
         self.fields['description'].label = "Descrição Inicial"
 
@@ -478,9 +485,8 @@ class TicketForm(forms.ModelForm):
 
         # Campos obrigatórios para salvar OS (restante opcional)
         for field_name in [
-            'client', 'status', 'systems', 'ticket_type', 'problem_type',
+            'client', 'status', 'start_date', 'deadline', 'description',
             'contact_client_requester', 'contact_jumper_responsible',
-            'start_date', 'deadline', 'description'
         ]:
             if field_name in self.fields:
                 self.fields[field_name].required = True
@@ -489,6 +495,10 @@ class TicketForm(forms.ModelForm):
             qs = ContactClient.objects.filter(is_active=True, client_ref_id=current_client.id)
             if current_hub_id:
                 qs = qs.filter(Q(hub_ref_id=current_hub_id) | Q(hub_ref_id__isnull=True))
+            # Garante que o contato já salvo na OS sempre apareça no queryset (mesmo inativo)
+            existing_requester_id = getattr(self.instance, 'contact_client_requester_id', None)
+            if existing_requester_id:
+                qs = qs | ContactClient.objects.filter(pk=existing_requester_id)
             self.fields["contact_client_requester"].queryset = qs.order_by("hub_name", "name")
         else:
             self.fields["contact_client_requester"].queryset = ContactClient.objects.filter(is_active=True).order_by(

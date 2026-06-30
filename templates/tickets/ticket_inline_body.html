@@ -1,6 +1,26 @@
 {% load widget_tweaks %}
 
-<div class="p-3">
+<div class="p-3"
+    data-inline-save-status="{% if inline_save_status %}{{ inline_save_status }}{% endif %}"
+    data-inline-save-message="{% if inline_save_message %}{{ inline_save_message|escapejs }}{% endif %}"
+    data-inline-form-errors="{% if inline_save_status == 'error' %}{% for field, errors in form.errors.items %}{% for e in errors %}{{ field }}: {{ e }} | {% endfor %}{% endfor %}{{ form.non_field_errors|join:' | ' }}{% endif %}"
+>
+    {% if inline_save_status == 'error' %}
+    <div class="alert alert-danger alert-dismissible py-2 mb-2 small" role="alert">
+        <strong><i class="fas fa-exclamation-triangle me-1"></i> Erro ao salvar — verifique os campos:</strong>
+        <ul class="mb-0 mt-1">
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}
+                    <li><strong>{{ field }}</strong>: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+            {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
     <form class="ticket-inline-form" id="ticketEditForm{{ ticket.id }}" method="post" action="{% url 'ticket_inline' ticket.id %}" enctype="multipart/form-data" {% if ticket.status_row_bg %}data-status-row-bg="{{ ticket.status_row_bg }}"{% endif %}>
         {% csrf_token %}
         <input type="hidden" name="pending_delete_updates" id="pendingDeleteUpdates{{ ticket.id }}" value="">
