@@ -92,6 +92,19 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .filter-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        width: 100%;
+        text-align: center;
     }
 
     .chart-body {
@@ -232,6 +245,11 @@ function applyFilters() {
                 <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status')"><i class="fas fa-expand"></i></button>
             </div>
+            {% if current_client_name %}
+                <div class="filter-badge">
+                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                </div>
+            {% endif %}
             <div class="card-body chart-body">
                 <div style="height: 300px; position: relative;">
                     <canvas id="statusChart"></canvas>
@@ -245,6 +263,11 @@ function applyFilters() {
                 <span><i class="fas fa-server me-2 text-info"></i>Tickets por Sistema</span>
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
+            {% if current_client_name %}
+                <div class="filter-badge">
+                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                </div>
+            {% endif %}
             <div class="card-body chart-body">
                 <div style="height: 300px; position: relative;">
                     <canvas id="systemChart"></canvas>
@@ -258,6 +281,11 @@ function applyFilters() {
                 <span><i class="fas fa-chart-bar me-2 text-primary"></i>OS por Cliente (Mês)</span>
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
+            {% if current_client_name %}
+                <div class="filter-badge">
+                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                </div>
+            {% endif %}
             <div class="card-body chart-body">
                  <div style="height: 300px; position: relative;">
                     <canvas id="techChart"></canvas>
@@ -275,6 +303,11 @@ function applyFilters() {
                 <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas')"><i class="fas fa-expand"></i></button>
             </div>
+            {% if current_client_name %}
+                <div class="filter-badge">
+                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                </div>
+            {% endif %}
             <div class="card-body chart-body">
                  <div style="height: 350px; position: relative;">
                     <canvas id="systemHealthChart"></canvas>

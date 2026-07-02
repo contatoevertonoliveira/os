@@ -108,6 +108,22 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['current_collaborator'] = collaborator_id
         context['clients_list'] = Client.objects.all().order_by('name')
         context['collaborators_list'] = User.objects.filter(is_active=True).select_related('profile').order_by('first_name', 'last_name')
+
+        # Obter nome do cliente para exibir na badge
+        if client_id:
+            try:
+                client_obj = Client.objects.get(id=int(client_id))
+                context['current_client_name'] = client_obj.name
+            except (Client.DoesNotExist, TypeError, ValueError):
+                context['current_client_name'] = None
+
+        # Obter nome do colaborador para exibir na badge
+        if collaborator_id:
+            try:
+                collab_obj = User.objects.get(id=int(collaborator_id))
+                context['current_collaborator_name'] = collab_obj.get_full_name() or collab_obj.username
+            except (User.DoesNotExist, TypeError, ValueError):
+                context['current_collaborator_name'] = None
         
         # Counts
         context['total_tickets'] = tickets_qs.count()
