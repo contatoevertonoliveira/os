@@ -2358,61 +2358,19 @@ class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
         else:
             handover = get_object_or_404(ShiftHandover, pk=int(handover_id))
 
-        # Criar ticket automaticamente para anotações raiz (não replies)
-        ticket = None
-        if not parent:
-            now = timezone.localtime(timezone.now())
-            try:
-                # Fixo: JUMPERFOUR TECNOLOGIA como cliente padrão para OS geradas da passagem de turno
-                client = Client.objects.filter(name__icontains='JUMPERFOUR').first()
-                if not client:
-                    client = Client.objects.filter(is_preferred=True).first()
-                if not client:
-                    client = Client.objects.create(name='JUMPERFOUR TECNOLOGIA', is_preferred=True)
-
-                hub = client.hubs.filter(name__icontains='Matriz').first()
-                if not hub:
-                    hub = client.hubs.create(name='Matriz')
-
-                system = System.objects.filter(name__iexact='Informe').first()
-                if not system:
-                    system = System.objects.create(name='Informe', color='#6c757d')
-
-                ticket_type = TicketType.objects.filter(name__iexact='Ticket').first()
-                if not ticket_type:
-                    ticket_type = TicketType.objects.create(name='Ticket')
-
-                problem_type = ProblemType.objects.filter(name__icontains='Nenhum').first()
-                if not problem_type:
-                    problem_type = ProblemType.objects.create(name='Nenhum Problema')
-
-                ticket = Ticket.objects.create(
-                    client=client,
-                    hub=hub,
-                    created_by=request.user,
-                    status='in_progress',
-                    description=text,
-                    start_date=now,
-                    deadline=timezone.make_aware(datetime.combine(now.date(), datetime.max.time().replace(hour=23, minute=59, second=0))),
-                    ticket_type=ticket_type,
-                    problem_type=problem_type,
-                )
-                ticket.systems.add(system)
-                ticket.technicians.add(request.user)
-            except Exception:
-                ticket = None
-
+        # Criar apenas anotação, sem gerar ticket automaticamente
+        # As OS devem ser criadas exclusivamente na tela de "Ordens de Serviço"
         entry = ShiftHandoverEntry.objects.create(
             handover=handover,
             parent=parent,
             created_by=request.user,
             text=text,
-            ticket=ticket,
+            ticket=None,
         )
         entry = ShiftHandoverEntry.objects.filter(pk=entry.pk).prefetch_related(
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.select_related('target_user').all(), to_attr='alerts_all'),
             Prefetch('alerts', queryset=ShiftHandoverEntryAlert.objects.filter(target_user=request.user), to_attr='alerts_for_user'),
-        ).select_related('created_by', 'parent', 'ticket').first() or entry
+        ).select_related('created_by', 'parent').first() or entry
         html = render_handover_entry_html(entry, request)
         return JsonResponse({
             'status': 'success',
@@ -2420,8 +2378,6 @@ class ShiftHandoverEntryCreateView(LoginRequiredMixin, View):
             'is_reply': bool(parent),
             'parent_id': parent.id if parent else None,
             'entry_id': entry.id,
-            'ticket_id': ticket.id if ticket else None,
-            'ticket_formatted_id': ticket.formatted_id if ticket else None,
         })
 
 
