@@ -105,7 +105,20 @@
         font-weight: 600;
         display: inline-block;
         text-align: center;
-        margin: 0 auto;
+        margin: 0 0.3rem;
+        width: fit-content;
+    }
+
+    .filter-badge-period {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-block;
+        text-align: center;
+        margin: 0 0.3rem;
         width: fit-content;
     }
 
@@ -252,11 +265,18 @@ function applyFilters() {
                 <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status')"><i class="fas fa-expand"></i></button>
             </div>
-            {% if current_client_name %}
+            {% if current_client_name or period_label %}
                 <div class="card-chart-badge-wrapper">
-                    <div class="filter-badge">
-                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                    </div>
+                    {% if period_label %}
+                        <span class="filter-badge-period">
+                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                        </span>
+                    {% endif %}
+                    {% if current_client_name %}
+                        <span class="filter-badge">
+                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                        </span>
+                    {% endif %}
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -272,11 +292,18 @@ function applyFilters() {
                 <span><i class="fas fa-server me-2 text-info"></i>Tickets por Sistema</span>
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
-            {% if current_client_name %}
+            {% if current_client_name or period_label %}
                 <div class="card-chart-badge-wrapper">
-                    <div class="filter-badge">
-                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                    </div>
+                    {% if period_label %}
+                        <span class="filter-badge-period">
+                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                        </span>
+                    {% endif %}
+                    {% if current_client_name %}
+                        <span class="filter-badge">
+                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                        </span>
+                    {% endif %}
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -292,11 +319,18 @@ function applyFilters() {
                 <span><i class="fas fa-chart-bar me-2 text-primary"></i>OS por Cliente (Mês)</span>
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
-            {% if current_client_name %}
+            {% if current_client_name or period_label %}
                 <div class="card-chart-badge-wrapper">
-                    <div class="filter-badge">
-                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                    </div>
+                    {% if period_label %}
+                        <span class="filter-badge-period">
+                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                        </span>
+                    {% endif %}
+                    {% if current_client_name %}
+                        <span class="filter-badge">
+                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                        </span>
+                    {% endif %}
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -316,11 +350,18 @@ function applyFilters() {
                 <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas')"><i class="fas fa-expand"></i></button>
             </div>
-            {% if current_client_name %}
+            {% if current_client_name or period_label %}
                 <div class="card-chart-badge-wrapper">
-                    <div class="filter-badge">
-                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                    </div>
+                    {% if period_label %}
+                        <span class="filter-badge-period">
+                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                        </span>
+                    {% endif %}
+                    {% if current_client_name %}
+                        <span class="filter-badge">
+                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                        </span>
+                    {% endif %}
                 </div>
             {% endif %}
             <div class="card-body chart-body">

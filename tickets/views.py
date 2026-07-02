@@ -83,6 +83,25 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         context['start_date'] = start_date
         context['end_date'] = end_date
 
+        # Formatar label do período para exibir na badge
+        if period == 'today':
+            context['period_label'] = 'Hoje'
+        elif period == 'yesterday':
+            context['period_label'] = 'Ontem'
+        elif period == 'week':
+            context['period_label'] = 'Semana'
+        elif period == 'month':
+            context['period_label'] = 'Mês'
+        elif period == 'year':
+            context['period_label'] = 'Ano'
+        elif period == 'custom':
+            # Formatar datas para o padrão dd/mm/yyyy
+            start_formatted = start_date.strftime('%d/%m/%Y')
+            end_formatted = end_date.strftime('%d/%m/%Y')
+            context['period_label'] = f'{start_formatted} à {end_formatted}'
+        else:
+            context['period_label'] = 'Esta semana'
+
         # Filtros adicionais: cliente e colaborador
         client_id = self.request.GET.get('client')
         collaborator_id = self.request.GET.get('collaborator')
