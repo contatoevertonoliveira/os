@@ -791,9 +791,24 @@ class Ticket(models.Model):
         except (ValueError, IndexError):
             return None
 
+    def save(self, *args, **kwargs):
+        """
+        Sobrescreve o método save para verificar se a deadline passou
+        e automaticamente muda o status para 'delayed' (Atrasado).
+        """
+        # Verifica se a OS tem deadline e se já passou
+        if self.deadline and self.status not in ['finished', 'canceled']:
+            from django.utils import timezone
+            now = timezone.now()
+            if self.deadline <= now:
+                # Se o deadline passou e a OS não está finalizada/cancelada, marca como atrasada
+                self.status = 'delayed'
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.formatted_id} - {self.client.name}"
-    
+
     class Meta:
         verbose_name = "Ordem de Serviço"
         verbose_name_plural = "Ordens de Serviço"

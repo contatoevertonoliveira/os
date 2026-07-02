@@ -2110,73 +2110,54 @@
 
         function updateTicketHeaderFromInline(ticketId, inlineContainer) {
             try {
-                const btn = document.getElementById(`ticketAccordionButton${ticketId}`);
-                const actions = document.getElementById(`ticketActions${ticketId}`);
-                const statusCell = document.getElementById(`ticketStatusCell${ticketId}`);
-                if (!btn || !actions || !statusCell || !inlineContainer) return;
+                // Busca o novo HTML do accordion item do servidor
+                const accordionItemUrl = "{% url 'ticket_accordion_item' 999999 %}".replace('999999', ticketId);
 
-                // Cor da linha baseada no status + prazo
-                const statusSelect = inlineContainer.querySelector('select[name="status"]');
-                const deadlineInput = inlineContainer.querySelector('input[name="deadline"]');
-                const statusVal = statusSelect ? String(statusSelect.value || '').trim() : '';
-                const deadlineVal = deadlineInput ? String(deadlineInput.value || '').trim() : '';
+                fetch(accordionItemUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(r => r.text())
+                    .then(html => {
+                        // Parse do HTML retornado
+                        const parser = new DOMParser();
+                        const newItem = parser.parseFromString(html, 'text/html').querySelector('.accordion-item');
 
-                // Atualiza etiqueta/imagem do status no header via mapping sincrono
-                if (statusBadgeHtml[statusVal]) {
-                    statusCell.innerHTML = statusBadgeHtml[statusVal];
-                } else {
-                    // Fallback: busca via AJAX
-                    const fallbackUrl = "{% url 'ticket_status_html' 999999 %}".replace('999999', ticketId);
-                    fetch(fallbackUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(r => r.text())
-                        .then(html => { if (statusCell) statusCell.innerHTML = html; })
-                        .catch(() => {});
-                }
+                        if (!newItem) return;
 
-                // Lê row_color do mapeamento com base no novo status
-                const rowColorVal = statusRowColors[statusVal] || '';
+                        // Encontra o item atual
+                        const currentItem = document.querySelector(`#heading${ticketId}`).closest('.accordion-item');
+                        if (!currentItem) return;
 
-                let isDelayed = false;
-                if (deadlineVal) {
-                    const dt = new Date(deadlineVal);
-                    if (!isNaN(dt.getTime())) {
-                        const now = new Date();
-                        if (dt.getTime() < now.getTime() && (statusVal === 'open' || statusVal === 'in_progress')) {
-                            isDelayed = true;
+                        // Extrai os elementos do novo HTML
+                        const newHeader = newItem.querySelector('.accordion-header');
+                        const newActions = newItem.querySelector('.ticket-acc-actions');
+
+                        if (newHeader && newActions) {
+                            // Atualiza APENAS o header e as ações (não toca no conteúdo inline)
+                            const currentHeader = currentItem.querySelector('.accordion-header');
+                            const currentActions = currentItem.querySelector('.ticket-acc-actions');
+
+                            if (currentHeader) {
+                                currentHeader.innerHTML = newHeader.innerHTML;
+                                // Copia atributos de classe
+                                currentHeader.className = newHeader.className;
+                            }
+                            if (currentActions) {
+                                currentActions.innerHTML = newActions.innerHTML;
+                                currentActions.className = newActions.className;
+                            }
+
+                            // Re-inicializa tooltips no header atualizado
+                            initTooltips(currentItem);
+
+                            // Re-aplica as classes de cor de fundo
+                            applyRowBg();
                         }
-                    }
-                }
-
-                // Remove classes antigas e inline style de bg
-                const rowClasses = ['row-open', 'row-pending', 'row-in-progress', 'row-finished', 'row-canceled', 'row-delayed', 'row-delete-requested'];
-                rowClasses.forEach(c => { btn.classList.remove(c); actions.classList.remove(c); });
-                btn.style.backgroundColor = '';
-                actions.style.backgroundColor = '';
-                btn.removeAttribute('data-status-row-bg');
-                actions.removeAttribute('data-status-row-bg');
-
-                let rowClass = 'row-open';
-                if (isDelayed) rowClass = 'row-delayed';
-                else if (statusVal === 'pending') rowClass = 'row-pending';
-                else if (statusVal === 'in_progress') rowClass = 'row-in-progress';
-                else if (statusVal === 'finished') rowClass = 'row-finished';
-                else if (statusVal === 'canceled') rowClass = 'row-canceled';
-                else if (statusVal === 'open') rowClass = 'row-open';
-
-                btn.classList.add(rowClass);
-                actions.classList.add(rowClass);
-
-                // Se tiver row_color personalizada, aplica o inline style
-                if (rowColorVal && rowColorVal.startsWith('#')) {
-                    const rgba = hexToRgba(rowColorVal, 0.6);
-                    if (rgba) {
-                        btn.style.setProperty('background-color', rgba, 'important');
-                        actions.style.setProperty('background-color', rgba, 'important');
-                        btn.setAttribute('data-status-row-bg', rowColorVal);
-                        actions.setAttribute('data-status-row-bg', rowColorVal);
-                    }
-                }
-            } catch (e) {}
+                    })
+                    .catch(err => {
+                        console.warn('Erro ao atualizar header da OS:', err);
+                    });
+            } catch (e) {
+                console.warn('Erro em updateTicketHeaderFromInline:', e);
+            }
         }
 
         function bindCollapseEvents(collapseEl) {
