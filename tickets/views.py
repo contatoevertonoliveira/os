@@ -307,13 +307,12 @@ class TicketListView(LoginRequiredMixin, ListView):
         client_id = self.request.GET.get('client') or None
         creator = self.request.GET.get('creator') or None
 
-        # Mantém comportamento padrão: se nenhum filtro "principal" foi informado,
-        # lista apenas as OS de hoje (mesmo que o filtro de cliente esteja ativo).
+        # Se nenhum periodo foi especificado, mostra TODAS as OS (não mais apenas de hoje)
         has_main_filters = any([q, status, ticket_type, period, start_date, end_date, leankeep_id])
-        if not has_main_filters:
-            start_of_day = timezone.make_aware(datetime.combine(today, datetime.min.time()))
-            end_of_day = timezone.make_aware(datetime.combine(today, datetime.max.time()))
-            queryset = queryset.filter(created_at__range=(start_of_day, end_of_day))
+        if not has_main_filters and not period:
+            # Se nenhum filtro foi informado e nenhum período foi selecionado,
+            # mostra todas as OS (sem filtro de data por padrão)
+            pass
 
         if client_id:
             try:
@@ -401,22 +400,36 @@ class TicketListView(LoginRequiredMixin, ListView):
             except (ValueError, TypeError):
                 pass
 
-        # Ordenação SEMPRE priorizando o que precisa de atenção no topo,
-        # independente do filtro selecionado na página:
-        # 1) vencidos, 2) pendentes, 3) em aberto, 4) em andamento, 5) finalizados, 6) cancelados
+        # Ordenação por prioridade (escala de importância):
+        # 1) Vencidos (deadline < now AND status = 'open')
+        # 2) Atrasados (deadline < now AND status IN ['in_progress', 'pending'])
+        # 3) Em Aberto (status = 'open' AND deadline >= now ou null)
+        # 4) Aguardando Aprovação (status = 'pending' AND deadline >= now ou null)
+        # 5) Em Andamento (status = 'in_progress' AND deadline >= now ou null)
+        # 6) Finalizados (status = 'finished')
         now_dt = timezone.localtime(timezone.now())
         far_future = timezone.make_aware(datetime(2100, 1, 1))
         queryset = queryset.annotate(
             sort_priority=Case(
+                # 0: Vencidos (deadline vencido e em aberto)
                 When(
-                    Q(deadline__lt=now_dt) & ~Q(status__in=['finished', 'canceled']),
+                    Q(deadline__lt=now_dt) & Q(status='open'),
                     then=Value(0),
                 ),
-                When(status='pending', then=Value(1)),
+                # 1: Atrasados (deadline vencido mas em andamento ou aguardando aprovação)
+                When(
+                    Q(deadline__lt=now_dt) & Q(status__in=['in_progress', 'pending']),
+                    then=Value(1),
+                ),
+                # 2: Em Aberto (sem deadline vencido)
                 When(status='open', then=Value(2)),
-                When(status='in_progress', then=Value(3)),
-                When(status='finished', then=Value(4)),
-                When(status='canceled', then=Value(5)),
+                # 3: Aguardando Aprovação (sem deadline vencido)
+                When(status='pending', then=Value(3)),
+                # 4: Em Andamento (sem deadline vencido)
+                When(status='in_progress', then=Value(4)),
+                # 5: Finalizados
+                When(status='finished', then=Value(5)),
+                # 6: Cancelados e outros
                 default=Value(6),
                 output_field=IntegerField(),
             ),
@@ -455,8 +468,8 @@ class TicketListView(LoginRequiredMixin, ListView):
             self.request.GET.get('creator'),
         ])
 
-        # If no filter is active, default visual state to 'today'
-        context['current_period'] = self.request.GET.get('period', 'today' if not is_filtered else '')
+        # If no filter is active, default visual state to 'all' (mostra todas as OS)
+        context['current_period'] = self.request.GET.get('period', 'all' if not is_filtered else '')
         context['current_status'] = self.request.GET.get('status', '')
         context['current_ticket_type'] = self.request.GET.get('ticket_type', '')
         context['current_q'] = self.request.GET.get('q', '')
