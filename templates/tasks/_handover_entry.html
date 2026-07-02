@@ -25,14 +25,14 @@
             </strong>
             {% if entry_data and entry_data.recipients %}
                 <span class="mx-1">--&gt;</span>
-                <span class="handover-entry-recipient">{{ entry_data.recipients }}</span>
                 {% with p=entry_data.priority_code|default:entry_data.priority %}
+                    <span class="handover-entry-recipient handover-entry-recipient-{{ p }}">{{ entry_data.recipients }}</span>
                     {% if p == 'high' %}
                         <span class="badge bg-danger ms-2">Alta</span>
                     {% elif p == 'medium' %}
-                        <span class="badge bg-warning text-dark ms-2">Média</span>
+                        <span class="badge bg-primary ms-2">Média</span>
                     {% elif p == 'low' %}
-                        <span class="badge bg-info text-dark ms-2">Baixa</span>
+                        <span class="badge bg-success ms-2">Baixa</span>
                     {% endif %}
                 {% endwith %}
             {% endif %}
