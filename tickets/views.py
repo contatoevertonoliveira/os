@@ -408,35 +408,35 @@ class TicketListView(LoginRequiredMixin, ListView):
         # 5) Em Andamento (status = 'in_progress' AND deadline >= now ou null)
         # 6) Finalizados (status = 'finished')
         now_dt = timezone.localtime(timezone.now())
-        far_future = timezone.make_aware(datetime(2100, 1, 1))
+
+        # Calcula prioridade de cada ticket
         queryset = queryset.annotate(
             sort_priority=Case(
                 # 0: Vencidos (deadline vencido e em aberto)
                 When(
-                    Q(deadline__lt=now_dt) & Q(status='open'),
+                    Q(deadline__isnull=False) & Q(deadline__lt=now_dt) & Q(status='open'),
                     then=Value(0),
                 ),
                 # 1: Atrasados (deadline vencido mas em andamento ou aguardando aprovação)
                 When(
-                    Q(deadline__lt=now_dt) & Q(status__in=['in_progress', 'pending']),
+                    Q(deadline__isnull=False) & Q(deadline__lt=now_dt) & Q(status__in=['in_progress', 'pending']),
                     then=Value(1),
                 ),
                 # 2: Em Aberto (sem deadline vencido)
-                When(status='open', then=Value(2)),
+                When(Q(status='open'), then=Value(2)),
                 # 3: Aguardando Aprovação (sem deadline vencido)
-                When(status='pending', then=Value(3)),
+                When(Q(status='pending'), then=Value(3)),
                 # 4: Em Andamento (sem deadline vencido)
-                When(status='in_progress', then=Value(4)),
+                When(Q(status='in_progress'), then=Value(4)),
                 # 5: Finalizados
-                When(status='finished', then=Value(5)),
+                When(Q(status='finished'), then=Value(5)),
                 # 6: Cancelados e outros
                 default=Value(6),
                 output_field=IntegerField(),
             ),
-            sort_deadline=Coalesce('deadline', Value(far_future)),
         )
 
-        return queryset.order_by('sort_priority', 'sort_deadline', '-created_at')
+        return queryset.order_by('sort_priority', '-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
