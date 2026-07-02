@@ -489,12 +489,13 @@
         background: rgba(255,255,255,0.82) !important;
     }
     .handover-entry-alert {
-        /* Piscar fluorescente para chamar atenção */
-        animation: handoverBlink 0.6s ease-in-out infinite;
+        /* Piscar fluorescente bem visível para chamar atenção */
+        animation: handoverBlink 0.4s steps(2) infinite !important;
         border-color: var(--alert-border, rgba(220, 38, 38, 0.85)) !important;
+        border-width: 2px !important;
         box-shadow:
-            0 10px 18px rgba(0, 0, 0, 0.10),
-            0 0 15px var(--glow-color, rgba(220, 38, 38, 0.6));
+            0 10px 18px rgba(0, 0, 0, 0.15),
+            0 0 20px var(--glow-color, rgba(220, 38, 38, 0.9));
     }
     .handover-entry-alert::before {
         content: “”;
@@ -504,8 +505,8 @@
         bottom: 0;
         width: 6px;
         border-radius: 12px 0 0 12px;
-        background: var(--alert-accent, rgba(220, 38, 38, 0.85));
-        animation: handoverBorderBlink 0.6s ease-in-out infinite;
+        background: var(--alert-accent, rgba(220, 38, 38, 0.95));
+        animation: handoverBorderBlink 0.4s steps(2) infinite !important;
     }
 
     /* Alta = vermelho fluorescente */
@@ -535,13 +536,17 @@
 
     @keyframes handoverBlink {
         0%   { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
-        50%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.35)); }
+        49%  { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
+        50%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.15)); }
+        99%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.15)); }
         100% { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
     }
 
     @keyframes handoverBorderBlink {
         0%   { opacity: 1; }
-        50%  { opacity: 0.3; }
+        49%  { opacity: 1; }
+        50%  { opacity: 0.2; }
+        99%  { opacity: 0.2; }
         100% { opacity: 1; }
     }
 
