@@ -209,7 +209,13 @@ function applyFilters() {
     const client = clientSelect.value ? `&client=${clientSelect.value}` : '';
     const collab = collabSelect.value ? `&collaborator=${collabSelect.value}` : '';
 
-    window.location.href = `?period={{ selected_period }}${client}${collab}`;
+    // Preservar datas customizadas se o período for custom
+    let dateParams = '';
+    {% if selected_period == 'custom' %}
+        dateParams = `&start_date={{ start_date|date:'Y-m-d' }}&end_date={{ end_date|date:'Y-m-d' }}`;
+    {% endif %}
+
+    window.location.href = `?period={{ selected_period }}${dateParams}${client}${collab}`;
 }
 </script>
 
