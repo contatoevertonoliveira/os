@@ -103,8 +103,15 @@
         border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 600;
-        width: 100%;
+        display: inline-block;
         text-align: center;
+        margin: 0 auto;
+        width: fit-content;
+    }
+
+    .card-chart-badge-wrapper {
+        text-align: center;
+        padding: 0.5rem 0;
     }
 
     .chart-body {
@@ -246,8 +253,10 @@ function applyFilters() {
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status')"><i class="fas fa-expand"></i></button>
             </div>
             {% if current_client_name %}
-                <div class="filter-badge">
-                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                <div class="card-chart-badge-wrapper">
+                    <div class="filter-badge">
+                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                    </div>
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -264,8 +273,10 @@ function applyFilters() {
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
             {% if current_client_name %}
-                <div class="filter-badge">
-                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                <div class="card-chart-badge-wrapper">
+                    <div class="filter-badge">
+                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                    </div>
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -282,8 +293,10 @@ function applyFilters() {
                 <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
             </div>
             {% if current_client_name %}
-                <div class="filter-badge">
-                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                <div class="card-chart-badge-wrapper">
+                    <div class="filter-badge">
+                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                    </div>
                 </div>
             {% endif %}
             <div class="card-body chart-body">
@@ -304,8 +317,10 @@ function applyFilters() {
                 <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas')"><i class="fas fa-expand"></i></button>
             </div>
             {% if current_client_name %}
-                <div class="filter-badge">
-                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                <div class="card-chart-badge-wrapper">
+                    <div class="filter-badge">
+                        <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                    </div>
                 </div>
             {% endif %}
             <div class="card-body chart-body">
