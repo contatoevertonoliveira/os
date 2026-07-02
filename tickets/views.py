@@ -470,7 +470,7 @@ class TicketListView(LoginRequiredMixin, ListView):
             status_order=Subquery(ticket_status_order)
         )
 
-        return queryset.order_by('status_order', '-created_at')
+        return queryset.order_by('status_order', '-updated_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
