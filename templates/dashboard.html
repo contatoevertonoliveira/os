@@ -114,8 +114,9 @@
                 <i class="fas fa-download me-1"></i> Exportar
             </button>
         </div>
-        <!-- Filtros: Período, Cliente, Colaborador -->
-        <div class="d-flex gap-2 flex-wrap">
+        <!-- Filtros: Período, Cliente, Colaborador - Inline -->
+        <div class="d-flex align-items-center gap-2" style="flex-wrap: nowrap;">
+            <!-- Período -->
             <div class="dropdown">
                 <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-calendar me-1"></i>
@@ -138,8 +139,11 @@
                 </ul>
             </div>
 
+            <!-- Separador -->
+            <span class="text-muted">|</span>
+
             <!-- Filtro de Cliente -->
-            <select class="form-select form-select-sm" style="max-width: 220px;" onchange="applyFilters()">
+            <select id="clientFilter" class="form-select form-select-sm" style="width: 200px; flex-shrink: 0;" onchange="applyFilters()">
                 <option value="">Todos os Clientes</option>
                 {% for client in clients_list %}
                     <option value="{{ client.id }}" {% if current_client == client.id|stringformat:"s" %}selected{% endif %}>{{ client.name }}</option>
@@ -147,7 +151,7 @@
             </select>
 
             <!-- Filtro de Colaborador -->
-            <select class="form-select form-select-sm" style="max-width: 220px;" onchange="applyFilters()">
+            <select id="collaboratorFilter" class="form-select form-select-sm" style="width: 200px; flex-shrink: 0;" onchange="applyFilters()">
                 <option value="">Todos os Colaboradores</option>
                 {% for collab in collaborators_list %}
                     <option value="{{ collab.id }}" {% if current_collaborator == collab.id|stringformat:"s" %}selected{% endif %}>{{ collab.get_full_name|default:collab.username }}</option>
@@ -156,7 +160,7 @@
 
             <!-- Botão Limpar Filtros -->
             {% if current_client or current_collaborator %}
-                <a href="?period={{ selected_period }}" class="btn btn-sm btn-outline-secondary">
+                <a href="?period={{ selected_period }}" class="btn btn-sm btn-outline-secondary" style="flex-shrink: 0;">
                     <i class="fas fa-times me-1"></i> Limpar
                 </a>
             {% endif %}
