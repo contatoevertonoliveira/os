@@ -489,13 +489,13 @@
         background: rgba(255,255,255,0.82) !important;
     }
     .handover-entry-alert {
-        /* Piscar fluorescente bem visível para chamar atenção */
-        animation: handoverBlink 0.4s steps(2) infinite !important;
+        /* Piscar SUPER agressivo - impossível de ignorar */
+        animation: handoverSuperBlink 0.3s steps(2) infinite !important, handoverGlow 0.3s steps(2) infinite !important;
         border-color: var(--alert-border, rgba(220, 38, 38, 0.85)) !important;
-        border-width: 2px !important;
+        border-width: 3px !important;
         box-shadow:
-            0 10px 18px rgba(0, 0, 0, 0.15),
-            0 0 20px var(--glow-color, rgba(220, 38, 38, 0.9));
+            0 10px 18px rgba(0, 0, 0, 0.20),
+            0 0 30px var(--glow-color, rgba(220, 38, 38, 1));
     }
     .handover-entry-alert::before {
         content: “”;
@@ -503,10 +503,10 @@
         left: 0;
         top: 0;
         bottom: 0;
-        width: 6px;
+        width: 8px;
         border-radius: 12px 0 0 12px;
         background: var(--alert-accent, rgba(220, 38, 38, 0.95));
-        animation: handoverBorderBlink 0.4s steps(2) infinite !important;
+        animation: handoverBorderSuperBlink 0.3s steps(2) infinite !important;
     }
 
     /* Alta = vermelho fluorescente */
@@ -534,19 +534,28 @@
         --glow-color: rgba(50, 150, 255, 0.8);
     }
 
-    @keyframes handoverBlink {
-        0%   { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
-        49%  { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
-        50%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.15)); }
-        99%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.15)); }
-        100% { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
+    /* Piscar super agressivo - on/off blink */
+    @keyframes handoverSuperBlink {
+        0%   { background-color: var(--pulse-bg2, rgba(255, 100, 100, 1)); }
+        49%  { background-color: var(--pulse-bg2, rgba(255, 100, 100, 1)); }
+        50%  { background-color: rgba(255, 255, 255, 0.1); }
+        99%  { background-color: rgba(255, 255, 255, 0.1); }
+        100% { background-color: var(--pulse-bg2, rgba(255, 100, 100, 1)); }
     }
 
-    @keyframes handoverBorderBlink {
+    @keyframes handoverGlow {
+        0%   { filter: brightness(1.3) drop-shadow(0 0 35px var(--glow-color)); }
+        49%  { filter: brightness(1.3) drop-shadow(0 0 35px var(--glow-color)); }
+        50%  { filter: brightness(0.9) drop-shadow(0 0 5px var(--glow-color)); }
+        99%  { filter: brightness(0.9) drop-shadow(0 0 5px var(--glow-color)); }
+        100% { filter: brightness(1.3) drop-shadow(0 0 35px var(--glow-color)); }
+    }
+
+    @keyframes handoverBorderSuperBlink {
         0%   { opacity: 1; }
         49%  { opacity: 1; }
-        50%  { opacity: 0.2; }
-        99%  { opacity: 0.2; }
+        50%  { opacity: 0.1; }
+        99%  { opacity: 0.1; }
         100% { opacity: 1; }
     }
 
