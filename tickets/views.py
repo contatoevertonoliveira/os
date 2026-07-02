@@ -40,16 +40,16 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # Period handling
         # Período dos cards/gráficos principais (mantém opção de filtro)
         period = self.request.GET.get('period', 'month')
         now = timezone.now()
-        
+
         # Set default range (week)
         start_date = now - timedelta(days=7)
         end_date = now
-        
+
         if period == 'today':
             start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
             end_date = now
@@ -78,13 +78,36 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                     end_date = timezone.make_aware(end_date)
                 except ValueError:
                     pass # Fallback to default
-        
+
         context['selected_period'] = period
         context['start_date'] = start_date
         context['end_date'] = end_date
-        
+
+        # Filtros adicionais: cliente e colaborador
+        client_id = self.request.GET.get('client')
+        collaborator_id = self.request.GET.get('collaborator')
+
         # Filter Tickets
         tickets_qs = Ticket.objects.filter(created_at__range=(start_date, end_date))
+
+        # Aplicar filtros de cliente e colaborador
+        if client_id:
+            try:
+                tickets_qs = tickets_qs.filter(client_id=int(client_id))
+            except (TypeError, ValueError):
+                pass
+
+        if collaborator_id:
+            try:
+                tickets_qs = tickets_qs.filter(technicians__id=int(collaborator_id)).distinct()
+            except (TypeError, ValueError):
+                pass
+
+        # Adicionar dados de filtros ao context
+        context['current_client'] = client_id
+        context['current_collaborator'] = collaborator_id
+        context['clients_list'] = Client.objects.all().order_by('name')
+        context['collaborators_list'] = User.objects.filter(is_active=True).select_related('profile').order_by('first_name', 'last_name')
         
         # Counts
         context['total_tickets'] = tickets_qs.count()

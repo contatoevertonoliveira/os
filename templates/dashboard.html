@@ -114,29 +114,67 @@
                 <i class="fas fa-download me-1"></i> Exportar
             </button>
         </div>
-        <div class="dropdown d-inline-block">
-            <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="fas fa-calendar me-1"></i> 
-                {% if selected_period == 'today' %}Hoje
-                {% elif selected_period == 'yesterday' %}Ontem
-                {% elif selected_period == 'week' %}Esta semana
-                {% elif selected_period == 'month' %}Este mês
-                {% elif selected_period == 'year' %}Este ano
-                {% elif selected_period == 'custom' %}Personalizado
-                {% else %}Esta semana{% endif %}
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="periodDropdown">
-                <li><a class="dropdown-item {% if selected_period == 'today' %}active{% endif %}" href="?period=today">Hoje</a></li>
-                <li><a class="dropdown-item {% if selected_period == 'yesterday' %}active{% endif %}" href="?period=yesterday">Ontem</a></li>
-                <li><a class="dropdown-item {% if selected_period == 'week' %}active{% endif %}" href="?period=week">Esta semana</a></li>
-                <li><a class="dropdown-item {% if selected_period == 'month' %}active{% endif %}" href="?period=month">Este mês</a></li>
-                <li><a class="dropdown-item {% if selected_period == 'year' %}active{% endif %}" href="?period=year">Este ano</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item {% if selected_period == 'custom' %}active{% endif %}" href="#" data-bs-toggle="modal" data-bs-target="#customPeriodModal">Personalizado...</a></li>
-            </ul>
+        <!-- Filtros: Período, Cliente, Colaborador -->
+        <div class="d-flex gap-2 flex-wrap">
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-calendar me-1"></i>
+                    {% if selected_period == 'today' %}Hoje
+                    {% elif selected_period == 'yesterday' %}Ontem
+                    {% elif selected_period == 'week' %}Esta semana
+                    {% elif selected_period == 'month' %}Este mês
+                    {% elif selected_period == 'year' %}Este ano
+                    {% elif selected_period == 'custom' %}Personalizado
+                    {% else %}Esta semana{% endif %}
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="periodDropdown">
+                    <li><a class="dropdown-item {% if selected_period == 'today' %}active{% endif %}" href="?period=today{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Hoje</a></li>
+                    <li><a class="dropdown-item {% if selected_period == 'yesterday' %}active{% endif %}" href="?period=yesterday{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Ontem</a></li>
+                    <li><a class="dropdown-item {% if selected_period == 'week' %}active{% endif %}" href="?period=week{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Esta semana</a></li>
+                    <li><a class="dropdown-item {% if selected_period == 'month' %}active{% endif %}" href="?period=month{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Este mês</a></li>
+                    <li><a class="dropdown-item {% if selected_period == 'year' %}active{% endif %}" href="?period=year{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Este ano</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item {% if selected_period == 'custom' %}active{% endif %}" href="#" data-bs-toggle="modal" data-bs-target="#customPeriodModal">Personalizado...</a></li>
+                </ul>
+            </div>
+
+            <!-- Filtro de Cliente -->
+            <select class="form-select form-select-sm" style="max-width: 220px;" onchange="applyFilters()">
+                <option value="">Todos os Clientes</option>
+                {% for client in clients_list %}
+                    <option value="{{ client.id }}" {% if current_client == client.id|stringformat:"s" %}selected{% endif %}>{{ client.name }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Filtro de Colaborador -->
+            <select class="form-select form-select-sm" style="max-width: 220px;" onchange="applyFilters()">
+                <option value="">Todos os Colaboradores</option>
+                {% for collab in collaborators_list %}
+                    <option value="{{ collab.id }}" {% if current_collaborator == collab.id|stringformat:"s" %}selected{% endif %}>{{ collab.get_full_name|default:collab.username }}</option>
+                {% endfor %}
+            </select>
+
+            <!-- Botão Limpar Filtros -->
+            {% if current_client or current_collaborator %}
+                <a href="?period={{ selected_period }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i> Limpar
+                </a>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<script>
+function applyFilters() {
+    const clientSelect = document.querySelector('select:nth-of-type(1)');
+    const collabSelect = document.querySelector('select:nth-of-type(2)');
+
+    const client = clientSelect.value ? `&client=${clientSelect.value}` : '';
+    const collab = collabSelect.value ? `&collaborator=${collabSelect.value}` : '';
+
+    window.location.href = `?period={{ selected_period }}${client}${collab}`;
+}
+</script>
 
 <!-- Stats Cards -->
 <div class="row g-4 mb-4">
