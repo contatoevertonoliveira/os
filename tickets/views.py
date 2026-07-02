@@ -399,43 +399,20 @@ class TicketListView(LoginRequiredMixin, ListView):
             except (ValueError, TypeError):
                 pass
 
-        # Ordenação por prioridade (escala de importância):
-        # 1) Vencidos (deadline < now AND status = 'open')
-        # 2) Atrasados (deadline < now AND status IN ['in_progress', 'pending'])
-        # 3) Em Aberto (status = 'open' AND deadline >= now ou null)
-        # 4) Aguardando Aprovação (status = 'pending' AND deadline >= now ou null)
-        # 5) Em Andamento (status = 'in_progress' AND deadline >= now ou null)
-        # 6) Finalizados (status = 'finished')
-        now_dt = timezone.localtime(timezone.now())
+        # Ordenação pela ordem definida em "Cadastros > Status de OS"
+        # Usa o campo 'order' de TicketStatus para definir a prioridade
+        from django.db.models import Subquery, OuterRef
 
-        # Calcula prioridade de cada ticket
+        # Busca o valor de 'order' de cada TicketStatus para o status do Ticket
+        ticket_status_order = TicketStatus.objects.filter(
+            code=OuterRef('status')
+        ).values('order')[:1]
+
         queryset = queryset.annotate(
-            sort_priority=Case(
-                # 0: Vencidos (deadline vencido e em aberto)
-                When(
-                    Q(deadline__isnull=False) & Q(deadline__lt=now_dt) & Q(status='open'),
-                    then=Value(0),
-                ),
-                # 1: Atrasados (deadline vencido mas em andamento ou aguardando aprovação)
-                When(
-                    Q(deadline__isnull=False) & Q(deadline__lt=now_dt) & Q(status__in=['in_progress', 'pending']),
-                    then=Value(1),
-                ),
-                # 2: Em Aberto (sem deadline vencido)
-                When(Q(status='open'), then=Value(2)),
-                # 3: Aguardando Aprovação (sem deadline vencido)
-                When(Q(status='pending'), then=Value(3)),
-                # 4: Em Andamento (sem deadline vencido)
-                When(Q(status='in_progress'), then=Value(4)),
-                # 5: Finalizados
-                When(Q(status='finished'), then=Value(5)),
-                # 6: Cancelados e outros
-                default=Value(6),
-                output_field=IntegerField(),
-            ),
+            status_order=Subquery(ticket_status_order)
         )
 
-        return queryset.order_by('sort_priority', '-created_at')
+        return queryset.order_by('status_order', '-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
