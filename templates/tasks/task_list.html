@@ -489,13 +489,15 @@
         background: rgba(255,255,255,0.82) !important;
     }
     .handover-entry-alert {
-        /* velocidade mais rápida e com “respiração” mais evidente */
-        animation: handoverPulse 0.9s ease-in-out infinite;
+        /* Piscar fluorescente para chamar atenção */
+        animation: handoverBlink 0.6s ease-in-out infinite;
         border-color: var(--alert-border, rgba(220, 38, 38, 0.85)) !important;
-        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.10);
+        box-shadow:
+            0 10px 18px rgba(0, 0, 0, 0.10),
+            0 0 15px var(--glow-color, rgba(220, 38, 38, 0.6));
     }
     .handover-entry-alert::before {
-        content: "";
+        content: “”;
         position: absolute;
         left: 0;
         top: 0;
@@ -503,34 +505,44 @@
         width: 6px;
         border-radius: 12px 0 0 12px;
         background: var(--alert-accent, rgba(220, 38, 38, 0.85));
+        animation: handoverBorderBlink 0.6s ease-in-out infinite;
     }
 
-    /* Alta = vermelho */
+    /* Alta = vermelho fluorescente */
     .handover-entry-alert-high {
         --alert-border: rgba(220, 38, 38, 0.95);
         --alert-accent: rgba(220, 38, 38, 0.95);
-        --pulse-bg1: rgba(254, 226, 226, 0.55);
-        --pulse-bg2: rgba(254, 226, 226, 0.95);
+        --pulse-bg1: rgba(254, 226, 226, 0.35);
+        --pulse-bg2: rgba(255, 100, 100, 0.99);
+        --glow-color: rgba(255, 50, 50, 0.8);
     }
-    /* Média = laranja/âmbar */
+    /* Média = laranja/âmbar fluorescente */
     .handover-entry-alert-medium {
         --alert-border: rgba(245, 158, 11, 0.95);
         --alert-accent: rgba(245, 158, 11, 0.95);
-        --pulse-bg1: rgba(254, 243, 199, 0.55);
-        --pulse-bg2: rgba(254, 243, 199, 0.97);
+        --pulse-bg1: rgba(254, 243, 199, 0.35);
+        --pulse-bg2: rgba(255, 200, 50, 0.99);
+        --glow-color: rgba(255, 180, 0, 0.8);
     }
-    /* Baixa = azul */
+    /* Baixa = azul fluorescente */
     .handover-entry-alert-low {
         --alert-border: rgba(59, 130, 246, 0.95);
         --alert-accent: rgba(59, 130, 246, 0.95);
-        --pulse-bg1: rgba(219, 234, 254, 0.55);
-        --pulse-bg2: rgba(219, 234, 254, 0.97);
+        --pulse-bg1: rgba(219, 234, 254, 0.35);
+        --pulse-bg2: rgba(100, 200, 255, 0.99);
+        --glow-color: rgba(50, 150, 255, 0.8);
     }
 
-    @keyframes handoverPulse {
-        0%   { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
-        50%  { background-color: var(--pulse-bg2, rgba(254, 226, 226, 0.95)); }
-        100% { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.55)); }
+    @keyframes handoverBlink {
+        0%   { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
+        50%  { background-color: var(--pulse-bg1, rgba(254, 226, 226, 0.35)); }
+        100% { background-color: var(--pulse-bg2, rgba(255, 100, 100, 0.99)); }
+    }
+
+    @keyframes handoverBorderBlink {
+        0%   { opacity: 1; }
+        50%  { opacity: 0.3; }
+        100% { opacity: 1; }
     }
 
     .modal-content.handover-modal {
