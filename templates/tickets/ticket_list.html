@@ -458,6 +458,38 @@
         .ticket-acc-grid { grid-template-columns: 40px 90px 1.5fr 120px 140px; }
         .ticket-acc-hide-lg { display: none; }
     }
+
+    /* === Animações do Loading === */
+    @keyframes spin-smooth {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 1; }
+    }
+    @keyframes bounce-scale {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+
+    .spinner-border {
+        animation: spin-smooth 1s linear infinite !important;
+    }
+
+    .loading-dot {
+        display: inline-block;
+        width: 4px;
+        height: 4px;
+        margin: 0 2px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: bounce-scale 1.4s ease-in-out infinite;
+    }
+
+    .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+    .loading-dot:nth-child(4) { animation-delay: 0.6s; }
 </style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
@@ -2049,9 +2081,12 @@
                 if (container.dataset.loaded === '1') return;
                 container.dataset.loaded = '1';
                 container.innerHTML = `
-                    <div class="p-4 text-center text-muted">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <div class="small mt-2">Carregando OS...</div>
+                    <div class="p-5 text-center" style="background: linear-gradient(135deg, rgba(13,110,253,0.04), rgba(13,110,253,0.02)); border-radius: 8px; margin: 10px;">
+                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3.5rem; height: 3.5rem; border-width: 0.35em;">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <div class="fw-semibold text-dark mb-1" style="font-size: 1rem;">Carregando Ordem de Serviço...</div>
+                        <div class="small text-muted">Processando dados${Array(4).fill(null).map((_, i) => '<span class="loading-dot" style="animation: pulse 1.4s ease-in-out infinite; opacity: 0.6;">.</span>').join('')}</div>
                     </div>
                 `;
 
@@ -2067,7 +2102,7 @@
                     setTimeout(() => scrollToTicket(ticketId), 50);
                 } catch (e) {
                     container.dataset.loaded = '0';
-                    container.innerHTML = `<div class="p-3 text-danger">Erro ao carregar a OS.</div>`;
+                    container.innerHTML = `<div class="p-4 text-center text-danger" style="background: rgba(220,53,69,0.04); border-radius: 8px; margin: 10px;"><i class="fas fa-exclamation-circle me-2" style="font-size: 1.5rem;"></i><div class="fw-semibold mt-2">Erro ao carregar a Ordem de Serviço</div><div class="small mt-1">Tente novamente ou recarregue a página.</div></div>`;
                 }
             });
 
