@@ -1,6 +1,42 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<!-- Loading Overlay Inicial da Página -->
+<div id="pageLoadingOverlay" class="page-loading-overlay" style="
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    backdrop-filter: blur(3px);
+    animation: fadeInOverlay 0.4s ease-in-out;
+">
+    <div class="text-center" style="
+        background: white;
+        padding: 3.5rem 3rem;
+        border-radius: 24px;
+        box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35);
+        max-width: 420px;
+    ">
+        <div class="spinner-border text-primary mb-4" role="status" style="
+            width: 5rem;
+            height: 5rem;
+            border-width: 0.45em;
+            display: inline-block;
+        ">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <div class="fw-bold text-dark mt-3 mb-2" style="font-size: 1.2rem;">
+            Carregando Ordens de Serviço
+        </div>
+        <div class="text-muted" style="font-size: 0.95rem;">
+            Processando dados<span class="loading-dots" style="margin-left: 4px;"><span>.</span><span>.</span><span>.</span></span>
+        </div>
+    </div>
+</div>
+
 <style>
     .row-finished { background-color: rgba(25, 135, 84, 0.06); }
     .row-pending { background-color: rgba(255, 193, 7, 0.06); }
@@ -472,6 +508,26 @@
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.1); }
     }
+    @keyframes fadeInOverlay {
+        from {
+            opacity: 0;
+            backdrop-filter: blur(0px);
+        }
+        to {
+            opacity: 1;
+            backdrop-filter: blur(2px);
+        }
+    }
+    @keyframes fadeOutOverlay {
+        from {
+            opacity: 1;
+            backdrop-filter: blur(2px);
+        }
+        to {
+            opacity: 0;
+            backdrop-filter: blur(0px);
+        }
+    }
 
     .spinner-border {
         animation: spin-smooth 1s linear infinite !important;
@@ -490,6 +546,28 @@
     .loading-dot:nth-child(2) { animation-delay: 0.2s; }
     .loading-dot:nth-child(3) { animation-delay: 0.4s; }
     .loading-dot:nth-child(4) { animation-delay: 0.6s; }
+
+    .loading-dots span {
+        display: inline-block;
+        width: 4px;
+        margin: 0 1px;
+        animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    .ticket-loading-overlay.d-none {
+        display: none !important;
+    }
+
+    .ticket-loading-overlay:not(.d-none) {
+        animation: fadeInOverlay 0.3s ease-in-out;
+    }
+
+    .ticket-loading-overlay.fade-out {
+        animation: fadeOutOverlay 0.3s ease-in-out forwards;
+    }
 </style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h5 mb-0">Ordens de Serviço</h1>
@@ -830,6 +908,43 @@
             {% empty %}
                 <div class="text-center py-4 text-muted">Nenhuma ordem de serviço encontrada.</div>
             {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay para Ordens de Serviço -->
+<div id="ticketLoadingOverlay" class="ticket-loading-overlay d-none" style="
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(2px);
+    animation: fadeInOverlay 0.3s ease-in-out;
+">
+    <div class="text-center" style="
+        background: white;
+        padding: 3rem;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        max-width: 400px;
+    ">
+        <div class="spinner-border text-primary mb-3" role="status" style="
+            width: 4.5rem;
+            height: 4.5rem;
+            border-width: 0.4em;
+            display: inline-block;
+            animation: spin-smooth 1s linear infinite;
+        ">
+            <span class="visually-hidden">Carregando...</span>
+        </div>
+        <div class="fw-bold text-dark mt-3 mb-2" style="font-size: 1.1rem;">
+            Carregando Ordem de Serviço
+        </div>
+        <div class="text-muted small" style="font-size: 0.95rem;">
+            Processando dados<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>
         </div>
     </div>
 </div>
@@ -2068,6 +2183,8 @@
             if (!collapseEl || collapseEl.dataset.bound === '1') return;
             collapseEl.dataset.bound = '1';
 
+            const loadingOverlay = document.getElementById('ticketLoadingOverlay');
+
             // Quando abrir um card, carrega o HTML inline via AJAX (1 por vez)
             collapseEl.addEventListener('show.bs.collapse', async function () {
                 const btn = accordionEl.querySelector(`[data-inline-url][data-bs-target="#${collapseEl.id}"]`);
@@ -2078,21 +2195,31 @@
                 const container = document.getElementById(`ticketInlineContainer${ticketId}`);
                 if (!container) return;
 
-                if (container.dataset.loaded === '1') return;
+                // Se já foi carregado, não mostra overlay, apenas exibe
+                if (container.dataset.loaded === '1') {
+                    return;
+                }
+
+                // MOSTRA O OVERLAY IMEDIATAMENTE
+                if (loadingOverlay) {
+                    loadingOverlay.classList.remove('d-none', 'fade-out');
+                    loadingOverlay.style.animation = 'fadeInOverlay 0.3s ease-in-out';
+                }
+
                 container.dataset.loaded = '1';
-                container.innerHTML = `
-                    <div class="p-5 text-center" style="background: linear-gradient(135deg, rgba(13,110,253,0.04), rgba(13,110,253,0.02)); border-radius: 8px; margin: 10px;">
-                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3.5rem; height: 3.5rem; border-width: 0.35em;">
-                            <span class="visually-hidden">Carregando...</span>
-                        </div>
-                        <div class="fw-semibold text-dark mb-1" style="font-size: 1rem;">Carregando Ordem de Serviço...</div>
-                        <div class="small text-muted">Processando dados${Array(4).fill(null).map((_, i) => '<span class="loading-dot" style="animation: pulse 1.4s ease-in-out infinite; opacity: 0.6;">.</span>').join('')}</div>
-                    </div>
-                `;
 
                 try {
                     const resp = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                     const html = await resp.text();
+
+                    // ESCONDE O OVERLAY COM FADE OUT
+                    if (loadingOverlay) {
+                        loadingOverlay.classList.add('fade-out');
+                        setTimeout(() => {
+                            loadingOverlay.classList.add('d-none');
+                        }, 300);
+                    }
+
                     container.innerHTML = html;
                     execScripts(container);
                     initTooltips(container);
@@ -2101,6 +2228,14 @@
                     // Depois de renderizar, garante que a OS continue enquadrada (o conteúdo pode aumentar a altura)
                     setTimeout(() => scrollToTicket(ticketId), 50);
                 } catch (e) {
+                    // ESCONDE O OVERLAY EM CASO DE ERRO
+                    if (loadingOverlay) {
+                        loadingOverlay.classList.add('fade-out');
+                        setTimeout(() => {
+                            loadingOverlay.classList.add('d-none');
+                        }, 300);
+                    }
+
                     container.dataset.loaded = '0';
                     container.innerHTML = `<div class="p-4 text-center text-danger" style="background: rgba(220,53,69,0.04); border-radius: 8px; margin: 10px;"><i class="fas fa-exclamation-circle me-2" style="font-size: 1.5rem;"></i><div class="fw-semibold mt-2">Erro ao carregar a Ordem de Serviço</div><div class="small mt-1">Tente novamente ou recarregue a página.</div></div>`;
                 }
@@ -2222,6 +2357,18 @@
                 alert('Erro ao salvar a evolução.');
             }
         }, true);
+
+        // === Remove Loading Overlay quando página termina de carregar ===
+        const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
+        if (pageLoadingOverlay) {
+            // Remove o overlay após um pequeno delay para garantir que tudo renderizou
+            setTimeout(() => {
+                pageLoadingOverlay.classList.add('fade-out');
+                setTimeout(() => {
+                    pageLoadingOverlay.style.display = 'none';
+                }, 300);
+            }, 500);
+        }
 
         // === Criar Nova OS via Modal (sem sair da página) ===
         const openCreateBtn = document.getElementById('openCreateTicketBtn');
