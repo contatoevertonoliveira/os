@@ -396,6 +396,13 @@ function applyFilters() {
             <form action="" method="GET">
                 <div class="modal-body">
                     <input type="hidden" name="period" value="custom">
+                    <!-- Preservar filtros de cliente e colaborador -->
+                    {% if current_client %}
+                        <input type="hidden" name="client" value="{{ current_client }}">
+                    {% endif %}
+                    {% if current_collaborator %}
+                        <input type="hidden" name="collaborator" value="{{ current_collaborator }}">
+                    {% endif %}
                     <div class="mb-3">
                         <label class="form-label">Data Início</label>
                         <input type="date" class="form-control" name="start_date" required value="{{ start_date|date:'Y-m-d' }}">
