@@ -277,7 +277,6 @@ class TicketListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tickets/ticket_list.html'
     context_object_name = 'tickets'
-    ordering = ['-created_at']
 
     def get_queryset(self):
         queryset = (
