@@ -2284,7 +2284,12 @@
                     const msg = resultEl.getAttribute('data-inline-save-message') || 'Alterações salvas!';
                     _showToast('success', msg);
                     if (e.submitter && e.submitter.value === 'collapse' && collapseEl) {
-                        try { bootstrap.Collapse.getOrCreateInstance(collapseEl).hide(); } catch (err) {}
+                        // Aguarda um pouco para garantir que o header foi atualizado
+                        setTimeout(() => {
+                            try { bootstrap.Collapse.getOrCreateInstance(collapseEl).hide(); } catch (err) {}
+                            // Reordena a lista após fechar o accordion (para refletir as mudanças de status/data)
+                            setTimeout(() => reorderTicketsList(), 300);
+                        }, 100);
                     }
                 } else if (saveStatus === 'warning') {
                     const msg = resultEl.getAttribute('data-inline-save-message') || 'Atenção.';
@@ -2338,6 +2343,38 @@
                 alert('Erro ao salvar a evolução.');
             }
         }, true);
+
+        // === Função para reordenar a lista de tickets ===
+        window.reorderTicketsList = function() {
+            // Busca o URL da página atual para recarregar com os mesmos filtros
+            const currentUrl = window.location.href;
+
+            fetch(currentUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newAccordion = doc.querySelector('#ticketsAccordion');
+                    const currentAccordion = document.querySelector('#ticketsAccordion');
+
+                    if (newAccordion && currentAccordion) {
+                        // Substitui o accordion inteiro pela versão reordenada
+                        currentAccordion.innerHTML = newAccordion.innerHTML;
+
+                        // Re-bind dos eventos de collapse
+                        currentAccordion.querySelectorAll('.accordion-collapse').forEach(bindCollapseEvents);
+
+                        // Re-inicializa tooltips
+                        initTooltips(currentAccordion);
+
+                        // Re-aplica cores de fundo
+                        applyRowBg();
+                    }
+                })
+                .catch(err => {
+                    console.warn('Erro ao reordenar lista:', err);
+                });
+        };
 
         // === Remove Loading Overlay quando página termina de carregar ===
         const pageLoadingOverlay = document.getElementById('pageLoadingOverlay');
