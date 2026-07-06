@@ -48,6 +48,18 @@ class UserProfile(models.Model):
     ticket_toast_morning_shown = models.BooleanField(default=False, verbose_name="Toast (OS) mostrado - primeiro acesso do dia")
     ticket_toast_end_shown = models.BooleanField(default=False, verbose_name="Toast (OS) mostrado - fim do turno")
 
+    # Chat IA
+    ai_chat_enabled = models.BooleanField(default=True, verbose_name="Ativar Chat IA")
+
+    # Restrições de Funcionalidades
+    can_view_tickets = models.BooleanField(default=True, verbose_name="Visualizar Ordens de Serviço")
+    can_create_tickets = models.BooleanField(default=True, verbose_name="Criar Ordens de Serviço")
+    can_edit_tickets = models.BooleanField(default=True, verbose_name="Editar Ordens de Serviço")
+    can_delete_tickets = models.BooleanField(default=True, verbose_name="Deletar Ordens de Serviço")
+    can_view_checklists = models.BooleanField(default=True, verbose_name="Visualizar Checklists")
+    can_create_checklists = models.BooleanField(default=True, verbose_name="Criar Checklists")
+    can_view_reports = models.BooleanField(default=True, verbose_name="Visualizar Relatórios")
+
     def get_role_display(self):
         role = (self.role or '').strip()
         if not role:
@@ -360,12 +372,65 @@ class SystemSettings(models.Model):
     night_shift_start = models.TimeField(default=time(20, 0), verbose_name="Início do turno noturno")
     night_shift_end = models.TimeField(default=time(8, 0), verbose_name="Fim do turno noturno")
 
+    # === Inteligência Artificial ===
+    AI_PROVIDER_CHOICES = [
+        ('deepseek', 'DeepSeek'),
+        ('openai', 'OpenAI (GPT)'),
+        ('anthropic', 'Anthropic (Claude)'),
+        ('gemini', 'Google Gemini'),
+    ]
+    ai_enabled = models.BooleanField(default=False, verbose_name="Ativar Assistente de IA")
+    ai_provider = models.CharField(
+        max_length=20, choices=AI_PROVIDER_CHOICES, default='deepseek',
+        verbose_name="Provedor de IA"
+    )
+    ai_api_key = models.CharField(max_length=500, blank=True, verbose_name="Chave de API")
+    ai_model = models.CharField(
+        max_length=100, blank=True, verbose_name="Modelo",
+        help_text="Deixe em branco para usar o modelo padrão do provedor"
+    )
+
     def __str__(self):
         return "Configurações do Sistema"
 
     class Meta:
         verbose_name = "Configuração do Sistema"
         verbose_name_plural = "Configurações do Sistema"
+
+
+class AIChatSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_chat_sessions')
+    title = models.CharField(max_length=200, blank=True, verbose_name="Título")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Sessão de {self.user.get_full_name() or self.user.username} — {self.created_at:%d/%m/%Y %H:%M}"
+
+    class Meta:
+        verbose_name = "Sessão de Chat IA"
+        verbose_name_plural = "Sessões de Chat IA"
+        ordering = ['-updated_at']
+
+
+class AIChatMessage(models.Model):
+    ROLE_CHOICES = [
+        ('user', 'Usuário'),
+        ('assistant', 'Assistente'),
+        ('tool', 'Ferramenta'),
+    ]
+    session = models.ForeignKey(AIChatSession, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"[{self.role}] {self.content[:60]}"
+
+    class Meta:
+        verbose_name = "Mensagem de Chat IA"
+        verbose_name_plural = "Mensagens de Chat IA"
+        ordering = ['created_at']
 
 
 class ShiftHandover(models.Model):

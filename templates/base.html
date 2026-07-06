@@ -1712,5 +1712,8 @@
     
     {% block scripts %}{% endblock %}
     {% block extra_fab %}{% endblock %}
+    {% if system_settings.ai_enabled %}
+        {% include 'tickets/ai_chat_widget.html' %}
+    {% endif %}
 </body>
 </html>

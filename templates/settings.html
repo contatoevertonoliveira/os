@@ -15,6 +15,9 @@
             <a class="list-group-item list-group-item-action" id="list-checklist" data-bs-toggle="list" href="#tab-checklist" role="tab" aria-controls="tab-checklist">
                 <i class="fas fa-list-check me-2"></i> Checklist
             </a>
+            <a class="list-group-item list-group-item-action" id="list-ai" data-bs-toggle="list" href="#tab-ai" role="tab" aria-controls="tab-ai">
+                <i class="fas fa-robot me-2"></i> Inteligência Artificial
+            </a>
             <a class="list-group-item list-group-item-action disabled" href="#" tabindex="-1" aria-disabled="true">
                 <i class="fas fa-bell me-2"></i> Notificações
             </a>
@@ -155,7 +158,196 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Inteligência Artificial -->
+            <div class="tab-pane fade" id="tab-ai" role="tabpanel" aria-labelledby="list-ai">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-robot me-2 text-success"></i>Configuração do Assistente de IA</h6>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="_tab" value="ai">
+
+                            <div class="mb-4">
+                                <div class="form-check form-switch d-flex align-items-center gap-3">
+                                    {{ form.ai_enabled }}
+                                    <label class="form-check-label fw-semibold fs-6" for="id_ai_enabled">
+                                        Ativar Assistente de IA no sistema
+                                    </label>
+                                </div>
+                                <small class="text-muted">Quando ativado, um ícone de robô aparecerá no canto inferior direito de todas as páginas.</small>
+                            </div>
+
+                            <hr>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Provedor de IA</label>
+                                    {{ form.ai_provider }}
+                                    <small class="text-muted d-block mt-1">
+                                        <span id="ai-provider-hint"></span>
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold">Modelo <span class="text-muted fw-normal">(opcional)</span></label>
+                                    {{ form.ai_model }}
+                                    <small class="text-muted" id="ai-model-hint">Deixe em branco para usar o modelo padrão.</small>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold">Chave de API</label>
+                                    <div class="input-group">
+                                        <input type="password" name="ai_api_key" id="id_ai_api_key"
+                                               class="form-control"
+                                               autocomplete="off"
+                                               placeholder="Cole sua chave aqui..."
+                                               value="{{ form.ai_api_key.value|default:'' }}">
+                                        <button type="button" class="btn btn-outline-secondary" id="toggleApiKey" title="Mostrar/Ocultar">
+                                            <i class="fas fa-eye" id="toggleApiKeyIcon"></i>
+                                        </button>
+                                    </div>
+                                    <small class="text-muted">A chave é armazenada no banco de dados. Use uma chave com permissões mínimas necessárias.</small>
+                                </div>
+                            </div>
+
+                            <!-- Tester de conexão -->
+                            <div class="mt-4 p-3 border rounded-3 bg-light">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div>
+                                        <div class="fw-semibold mb-1"><i class="fas fa-plug me-1 text-success"></i>Testar Conexão</div>
+                                        <small class="text-muted">Envia uma mensagem de teste ao provedor com a chave e modelo informados acima (sem precisar salvar primeiro).</small>
+                                    </div>
+                                    <button type="button" id="btnTestAI" class="btn btn-outline-success">
+                                        <i class="fas fa-vial me-1"></i> Testar agora
+                                    </button>
+                                </div>
+                                <div id="aiTestResult" class="mt-3 d-none">
+                                    <div id="aiTestResultInner" class="alert mb-0 py-2 small"></div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mt-4 small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                <strong>Modelos padrão por provedor:</strong>
+                                DeepSeek → <code>deepseek-chat</code> &nbsp;|&nbsp;
+                                OpenAI → <code>gpt-4o-mini</code> &nbsp;|&nbsp;
+                                Anthropic → <code>claude-haiku-4-5-20251001</code> &nbsp;|&nbsp;
+                                Gemini → <code>gemini-2.0-flash</code>
+                            </div>
+
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-primary-custom">
+                                    <i class="fas fa-save me-1"></i> Salvar Configurações de IA
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    // Mostrar/ocultar chave de API
+    const toggleBtn = document.getElementById('toggleApiKey');
+    const apiKeyInput = document.getElementById('id_ai_api_key');
+    const icon = document.getElementById('toggleApiKeyIcon');
+    if (toggleBtn && apiKeyInput) {
+        toggleBtn.addEventListener('click', function () {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                apiKeyInput.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    }
+
+    // Dica do provedor selecionado
+    const providerSelect = document.getElementById('id_ai_provider');
+    const providerHint = document.getElementById('ai-provider-hint');
+    const modelHint = document.getElementById('ai-model-hint');
+    const providerInfo = {
+        'deepseek': { hint: 'Obtenha sua chave em <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a>', model: 'Padrão: deepseek-chat' },
+        'openai':   { hint: 'Obtenha sua chave em <a href="https://platform.openai.com" target="_blank">platform.openai.com</a>', model: 'Padrão: gpt-4o-mini' },
+        'anthropic':{ hint: 'Obtenha sua chave em <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>', model: 'Padrão: claude-haiku-4-5-20251001' },
+        'gemini':   { hint: 'Obtenha sua chave em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>', model: 'Padrão: gemini-2.0-flash' },
+    };
+    function updateProviderHint() {
+        const info = providerInfo[providerSelect.value] || {};
+        if (providerHint) providerHint.innerHTML = info.hint || '';
+        if (modelHint) modelHint.textContent = info.model || 'Deixe em branco para usar o modelo padrão.';
+    }
+    if (providerSelect) {
+        providerSelect.addEventListener('change', updateProviderHint);
+        updateProviderHint();
+    }
+
+    // Botão Testar Conexão IA
+    const btnTest = document.getElementById('btnTestAI');
+    const testResult = document.getElementById('aiTestResult');
+    const testResultInner = document.getElementById('aiTestResultInner');
+
+    if (btnTest) {
+        btnTest.addEventListener('click', async function () {
+            const provider = document.getElementById('id_ai_provider')?.value || '';
+            const apiKey = document.getElementById('id_ai_api_key')?.value || '';
+            const model = document.getElementById('id_ai_model')?.value || '';
+
+            if (!apiKey) {
+                testResult.classList.remove('d-none');
+                testResultInner.className = 'alert alert-warning mb-0 py-2 small';
+                testResultInner.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Informe a chave de API antes de testar.';
+                return;
+            }
+
+            btnTest.disabled = true;
+            btnTest.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
+            testResult.classList.add('d-none');
+
+            try {
+                const resp = await fetch("{% url 'ai_chat_test' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ provider, api_key: apiKey, model }),
+                });
+                const data = await resp.json();
+                testResult.classList.remove('d-none');
+
+                if (data.ok) {
+                    testResultInner.className = 'alert alert-success mb-0 py-2 small';
+                    testResultInner.innerHTML = `<i class="fas fa-check-circle me-1"></i> <strong>Conexão bem-sucedida!</strong> Resposta da IA: <em>"${data.message}"</em>`;
+                } else {
+                    testResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                    testResultInner.innerHTML = `<i class="fas fa-times-circle me-1"></i> <strong>Falha na conexão:</strong> ${data.error}`;
+                }
+            } catch (err) {
+                testResult.classList.remove('d-none');
+                testResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                testResultInner.innerHTML = '<i class="fas fa-times-circle me-1"></i> Erro inesperado ao testar. Verifique o console.';
+            } finally {
+                btnTest.disabled = false;
+                btnTest.innerHTML = '<i class="fas fa-vial me-1"></i> Testar agora';
+            }
+        });
+    }
+
+    // Reabrir o tab correto após salvar (baseado em ?tab=ai na URL)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam === 'ai') {
+        const aiTab = document.getElementById('list-ai');
+        if (aiTab) bootstrap.Tab.getOrCreateInstance(aiTab).show();
+    }
+})();
+</script>
 {% endblock %}

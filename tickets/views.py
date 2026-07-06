@@ -1936,7 +1936,27 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def get_object(self, queryset=None):
         obj, created = SystemSettings.objects.get_or_create(pk=1)
         return obj
-    
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        tab = request.POST.get('_tab', '')
+
+        if tab == 'ai':
+            # Salva apenas os campos de IA sem tocar nos campos gerais
+            obj = self.object
+            obj.ai_enabled = request.POST.get('ai_enabled') == 'on'
+            obj.ai_provider = request.POST.get('ai_provider', obj.ai_provider)
+            obj.ai_model = request.POST.get('ai_model', '').strip()
+            # Só atualiza a chave se o usuário digitou algo (evita limpar por acidente)
+            new_key = request.POST.get('ai_api_key', '').strip()
+            if new_key:
+                obj.ai_api_key = new_key
+            obj.save(update_fields=['ai_enabled', 'ai_provider', 'ai_api_key', 'ai_model'])
+            messages.success(request, "Configurações de IA atualizadas com sucesso!")
+            return redirect(reverse_lazy('settings') + '?tab=ai')
+
+        return super().post(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['checklist_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
@@ -2770,10 +2790,22 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
             users = User.objects.select_related('profile').all().order_by('first_name', 'username')
             pdf_user_rows = []
             for u in users:
+                # Garante que o profile existe
                 profile = getattr(u, 'profile', None)
+                if not profile:
+                    profile = UserProfile.objects.create(user=u)
+
                 pdf_user_rows.append({
                     'user': u,
-                    'allowed': getattr(profile, 'allow_pdf_reports', True) if profile else True,
+                    'allowed': getattr(profile, 'allow_pdf_reports', True),
+                    'can_view_tickets': getattr(profile, 'can_view_tickets', True),
+                    'can_create_tickets': getattr(profile, 'can_create_tickets', True),
+                    'can_edit_tickets': getattr(profile, 'can_edit_tickets', True),
+                    'can_delete_tickets': getattr(profile, 'can_delete_tickets', True),
+                    'can_view_checklists': getattr(profile, 'can_view_checklists', True),
+                    'can_create_checklists': getattr(profile, 'can_create_checklists', True),
+                    'can_view_reports': getattr(profile, 'can_view_reports', True),
+                    'ai_chat_enabled': getattr(profile, 'ai_chat_enabled', True),
                 })
             context['pdf_user_rows'] = pdf_user_rows
         except (OperationalError, ProgrammingError):
@@ -2877,6 +2909,47 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
                 messages.info(request, "Nenhuma alteração de PDF por usuário para salvar.")
             else:
                 messages.success(request, f"Permissões de PDF por usuário salvas! Alterações: {changed}.")
+            return redirect('permissions')
+
+        if action == 'save_user_restrictions':
+            try:
+                users = list(User.objects.select_related('profile').all())
+            except Exception:
+                messages.error(request, "Não foi possível carregar usuários.")
+                return redirect('permissions')
+
+            restriction_fields = [
+                'can_view_tickets', 'can_create_tickets', 'can_edit_tickets', 'can_delete_tickets',
+                'can_view_checklists', 'can_create_checklists', 'can_view_reports',
+                'allow_pdf_reports', 'ai_chat_enabled'
+            ]
+            changed = 0
+            try:
+                with transaction.atomic():
+                    for u in users:
+                        profile = getattr(u, 'profile', None)
+                        if not profile:
+                            profile = UserProfile.objects.create(user=u)
+
+                        fields_to_update = []
+                        for field in restriction_fields:
+                            new_value = request.POST.get(f'{field}_{u.id}') == 'on'
+                            current_value = getattr(profile, field, True)
+                            if current_value != new_value:
+                                setattr(profile, field, new_value)
+                                fields_to_update.append(field)
+                                changed += 1
+
+                        if fields_to_update:
+                            profile.save(update_fields=fields_to_update)
+            except Exception as e:
+                messages.error(request, f"Erro ao salvar restrições de usuário: {str(e)}")
+                return redirect('permissions')
+
+            if changed == 0:
+                messages.info(request, "Nenhuma alteração de restrições para salvar.")
+            else:
+                messages.success(request, f"Restrições de usuário salvas! Alterações: {changed}.")
             return redirect('permissions')
 
         roles = list(RoleLevel.objects.filter(is_active=True).order_by('name'))

@@ -1,5 +1,6 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
+from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView
 from .views import (
     DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketMiniPreviewView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
     ticket_status_html,
@@ -204,4 +205,10 @@ urlpatterns = [
     path('notifications/send/', SendMessageView.as_view(), name='send_message'),
     path('notifications/<int:pk>/read/', mark_notification_read, name='mark_notification_read'),
     path('notifications/read-all/', mark_all_notifications_read, name='mark_all_notifications_read'),
+
+    # IA Chat
+    path('ai/chat/', AIChatView.as_view(), name='ai_chat'),
+    path('ai/chat/new/', AIChatNewSessionView.as_view(), name='ai_chat_new'),
+    path('ai/chat/history/', AIChatHistoryView.as_view(), name='ai_chat_history'),
+    path('ai/chat/test/', AIChatTestView.as_view(), name='ai_chat_test'),
 ]

@@ -1,0 +1,480 @@
+{% load static %}
+{# Widget de chat IA — incluído no base.html apenas quando system_settings.ai_enabled #}
+
+{% if user.is_authenticated and user.profile.ai_chat_enabled %}
+<!-- Container draggável: envolve FAB + painel -->
+<div id="aiWidget" style="position:fixed;bottom:130px;right:24px;z-index:2050;
+                           width:52px;height:52px;touch-action:none;">
+
+    <!-- Painel do Chat (posicionado acima do FAB) -->
+    <div id="aiChatPanel"
+         style="position:absolute;bottom:62px;right:0;
+                width:370px;max-height:580px;border-radius:16px;
+                box-shadow:0 8px 32px rgba(0,0,0,.18);overflow:hidden;
+                display:flex;flex-direction:column;background:#fff;
+                transform:scale(0.85) translateY(20px);opacity:0;
+                pointer-events:none;
+                transition:transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;">
+
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#009542,#1cd362);padding:12px 16px;
+                    display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:10px;color:#fff;">
+                <i class="fas fa-robot" style="font-size:1.15rem;"></i>
+                <div>
+                    <div style="font-weight:700;font-size:.9rem;line-height:1.15;">JumperFour IA</div>
+                    <div style="font-size:.7rem;opacity:.85;" id="aiProviderLabel">Assistente inteligente</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:5px;">
+                <button type="button" onclick="aiChatNewSession()" title="Nova conversa"
+                    style="background:rgba(255,255,255,.2);border:none;border-radius:7px;color:#fff;
+                           width:28px;height:28px;cursor:pointer;font-size:.78rem;">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button type="button" onclick="aiChatToggle()" title="Minimizar"
+                    style="background:rgba(255,255,255,.2);border:none;border-radius:7px;color:#fff;
+                           width:28px;height:28px;cursor:pointer;font-size:.78rem;">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Área de mensagens -->
+        <div id="aiChatMessages"
+             style="flex:1;overflow-y:auto;padding:14px;background:#f8f9fa;
+                    display:flex;flex-direction:column;gap:10px;min-height:160px;max-height:370px;">
+        </div>
+
+        <!-- Indicador de digitando -->
+        <div id="aiTypingIndicator" style="display:none;padding:4px 14px 8px;background:#f8f9fa;flex-shrink:0;">
+            <div class="ai-bubble ai-bubble-typing">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div style="padding:10px 12px;background:#fff;border-top:1px solid #eee;flex-shrink:0;">
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+                <textarea id="aiChatInput" placeholder="Digite sua mensagem..."
+                    rows="2"
+                    style="flex:1;border:1px solid #dee2e6;border-radius:10px;padding:8px 12px;
+                           font-size:.875rem;resize:none;outline:none;transition:border-color .2s;
+                           max-height:100px;overflow-y:auto;"
+                    onfocus="this.style.borderColor='#009542'"
+                    onblur="this.style.borderColor='#dee2e6'"
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiChatSend();}"></textarea>
+                <button type="button" onclick="aiChatSend()" id="aiSendBtn"
+                    style="background:#009542;border:none;border-radius:10px;color:#fff;
+                           width:38px;height:38px;cursor:pointer;font-size:.9rem;flex-shrink:0;
+                           transition:background .18s;"
+                    onmouseover="this.style.background='#007a36'"
+                    onmouseout="this.style.background='#009542'">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div style="font-size:.68rem;color:#bbb;margin-top:3px;text-align:center;">
+                Enter envia &nbsp;·&nbsp; Shift+Enter nova linha
+            </div>
+        </div>
+    </div>
+
+    <!-- FAB do Robô -->
+    <button id="aiFabBtn" title="Arrastar / Abrir chat IA" aria-label="Abrir chat IA"
+        style="position:absolute;bottom:0;right:0;
+               width:52px;height:52px;border-radius:50%;
+               background:linear-gradient(135deg,#009542,#1cd362);border:none;
+               box-shadow:0 4px 16px rgba(0,149,66,.45);color:#fff;font-size:1.35rem;
+               cursor:grab;transition:transform .18s,box-shadow .18s;">
+        <i class="fas fa-robot"></i>
+    </button>
+</div>
+
+<style>
+#aiFabBtn:not(.ai-open) { animation: aiFabPulse 3s ease-in-out infinite; }
+@keyframes aiFabPulse {
+    0%,100% { box-shadow: 0 4px 16px rgba(0,149,66,.45); }
+    50%      { box-shadow: 0 4px 22px rgba(0,149,66,.75), 0 0 0 6px rgba(0,149,66,.12); }
+}
+#aiFabBtn:hover  { transform: scale(1.1) !important; animation: none; }
+#aiFabBtn.ai-open { animation: none; }
+#aiWidget.dragging #aiFabBtn { cursor: grabbing; transform: scale(1.08); animation: none; }
+
+.ai-msg { display: flex; }
+.ai-msg-user      { justify-content: flex-end; }
+.ai-msg-assistant { justify-content: flex-start; }
+.ai-msg-system    { justify-content: center; }
+
+.ai-bubble {
+    display: table;
+    max-width: 88%;
+    padding: 8px 13px;
+    border-radius: 14px;
+    font-size: .845rem;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+    word-break: normal;
+    hyphens: none;
+}
+.ai-msg-user .ai-bubble {
+    background: #009542; color: #fff;
+    border-bottom-right-radius: 4px;
+    white-space: normal;
+}
+.ai-msg-assistant .ai-bubble {
+    background: #fff; color: #212529;
+    border: 1px solid #e9ecef;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    white-space: pre-wrap;
+    max-width: 92%;
+}
+.ai-msg-system .ai-bubble {
+    background: #e8f5e9; color: #2e7d32;
+    font-size: .78rem; border-radius: 8px; padding: 5px 10px;
+}
+.ai-bubble-typing {
+    background: #fff; border: 1px solid #e9ecef;
+    display: inline-flex; gap: 4px; align-items: center;
+    padding: 9px 14px; border-radius: 14px; border-bottom-left-radius: 4px;
+}
+.ai-bubble-typing span {
+    width: 7px; height: 7px; background: #009542;
+    border-radius: 50%; animation: aiDot 1.2s infinite; opacity: .4;
+}
+.ai-bubble-typing span:nth-child(2) { animation-delay: .2s; }
+.ai-bubble-typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes aiDot {
+    0%,60%,100% { transform: translateY(0); opacity: .4; }
+    30%          { transform: translateY(-5px); opacity: 1; }
+}
+.ai-bubble strong { font-weight: 700; }
+.ai-bubble code { background:#f0f0f0; padding:1px 5px; border-radius:4px; font-size:.82rem; }
+.ai-bubble a { color: #009542; }
+.ai-msg-time { font-size: .68rem; color: #aaa; margin-top: 2px; }
+.ai-msg-user .ai-msg-time { text-align: right; }
+</style>
+
+<script>
+(function () {
+    const widget  = document.getElementById('aiWidget');
+    const panel   = document.getElementById('aiChatPanel');
+    const messages= document.getElementById('aiChatMessages');
+    const input   = document.getElementById('aiChatInput');
+    const typing  = document.getElementById('aiTypingIndicator');
+    const sendBtn = document.getElementById('aiSendBtn');
+    const fabBtn  = document.getElementById('aiFabBtn');
+
+    let _sessionId     = null;
+    let _isOpen        = false;
+    let _historyLoaded = false;
+
+    // ── Drag ─────────────────────────────────────────────────────────────
+    let _dragging  = false;
+    let _dragStart = null;   // {x, y, left, top}
+    const FAB_SIZE = 52;
+
+    function getClientXY(e) {
+        return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                         : { x: e.clientX, y: e.clientY };
+    }
+
+    function toTopLeft() {
+        // Converte bottom/right → top/left para arrastar com coordenadas absolutas
+        const r = widget.getBoundingClientRect();
+        widget.style.bottom = '';
+        widget.style.right  = '';
+        widget.style.top    = r.top + 'px';
+        widget.style.left   = r.left + 'px';
+    }
+
+    function clampPosition(left, top) {
+        const maxL = window.innerWidth  - FAB_SIZE - 8;
+        const maxT = window.innerHeight - FAB_SIZE - 8;
+        return {
+            left: Math.max(8, Math.min(left, maxL)),
+            top:  Math.max(8, Math.min(top,  maxT))
+        };
+    }
+
+    const PANEL_W = 370;
+    const PANEL_H = 580;
+    const GAP     = 10;  // espaço entre FAB e painel
+
+    function repositionPanel() {
+        const wr = widget.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        // Vertical: painel vai abaixo se não couber acima
+        const spaceAbove = wr.top;
+        const spaceBelow = vh - wr.bottom;
+        if (spaceAbove >= PANEL_H + GAP || spaceAbove >= spaceBelow) {
+            panel.style.bottom = (FAB_SIZE + GAP) + 'px';
+            panel.style.top    = 'auto';
+        } else {
+            panel.style.top    = (FAB_SIZE + GAP) + 'px';
+            panel.style.bottom = 'auto';
+        }
+
+        // Horizontal: alinha à direita do FAB mas impede sair da tela
+        // O painel usa right:0 por padrão (alinhado à direita do widget)
+        // Se o painel ultrapassar a borda esquerda, muda para left:0
+        const panelRight = wr.right;   // borda direita do FAB = borda direita do painel com right:0
+        const panelLeft  = panelRight - PANEL_W;
+        if (panelLeft < 8) {
+            panel.style.right = 'auto';
+            panel.style.left  = '0';
+        } else {
+            panel.style.right = '0';
+            panel.style.left  = 'auto';
+        }
+    }
+
+    fabBtn.addEventListener('mousedown', onDragStart);
+    fabBtn.addEventListener('touchstart', onDragStart, { passive: false });
+
+    function onDragStart(e) {
+        // Distinguir clique de drag: começa como potencial drag
+        const { x, y } = getClientXY(e);
+        toTopLeft();
+        _dragStart = {
+            x, y,
+            left: parseFloat(widget.style.left),
+            top:  parseFloat(widget.style.top),
+            moved: false,
+        };
+        _dragging = true;
+        widget.classList.add('dragging');
+
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('mouseup',   onDragEnd);
+        document.addEventListener('touchmove', onDragMove, { passive: false });
+        document.addEventListener('touchend',  onDragEnd);
+        e.preventDefault();
+    }
+
+    function onDragMove(e) {
+        if (!_dragging) return;
+        const { x, y } = getClientXY(e);
+        const dx = x - _dragStart.x;
+        const dy = y - _dragStart.y;
+
+        if (!_dragStart.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        _dragStart.moved = true;
+
+        const pos = clampPosition(_dragStart.left + dx, _dragStart.top + dy);
+        widget.style.left = pos.left + 'px';
+        widget.style.top  = pos.top  + 'px';
+        e.preventDefault();
+    }
+
+    function onDragEnd() {
+        document.removeEventListener('mousemove', onDragMove);
+        document.removeEventListener('mouseup',   onDragEnd);
+        document.removeEventListener('touchmove', onDragMove);
+        document.removeEventListener('touchend',  onDragEnd);
+        widget.classList.remove('dragging');
+
+        if (_dragging && !_dragStart.moved) {
+            aiChatToggle();
+        } else {
+            // Reposiciona o painel após o arraste
+            repositionPanel();
+        }
+        _dragging  = false;
+        _dragStart = null;
+    }
+
+    // ── Toggle abrir/fechar ───────────────────────────────────────────────
+    window.aiChatToggle = function () {
+        _isOpen = !_isOpen;
+        if (_isOpen) {
+            repositionPanel();
+            panel.style.pointerEvents = 'auto';
+            panel.style.opacity       = '1';
+            panel.style.transform     = 'scale(1) translateY(0)';
+            fabBtn.classList.add('ai-open');
+            if (!_historyLoaded) loadHistory();
+            else setTimeout(() => input.focus(), 220);
+        } else {
+            panel.style.opacity       = '0';
+            panel.style.transform     = 'scale(0.85) translateY(20px)';
+            panel.style.pointerEvents = 'none';
+            fabBtn.classList.remove('ai-open');
+        }
+    };
+
+    // ── Histórico ─────────────────────────────────────────────────────────
+    async function loadHistory() {
+        appendSystemMsg('Carregando histórico...');
+        try {
+            const resp = await fetch("{% url 'ai_chat_history' %}", {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json();
+            messages.innerHTML = '';
+            if (data.ok && data.sessions && data.sessions.length > 0) {
+                const firstSession = data.sessions[0];
+                _sessionId = firstSession.id;
+
+                // Carrega mensagens da primeira sessão
+                await loadSessionMessages(_sessionId);
+
+                // Se nenhuma mensagem foi carregada, mostra boas-vindas
+                if (!_historyLoaded || messages.children.length === 0) {
+                    messages.innerHTML = '';
+                    showWelcome();
+                }
+            } else {
+                showWelcome();
+            }
+        } catch {
+            messages.innerHTML = '';
+            showWelcome();
+        }
+        _historyLoaded = true;
+        scrollToBottom();
+        setTimeout(() => input.focus(), 50);
+    }
+
+    async function loadSessionMessages(sessionId) {
+        try {
+            const resp = await fetch(`{% url 'ai_chat_history' %}?session_id=${sessionId}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json();
+            messages.innerHTML = '';
+            if (data.ok && data.messages && data.messages.length > 0)
+                data.messages.forEach(m => appendMessage(m.role, m.content, m.created_at));
+            else showWelcome();
+        } catch { showWelcome(); }
+    }
+
+    function showWelcome() {
+        messages.innerHTML = '';
+        appendMessage('assistant',
+            '👋 Olá! Sou o assistente JumperFour IA.\n' +
+            'Posso criar, editar, evoluir ou excluir OS, cadastrar clientes e equipamentos.\n\n' +
+            '**Exemplos:**\n' +
+            '• "Quero abrir um chamado para a Bain"\n' +
+            '• "Editar a OS #42"\n' +
+            '• "Adicionar evolução na OS #15: problema resolvido"\n' +
+            '• "Limpar chat" para apagar o histórico desta conversa'
+        );
+    }
+
+    // ── Nova sessão ───────────────────────────────────────────────────────
+    window.aiChatNewSession = async function () {
+        try {
+            const resp = await fetch("{% url 'ai_chat_new' %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await resp.json();
+            if (data.ok) { _sessionId = data.session_id; messages.innerHTML = ''; showWelcome(); input.value = ''; input.focus(); }
+        } catch {}
+    };
+
+    // ── Enviar mensagem ───────────────────────────────────────────────────
+    window.aiChatSend = async function () {
+        const text = (input.value || '').trim();
+        if (!text) return;
+        input.value = ''; input.disabled = true; sendBtn.disabled = true;
+        appendMessage('user', text);
+        scrollToBottom();
+        typing.style.display = 'block';
+        scrollToBottom();
+        try {
+            const resp = await fetch("{% url 'ai_chat' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ message: text, session_id: _sessionId }),
+            });
+            const data = await resp.json();
+            typing.style.display = 'none';
+            if (data.ok) {
+                _sessionId = data.session_id;
+                if (data.clear_chat) {
+                    await clearChat(data.response);
+                } else {
+                    appendMessage('assistant', data.response);
+                    // Nova OS criada — atualiza lista e destaca
+                    if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
+                        window.aiRefreshAndHighlight(data.new_ticket_id);
+                    }
+                }
+            } else {
+                appendMessage('assistant', '⚠️ ' + (data.error || 'Erro desconhecido.'));
+            }
+        } catch {
+            typing.style.display = 'none';
+            appendMessage('assistant', '⚠️ Falha de conexão. Tente novamente.');
+        } finally {
+            input.disabled = false; sendBtn.disabled = false;
+            input.focus(); scrollToBottom();
+        }
+    };
+
+    // ── Limpar chat ───────────────────────────────────────────────────────
+    async function clearChat(confirmMsg) {
+        messages.innerHTML = '';
+        if (confirmMsg) appendSystemMsg(confirmMsg);
+        showWelcome();
+        _sessionId = null;
+        try {
+            const resp = await fetch("{% url 'ai_chat_new' %}", {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await resp.json();
+            if (data.ok) _sessionId = data.session_id;
+        } catch {}
+    }
+
+    // ── Renderização ──────────────────────────────────────────────────────
+    function appendMessage(role, content, time) {
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
+        wrap.className = role === 'user' ? 'align-items-end' : 'align-items-start';
+        const row = document.createElement('div');
+        row.className = `ai-msg ai-msg-${role}`;
+        const bubble = document.createElement('div');
+        bubble.className = 'ai-bubble';
+        bubble.innerHTML = markdownToHtml(content);
+        row.appendChild(bubble); wrap.appendChild(row);
+        if (time) {
+            const t = document.createElement('div');
+            t.className = `ai-msg-time ${role === 'user' ? 'text-end' : ''}`;
+            t.textContent = time; wrap.appendChild(t);
+        }
+        messages.appendChild(wrap);
+    }
+
+    function appendSystemMsg(text) {
+        const div = document.createElement('div');
+        div.className = 'ai-msg ai-msg-system';
+        div.innerHTML = `<div class="ai-bubble">${markdownToHtml(text)}</div>`;
+        messages.appendChild(div);
+    }
+
+    function scrollToBottom() { setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 60); }
+
+    function markdownToHtml(text) {
+        return (text || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+    }
+
+    function getCookie(name) {
+        const v = `; ${document.cookie}`.split(`; ${name}=`);
+        if (v.length === 2) return v.pop().split(';').shift();
+        return '';
+    }
+})();
+</script>
+{% endif %}

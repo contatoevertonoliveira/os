@@ -29,6 +29,10 @@ class ContactClientForm(forms.ModelForm):
             "phone": forms.TextInput(attrs={"class": "form-control phone-mask", "placeholder": "(00) 0000-0000"}),
         }
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip().upper()
+        return name
+
 
 class ContactJumperForm(forms.ModelForm):
     class Meta:
@@ -44,6 +48,10 @@ class ContactJumperForm(forms.ModelForm):
         widgets = {
             "phone": forms.TextInput(attrs={"class": "form-control phone-mask", "placeholder": "(00) 0000-0000"}),
         }
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip().upper()
+        return name
 
 class TokenLoginForm(forms.Form):
     token = forms.CharField(label="Token de Acesso", widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Cole seu token aqui'}))
@@ -116,6 +124,10 @@ class ClientForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             self.fields['logo'].widget.attrs.update({'class': 'form-control'})
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip().upper()
+        return name
+
 
 class ClientHubForm(forms.ModelForm):
     class Meta:
@@ -129,6 +141,10 @@ class ClientHubForm(forms.ModelForm):
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'email@exemplo.com'}),
             'logo': forms.ClearableFileInput(attrs={'class': 'form-control form-control-sm'}),
         }
+
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip().upper()
+        return name
 
 ClientHubFormSet = forms.inlineformset_factory(
     Client, ClientHub, form=ClientHubForm,
@@ -671,22 +687,23 @@ class UserProfileForm(forms.ModelForm):
     first_name = forms.CharField(label="Nome Completo", max_length=150, required=True)
     email = forms.EmailField(label="Email", required=True)
     job_title = forms.CharField(label="Cargo", max_length=100, required=False)
-    
+
     class Meta:
         model = UserProfile
-        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role']
+        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role', 'ai_chat_enabled']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
             'job_title': forms.TextInput(attrs={'class': 'form-control'}),
             'personal_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 00000-0000'}),
             'company_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
+            'ai_chat_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
         }
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        
+
         # Populate user fields
         if self.instance and self.instance.pk and hasattr(self.instance, 'user'):
             self.fields['first_name'].initial = self.instance.user.first_name
@@ -695,12 +712,13 @@ class UserProfileForm(forms.ModelForm):
 
         # Role restriction logic
         is_admin = self.user and hasattr(self.user, 'profile') and self.user.profile.role in ['admin', 'super_admin']
-        
+
         if not is_admin:
             # Hide/Disable restricted fields for non-admins
             self.fields['role'].disabled = True
             self.fields['station'].disabled = True # Assuming station is assigned by admin
             self.fields['job_title'].disabled = True
+            self.fields['ai_chat_enabled'].disabled = True
         
     def save(self, commit=True):
         profile = super().save(commit=False)
@@ -756,6 +774,10 @@ class SystemSettingsForm(forms.ModelForm):
             'enable_night_shift',
             'night_shift_start',
             'night_shift_end',
+            'ai_enabled',
+            'ai_provider',
+            'ai_api_key',
+            'ai_model',
         ]
         widgets = {
             'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
@@ -764,6 +786,10 @@ class SystemSettingsForm(forms.ModelForm):
             'enable_night_shift': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
             'night_shift_start': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'night_shift_end': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'ai_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch', 'id': 'id_ai_enabled'}),
+            'ai_provider': forms.Select(attrs={'class': 'form-select'}),
+            'ai_api_key': forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off', 'placeholder': 'sk-...'}),
+            'ai_model': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Deixe em branco para usar o padrão'}),
         }
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -920,7 +946,7 @@ class UserManagementForm(forms.ModelForm):
     email = forms.EmailField(label="Email", required=False, widget=forms.EmailInput(attrs={'class': 'form-control'}))
     password = forms.CharField(label="Senha", widget=forms.PasswordInput(attrs={'class': 'form-control'}), required=False, help_text="Deixe em branco para manter a senha atual.")
     access_token = forms.CharField(label="Token de Acesso", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}), help_text="Token único para acesso via API ou login simplificado.")
-    
+
     # Profile fields
     role = forms.ChoiceField(label="Nível de Acesso", choices=UserProfile.ROLE_CHOICES, required=True, widget=forms.Select(attrs={'class': 'form-select'}))
     job_title = forms.CharField(label="Cargo", max_length=100, required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
@@ -928,6 +954,7 @@ class UserManagementForm(forms.ModelForm):
     personal_phone = forms.CharField(label="Telefone Pessoal", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
     company_phone = forms.CharField(label="Telefone Empresa", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
     photo = forms.ImageField(label="Foto de Perfil", required=False, widget=forms.FileInput(attrs={'class': 'form-control'}))
+    ai_chat_enabled = forms.BooleanField(label="Ativar Chat IA", required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}))
 
     class Meta:
         model = User
@@ -950,6 +977,7 @@ class UserManagementForm(forms.ModelForm):
                 self.fields['company_phone'].initial = self.instance.profile.company_phone
                 self.fields['photo'].initial = self.instance.profile.photo
                 self.fields['access_token'].initial = self.instance.profile.token
+                self.fields['ai_chat_enabled'].initial = self.instance.profile.ai_chat_enabled
         else:
              self.fields['password'].required = True
              self.fields['password'].help_text = "Senha inicial para o usuário."
@@ -961,24 +989,25 @@ class UserManagementForm(forms.ModelForm):
         password = self.cleaned_data.get('password')
         if password:
             user.set_password(password)
-        
+
         if commit:
             user.save()
             # Create or update profile
             profile, created = UserProfile.objects.get_or_create(user=user)
-            
+
             profile.role = self.cleaned_data['role']
             profile.job_title = self.cleaned_data['job_title']
             profile.station = self.cleaned_data['station']
             profile.personal_phone = self.cleaned_data['personal_phone']
             profile.company_phone = self.cleaned_data['company_phone']
-            
+            profile.ai_chat_enabled = self.cleaned_data.get('ai_chat_enabled', True)
+
             if self.cleaned_data.get('photo'):
                  profile.photo = self.cleaned_data['photo']
-            
+
             if self.cleaned_data.get('access_token'):
                 profile.token = self.cleaned_data['access_token']
-            
+
             profile.save()
         return user
 

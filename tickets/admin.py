@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -94,3 +94,18 @@ class SystemSettingsAdmin(admin.ModelAdmin):
             return False
         return super().has_add_permission(request)
 
+
+class AIChatMessageInline(admin.TabularInline):
+    model = AIChatMessage
+    extra = 0
+    readonly_fields = ('role', 'content', 'created_at')
+    can_delete = False
+
+
+@admin.register(AIChatSession)
+class AIChatSessionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'title', 'created_at', 'updated_at')
+    list_filter = ('user',)
+    search_fields = ('user__username', 'title')
+    inlines = [AIChatMessageInline]
+    readonly_fields = ('created_at', 'updated_at')

@@ -1,0 +1,1762 @@
+"""
+Ferramentas (tools) disponíveis para o agente de IA.
+Cada tool verifica permissões do usuário antes de executar operações no banco.
+"""
+import json
+from django.db.models import Q
+from django.utils import timezone
+
+
+def _parse_dt(value):
+    """
+    Converte string de data/hora em datetime timezone-aware.
+    Aceita vários formatos. Se a string não tiver hora, usa a hora atual.
+    Sempre retorna um datetime aware (com timezone do Django settings).
+    """
+    from django.utils.dateparse import parse_datetime, parse_date
+    import datetime
+
+    if not value:
+        return None
+
+    value = str(value).strip()
+
+    # Tenta parse completo (YYYY-MM-DDTHH:MM ou YYYY-MM-DD HH:MM)
+    dt = parse_datetime(value.replace(" ", "T"))
+    if not dt:
+        # Tenta só data (YYYY-MM-DD ou DD/MM/YYYY)
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                d = datetime.datetime.strptime(value[:10], fmt)
+                # Sem hora — usa hora atual
+                now = timezone.localtime(timezone.now())
+                dt = datetime.datetime(d.year, d.month, d.day, now.hour, now.minute, 0)
+                break
+            except ValueError:
+                continue
+
+    if dt is None:
+        return None
+
+    # Garante timezone-aware
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+
+    return dt
+
+
+# ---------------------------------------------------------------------------
+# Definições das tools (enviadas para o modelo de IA)
+# ---------------------------------------------------------------------------
+
+TOOL_DEFINITIONS = [
+    {
+        "name": "search_client",
+        "description": "Busca clientes cadastrados pelo nome (busca parcial). Use para verificar se um cliente existe antes de criar uma OS.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome ou parte do nome do cliente"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "search_web",
+        "description": "Busca informações na internet via DuckDuckGo. Use para verificar o nome oficial de empresas, razão social, ou qualquer informação que precise de confirmação externa antes de cadastrar.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Termo de busca. Para empresas, inclua palavras como 'empresa', 'razão social' ou 'CNPJ' para melhores resultados. Ex: 'Rede Globo empresa razão social Brasil'"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "search_company_details",
+        "description": "Busca detalhes de uma empresa na internet: endereço, telefone, CNPJ, CEP, cidade, site. Use após o usuário confirmar o nome da empresa para pré-preencher os dados de cadastro.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "company_name": {"type": "string", "description": "Nome oficial da empresa (já confirmado pelo usuário)"}
+            },
+            "required": ["company_name"]
+        }
+    },
+    {
+        "name": "search_all_contacts",
+        "description": "Busca pessoas pelo nome em toda a base de dados: contatos de clientes (ContactClient) e profissionais JumperFour (ContactJumper). Use para localizar qualquer pessoa cadastrada no sistema.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome ou parte do nome da pessoa"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "get_client_details",
+        "description": "Retorna detalhes de um cliente específico: hubs, contatos solicitantes disponíveis.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_id": {"type": "integer", "description": "ID do cliente"}
+            },
+            "required": ["client_id"]
+        }
+    },
+    {
+        "name": "list_ticket_statuses",
+        "description": "Lista os status de OS disponíveis no sistema.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_systems",
+        "description": "Lista os sistemas disponíveis para associar à OS.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_ticket_types",
+        "description": "Lista os tipos de chamado disponíveis.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_jumper_contacts",
+        "description": "Lista os responsáveis/executores da JumperFour disponíveis.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "get_ticket",
+        "description": "Busca uma OS (Ordem de Serviço) pelo número do ticket. Use para editar ou visualizar uma OS existente.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_number": {"type": "string", "description": "Número da OS (ex: 00042 ou 42)"}
+            },
+            "required": ["ticket_number"]
+        }
+    },
+    {
+        "name": "create_ticket",
+        "description": "Cria uma nova OS após confirmação do usuário. Só chame após o usuário confirmar explicitamente os dados.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_id": {"type": "integer", "description": "ID do cliente"},
+                "hub_id": {"type": "integer", "description": "ID do hub/loja (opcional)"},
+                "status": {"type": "string", "description": "Código do status (ex: open, in_progress)"},
+                "description": {"type": "string", "description": "Descrição inicial da OS"},
+                "start_date": {"type": "string", "description": "Data/hora de início no formato YYYY-MM-DDTHH:MM"},
+                "deadline": {"type": "string", "description": "Prazo no formato YYYY-MM-DDTHH:MM"},
+                "contact_client_requester_id": {"type": "integer", "description": "ID do solicitante (ContactClient)"},
+                "contact_jumper_responsible_id": {"type": "integer", "description": "ID do responsável JumperFour (ContactJumper)"},
+                "ticket_type_id": {"type": "integer", "description": "ID do tipo de chamado (opcional)"},
+                "system_id": {"type": "integer", "description": "ID do sistema (opcional)"},
+                "leankeep_id": {"type": "string", "description": "ID no Leankeep (opcional)"},
+                "final_description": {"type": "string", "description": "Descrição final/resolução (opcional)"}
+            },
+            "required": ["client_id", "status", "description", "start_date", "deadline",
+                         "contact_client_requester_id", "contact_jumper_responsible_id"]
+        }
+    },
+    {
+        "name": "update_ticket",
+        "description": "Edita campos de uma OS existente após confirmação do usuário.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "integer", "description": "ID interno da OS"},
+                "status": {"type": "string", "description": "Novo status (código)"},
+                "description": {"type": "string", "description": "Nova descrição inicial"},
+                "final_description": {"type": "string", "description": "Descrição final/resolução"},
+                "deadline": {"type": "string", "description": "Novo prazo YYYY-MM-DDTHH:MM"},
+                "contact_client_requester_id": {"type": "integer", "description": "Novo ID do solicitante"},
+                "contact_jumper_responsible_id": {"type": "integer", "description": "Novo ID do responsável"},
+                "ticket_type_id": {"type": "integer", "description": "Novo tipo de chamado"}
+            },
+            "required": ["ticket_id"]
+        }
+    },
+    {
+        "name": "add_ticket_evolution",
+        "description": "Adiciona uma evolução/atualização ao histórico de uma OS.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "integer", "description": "ID interno da OS"},
+                "description": {"type": "string", "description": "Texto da evolução"}
+            },
+            "required": ["ticket_id", "description"]
+        }
+    },
+    {
+        "name": "delete_ticket",
+        "description": "Exclui uma OS. Requer nível admin ou super_admin. Só chame após confirmação explícita.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "integer", "description": "ID interno da OS"}
+            },
+            "required": ["ticket_id"]
+        }
+    },
+    {
+        "name": "create_client",
+        "description": "Cadastra um novo cliente no sistema após confirmação do usuário.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do cliente"},
+                "email": {"type": "string", "description": "E-mail (opcional)"},
+                "phone": {"type": "string", "description": "Telefone (opcional)"},
+                "address": {"type": "string", "description": "Endereço (opcional)"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "update_client",
+        "description": "Edita os dados de um cliente existente após confirmação do usuário. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_id": {"type": "integer", "description": "ID do cliente a editar"},
+                "name": {"type": "string", "description": "Novo nome do cliente (opcional)"},
+                "email": {"type": "string", "description": "Novo e-mail (opcional)"},
+                "phone": {"type": "string", "description": "Novo telefone (opcional)"},
+                "address": {"type": "string", "description": "Novo endereço (opcional)"}
+            },
+            "required": ["client_id"]
+        }
+    },
+    {
+        "name": "create_equipment",
+        "description": "Cadastra um novo equipamento no sistema após confirmação.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do equipamento"},
+                "description": {"type": "string", "description": "Descrição (opcional)"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "clear_chat",
+        "description": "Limpa o histórico do chat atual. Use SOMENTE quando o usuário pedir explicitamente para limpar, apagar ou resetar o chat/histórico/conversa.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "create_contact_client",
+        "description": "Cadastra um novo contato/solicitante vinculado a um cliente (e opcionalmente a um hub/loja). Use quando o solicitante não existir na lista do cliente.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name":      {"type": "string", "description": "Nome completo do contato"},
+                "client_id": {"type": "integer", "description": "ID do cliente ao qual o contato pertence"},
+                "hub_id":    {"type": "integer", "description": "ID do hub/loja (opcional, se o contato for de uma loja específica)"},
+                "email":     {"type": "string", "description": "E-mail (opcional)"},
+                "phone":     {"type": "string", "description": "Telefone (opcional)"}
+            },
+            "required": ["name", "client_id"]
+        }
+    },
+    {
+        "name": "create_contact_jumper",
+        "description": "Cadastra um novo profissional da JumperFour como responsável. Use quando o executor desejado não existir na lista. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name":       {"type": "string", "description": "Nome completo"},
+                "role":       {"type": "string", "description": "Cargo/função (opcional)"},
+                "department": {"type": "string", "description": "Departamento (opcional)"},
+                "email":      {"type": "string", "description": "E-mail (opcional)"},
+                "phone":      {"type": "string", "description": "Telefone (opcional)"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_hub",
+        "description": "Cadastra uma nova filial/loja (hub) para um cliente. Use quando o hub não existir. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_id": {"type": "integer", "description": "ID do cliente"},
+                "name":      {"type": "string", "description": "Nome da filial/loja"}
+            },
+            "required": ["client_id", "name"]
+        }
+    },
+    {
+        "name": "create_role",
+        "description": "Cria um novo nível de acesso (role) no sistema. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do nível (ex: Coordenador, Gerente)"},
+                "code": {"type": "string", "description": "Código único do nível (opcional, em minúsculas sem espaços)"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_page",
+        "description": "Cria uma nova página/tela no sistema. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome da página (ex: Relatórios, Dashboard)"},
+                "url_name": {"type": "string", "description": "Nome da URL Django (ex: reports, dashboard)"},
+                "code": {"type": "string", "description": "Código único (opcional)"},
+                "group": {"type": "string", "description": "Grupo/categoria (opcional, ex: Admin, Financeiro)"}
+            },
+            "required": ["name", "url_name"]
+        }
+    },
+    {
+        "name": "list_roles",
+        "description": "Lista todos os níveis de acesso disponíveis no sistema.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_pages",
+        "description": "Lista todas as páginas/telas disponíveis no sistema.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_users",
+        "description": "Lista todos os usuários do sistema com seus perfis.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "toggle_page_enabled",
+        "description": "Habilita ou desabilita uma página no sistema. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "page_id": {"type": "integer", "description": "ID da página"},
+                "enabled": {"type": "boolean", "description": "true para habilitar, false para desabilitar"}
+            },
+            "required": ["page_id", "enabled"]
+        }
+    },
+    {
+        "name": "update_page_permission",
+        "description": "Atualiza a permissão de acesso a uma página para um nível específico. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "page_id": {"type": "integer", "description": "ID da página"},
+                "role_id": {"type": "integer", "description": "ID do nível de acesso"},
+                "allowed": {"type": "boolean", "description": "true para permitir, false para bloquear"}
+            },
+            "required": ["page_id", "role_id", "allowed"]
+        }
+    },
+    {
+        "name": "update_user_restriction",
+        "description": "Atualiza restrições de funcionalidade para um usuário específico. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do usuário"},
+                "restriction_type": {"type": "string", "description": "Tipo de restrição: can_view_tickets, can_create_tickets, can_edit_tickets, can_delete_tickets, can_view_checklists, can_create_checklists, allow_pdf_reports, ai_chat_enabled"},
+                "allowed": {"type": "boolean", "description": "true para permitir, false para bloquear"}
+            },
+            "required": ["user_id", "restriction_type", "allowed"]
+        }
+    },
+    {
+        "name": "list_all_users_admin",
+        "description": "Lista todos os usuários do sistema com detalhes. Somente para Super Admin (acesso global) e Admin (acesso a usuários de níveis abaixo).",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "get_user_details_admin",
+        "description": "Obtém detalhes completos de um usuário específico, incluindo informações sensíveis. Requer permissão de super_admin ou admin. Admin só pode acessar usuários de níveis abaixo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do usuário"},
+                "include_password": {"type": "boolean", "description": "Se true, revela a senha (dados sigilosos)"}
+            },
+            "required": ["user_id"]
+        }
+    },
+    {
+        "name": "update_user_data_admin",
+        "description": "Atualiza dados de um usuário (nome, email, telefone, etc). Requer permissão de super_admin ou admin. Admin só pode alterar usuários de níveis abaixo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do usuário"},
+                "first_name": {"type": "string", "description": "Novo nome"},
+                "email": {"type": "string", "description": "Novo email"},
+                "job_title": {"type": "string", "description": "Novo cargo"}
+            },
+            "required": ["user_id"]
+        }
+    },
+    {
+        "name": "change_user_password_admin",
+        "description": "Altera a senha de um usuário. Requer permissão de super_admin ou admin. Admin só pode alterar usuários de níveis abaixo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do usuário"},
+                "new_password": {"type": "string", "description": "Nova senha"}
+            },
+            "required": ["user_id", "new_password"]
+        }
+    },
+    {
+        "name": "get_system_info_admin",
+        "description": "Obtém informações gerais do sistema: usuários online/logados, estatísticas, configurações. Requer permissão de super_admin ou admin.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_online_users_admin",
+        "description": "Lista usuários que estão online ou logados no momento. Requer permissão de super_admin ou admin.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+]
+
+
+# ---------------------------------------------------------------------------
+# Executor de tools
+# ---------------------------------------------------------------------------
+
+def execute_tool(tool_name: str, args: dict, user) -> dict:
+    """
+    Executa uma tool pelo nome com os argumentos fornecidos.
+    Verifica permissões do usuário antes de operações destrutivas.
+    Retorna dict com 'ok' (bool) e 'data' ou 'error'.
+    """
+    try:
+        fn = _TOOL_REGISTRY.get(tool_name)
+        if not fn:
+            return {"ok": False, "error": f"Ferramenta desconhecida: {tool_name}"}
+        return fn(args, user)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Implementação de cada tool
+# ---------------------------------------------------------------------------
+
+def _search_web(args, user):
+    """Busca na internet usando DuckDuckGo (sem API key). Retorna até 5 resultados."""
+    import urllib.request
+    import urllib.parse
+    import json as _json
+
+    query = args.get("query", "").strip()
+    if not query:
+        return {"ok": False, "error": "Consulta vazia."}
+
+    try:
+        params = urllib.parse.urlencode({
+            "q": query,
+            "format": "json",
+            "no_html": "1",
+            "skip_disambig": "1",
+        })
+        url = f"https://api.duckduckgo.com/?{params}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (JumperFour OS)"})
+        with urllib.request.urlopen(req, timeout=7) as r:
+            data = _json.loads(r.read().decode("utf-8"))
+
+        results = []
+
+        # Resultado principal (entidade direta)
+        if data.get("Heading"):
+            entry = {"name": data["Heading"]}
+            if data.get("AbstractText"):
+                entry["info"] = data["AbstractText"][:180]
+            results.append(entry)
+
+        # Tópicos relacionados
+        for topic in data.get("RelatedTopics", []):
+            if len(results) >= 5:
+                break
+            if isinstance(topic, dict):
+                subtopics = topic.get("Topics", [topic])
+                for sub in subtopics:
+                    if len(results) >= 5:
+                        break
+                    text = sub.get("Text", "")
+                    if not text:
+                        continue
+                    name = text.split(" - ")[0].split("\n")[0].strip()
+                    if name and not any(r["name"] == name for r in results):
+                        results.append({"name": name, "info": text[:180]})
+
+        return {"ok": True, "data": results or [{"name": query, "info": "Nenhum resultado encontrado na internet."}]}
+
+    except Exception as e:
+        return {"ok": False, "error": f"Falha na busca web: {str(e)}"}
+
+
+def _search_company_details(args, user):
+    """Busca detalhes de uma empresa na internet: endereço, telefone, CNPJ, site."""
+    import urllib.request
+    import urllib.parse
+    import json as _json
+    import re
+
+    company_name = args.get("company_name", "").strip()
+    if not company_name:
+        return {"ok": False, "error": "Nome da empresa não informado."}
+
+    def _ddg(query):
+        params = urllib.parse.urlencode({"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"})
+        req = urllib.request.Request(
+            f"https://api.duckduckgo.com/?{params}",
+            headers={"User-Agent": "Mozilla/5.0 (JumperFour OS)"}
+        )
+        with urllib.request.urlopen(req, timeout=7) as r:
+            return _json.loads(r.read().decode("utf-8"))
+
+    details = {"company": company_name}
+
+    try:
+        # Busca geral da empresa
+        data = _ddg(f"{company_name} empresa endereço telefone CNPJ site oficial")
+
+        all_text = " ".join([
+            data.get("AbstractText", ""),
+            " ".join(t.get("Text", "") for t in data.get("RelatedTopics", []) if isinstance(t, dict))
+        ])
+
+        # CNPJ
+        cnpj = re.search(r'\d{2}[\.\s]?\d{3}[\.\s]?\d{3}[\/\s]?\d{4}[\-\s]?\d{2}', all_text)
+        if cnpj:
+            details["cnpj"] = cnpj.group(0).strip()
+
+        # Telefone
+        phone = re.search(r'(?:\+55\s?)?(?:\(?\d{2}\)?\s?)(?:9\s?)?\d{4,5}[\-\s]?\d{4}', all_text)
+        if phone:
+            details["phone"] = phone.group(0).strip()
+
+        # Site
+        site = re.search(r'(?:www\.|https?://)[a-zA-Z0-9\-\.]+\.[a-z]{2,}(?:/[^\s]*)?', all_text)
+        if site:
+            details["website"] = site.group(0).strip()
+
+        # Resumo/descrição
+        if data.get("AbstractText"):
+            details["description"] = data["AbstractText"][:300]
+
+        # Busca específica de endereço
+        addr_data = _ddg(f"{company_name} sede endereço rua cidade estado CEP")
+        addr_text = addr_data.get("AbstractText", "") + " ".join(
+            t.get("Text", "") for t in addr_data.get("RelatedTopics", []) if isinstance(t, dict)
+        )
+
+        # CEP
+        cep = re.search(r'\d{5}[\-\s]?\d{3}', addr_text)
+        if cep:
+            details["cep"] = cep.group(0).strip()
+
+        # Endereço (Rua/Av + número)
+        address = re.search(r'(?:Rua|Av\.?|Avenida|Alameda|Estrada|Travessa)[^,\n\.]{5,60}', addr_text, re.IGNORECASE)
+        if address:
+            details["address"] = address.group(0).strip()
+
+        # Cidade/Estado
+        city = re.search(r'(?:São Paulo|Rio de Janeiro|Brasília|Belo Horizonte|Salvador|Curitiba|Manaus|Fortaleza|[A-Z][a-zÀ-ú]+(?:\s[A-Z][a-zÀ-ú]+)?)\s*[\-–,]\s*[A-Z]{2}', addr_text)
+        if city:
+            details["city_state"] = city.group(0).strip()
+
+        return {"ok": True, "data": details}
+
+    except Exception as e:
+        return {"ok": False, "error": f"Não foi possível buscar detalhes: {str(e)}"}
+
+
+def _search_all_contacts(args, user):
+    from .models import ContactClient, ContactJumper
+    from django.db.models import Q
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome não informado."}
+
+    clients_contacts = ContactClient.objects.filter(
+        name__icontains=name, is_active=True
+    ).order_by('client_name', 'name')[:20]
+
+    jumper_contacts = ContactJumper.objects.filter(
+        name__icontains=name, is_active=True
+    ).order_by('name')[:20]
+
+    result = []
+    for c in clients_contacts:
+        entry = {"type": "client_contact", "id": c.id, "name": c.name, "client": c.client_name or ""}
+        if c.hub_name:
+            entry["hub"] = c.hub_name
+        result.append(entry)
+
+    for c in jumper_contacts:
+        result.append({"type": "jumper", "id": c.id, "name": c.name, "role": c.role or ""})
+
+    return {"ok": True, "data": result}
+
+
+def _search_client(args, user):
+    from .models import Client
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome não informado."}
+    clients = Client.objects.filter(name__icontains=name).order_by('name')[:10]
+    return {
+        "ok": True,
+        "data": [{"id": c.id, "name": c.name, "email": c.email or ""} for c in clients]
+    }
+
+
+def _get_client_details(args, user):
+    from .models import Client, ContactClient, ClientHub
+    from django.db.models import Q
+    client_id = args.get("client_id")
+    try:
+        client = Client.objects.get(pk=client_id)
+    except Client.DoesNotExist:
+        return {"ok": False, "error": "Cliente não encontrado."}
+
+    hub_ids = list(ClientHub.objects.filter(client_id=client_id).values_list('id', flat=True))
+
+    # Todos os contatos: tanto do cliente principal quanto de qualquer hub/loja
+    contacts_qs = ContactClient.objects.filter(
+        Q(client_ref_id=client_id) | Q(hub_ref_id__in=hub_ids),
+        is_active=True
+    ).order_by('hub_name', 'name')
+
+    contacts = []
+    for i, c in enumerate(contacts_qs[:50], start=1):
+        entry = {"num": i, "id": c.id, "name": c.name}
+        if c.hub_name:
+            entry["hub"] = c.hub_name
+        contacts.append(entry)
+
+    hubs = [{"id": h.id, "name": h.name} for h in ClientHub.objects.filter(client_id=client_id).order_by('name')]
+
+    return {"ok": True, "data": {
+        "client": {"id": client.id, "name": client.name},
+        "hubs": hubs,
+        "contacts": contacts,
+    }}
+
+
+def _list_ticket_statuses(args, user):
+    from .models import TicketStatus
+    qs = TicketStatus.objects.filter(is_active=True).order_by('order', 'name')
+    return {"ok": True, "data": [
+        {"num": i, "code": s.code, "name": s.name}
+        for i, s in enumerate(qs, start=1)
+    ]}
+
+
+def _list_systems(args, user):
+    from .models import System
+    qs = System.objects.all().order_by('name')
+    return {"ok": True, "data": [
+        {"num": i, "id": s.id, "name": s.name}
+        for i, s in enumerate(qs, start=1)
+    ]}
+
+
+def _list_ticket_types(args, user):
+    from .models import TicketType
+    qs = TicketType.objects.all().order_by('name')
+    return {"ok": True, "data": [
+        {"num": i, "id": t.id, "name": t.name}
+        for i, t in enumerate(qs, start=1)
+    ]}
+
+
+def _list_jumper_contacts(args, user):
+    from .models import ContactJumper
+    qs = ContactJumper.objects.filter(is_active=True).order_by('name')[:30]
+    return {"ok": True, "data": [
+        {"num": i, "id": c.id, "name": c.name, "role": c.role or ""}
+        for i, c in enumerate(qs, start=1)
+    ]}
+
+
+def _get_ticket(args, user):
+    from .models import Ticket
+    number = str(args.get("ticket_number", "")).strip().lstrip("0") or "0"
+    try:
+        ticket = Ticket.objects.select_related('client', 'hub', 'contact_client_requester', 'contact_jumper_responsible').get(id=int(number))
+    except (Ticket.DoesNotExist, ValueError):
+        # Tenta buscar pelo formatted_id
+        tickets = Ticket.objects.filter(id__icontains=number)[:1]
+        if not tickets:
+            return {"ok": False, "error": f"OS #{number} não encontrada."}
+        ticket = tickets[0]
+
+    return {
+        "ok": True,
+        "data": {
+            "id": ticket.id,
+            "formatted_id": ticket.formatted_id,
+            "client": ticket.client.name if ticket.client else None,
+            "client_id": ticket.client_id,
+            "hub": ticket.hub.name if ticket.hub else None,
+            "hub_id": ticket.hub_id,
+            "status": ticket.status,
+            "description": ticket.description,
+            "final_description": ticket.final_description or "",
+            "start_date": ticket.start_date.strftime("%d/%m/%Y %H:%M") if ticket.start_date else None,
+            "deadline": ticket.deadline.strftime("%d/%m/%Y %H:%M") if ticket.deadline else None,
+            "requester": ticket.contact_client_requester.name if ticket.contact_client_requester else None,
+            "responsible": ticket.contact_jumper_responsible.name if ticket.contact_jumper_responsible else None,
+        }
+    }
+
+
+def _create_ticket(args, user):
+    from .models import Ticket, Client, ClientHub, TicketType, System, ContactClient, ContactJumper
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if not role:
+        return {"ok": False, "error": "Usuário sem perfil definido no sistema."}
+
+    # Campos obrigatórios com mensagens claras
+    missing = []
+    if not args.get("client_id"):       missing.append("cliente")
+    if not args.get("contact_client_requester_id"): missing.append("solicitante")
+    if not args.get("contact_jumper_responsible_id"): missing.append("responsável JumperFour")
+    if not args.get("status"):          missing.append("status")
+    if not args.get("start_date"):      missing.append("data de início")
+    if not args.get("deadline"):        missing.append("prazo")
+    if not args.get("description", "").strip(): missing.append("descrição")
+    if missing:
+        return {"ok": False, "error": f"Campos obrigatórios não preenchidos: {', '.join(missing)}."}
+
+    try:
+        client = Client.objects.get(pk=args["client_id"])
+    except Client.DoesNotExist:
+        return {"ok": False, "error": f"Cliente ID {args['client_id']} não encontrado no sistema."}
+
+    try:
+        requester = ContactClient.objects.get(pk=args["contact_client_requester_id"])
+    except ContactClient.DoesNotExist:
+        return {"ok": False, "error": f"Solicitante ID {args['contact_client_requester_id']} não encontrado."}
+
+    try:
+        responsible = ContactJumper.objects.get(pk=args["contact_jumper_responsible_id"])
+    except ContactJumper.DoesNotExist:
+        return {"ok": False, "error": f"Responsável JumperFour ID {args['contact_jumper_responsible_id']} não encontrado."}
+
+    start_date = _parse_dt(args.get("start_date", ""))
+    deadline   = _parse_dt(args.get("deadline", ""))
+    if not start_date:
+        return {"ok": False, "error": f"Data de início inválida: '{args.get('start_date')}'. Use DD/MM/YYYY ou YYYY-MM-DD (hora é opcional, se omitida usa a atual)."}
+    if not deadline:
+        return {"ok": False, "error": f"Prazo inválido: '{args.get('deadline')}'. Use DD/MM/YYYY ou YYYY-MM-DD (hora é opcional, se omitida usa a atual)."}
+
+    ticket = Ticket(
+        client=client,
+        status=args.get("status", "open"),
+        description=args.get("description", ""),
+        start_date=start_date,
+        deadline=deadline,
+        contact_client_requester=requester,
+        contact_jumper_responsible=responsible,
+        final_description=args.get("final_description", "") or "",
+        leankeep_id=args.get("leankeep_id", "") or "",
+        created_by=user,
+    )
+
+    if args.get("hub_id"):
+        try:
+            ticket.hub = ClientHub.objects.get(pk=args["hub_id"])
+        except ClientHub.DoesNotExist:
+            return {"ok": False, "error": f"Hub/loja ID {args['hub_id']} não encontrado."}
+
+    if args.get("ticket_type_id"):
+        try:
+            ticket.ticket_type = TicketType.objects.get(pk=args["ticket_type_id"])
+        except TicketType.DoesNotExist:
+            return {"ok": False, "error": f"Tipo de chamado ID {args['ticket_type_id']} não encontrado."}
+
+    try:
+        ticket.save()
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao salvar a OS no banco de dados: {str(e)}"}
+
+    if args.get("system_id"):
+        try:
+            ticket.systems.add(System.objects.get(pk=args["system_id"]))
+        except System.DoesNotExist:
+            pass  # sistema é opcional — não bloqueia
+
+    return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id, "url": f"/tickets/?open={ticket.id}"}}
+
+
+def _update_ticket(args, user):
+    from .models import Ticket, TicketType, ContactClient, ContactJumper
+
+    try:
+        ticket = Ticket.objects.get(pk=args["ticket_id"])
+    except Ticket.DoesNotExist:
+        return {"ok": False, "error": f"OS ID {args.get('ticket_id')} não encontrada no sistema."}
+
+    if "status" in args:
+        ticket.status = args["status"]
+    if "description" in args:
+        ticket.description = args["description"]
+    if "final_description" in args:
+        ticket.final_description = args["final_description"]
+    if "start_date" in args:
+        start_date = _parse_dt(args["start_date"])
+        if not start_date:
+            return {"ok": False, "error": f"Data de início inválida: '{args['start_date']}'. Use DD/MM/YYYY ou YYYY-MM-DD."}
+        ticket.start_date = start_date
+    if "deadline" in args:
+        deadline = _parse_dt(args["deadline"])
+        if not deadline:
+            return {"ok": False, "error": f"Prazo inválido: '{args['deadline']}'. Use DD/MM/YYYY ou YYYY-MM-DD."}
+        ticket.deadline = deadline
+    if "ticket_type_id" in args:
+        try:
+            ticket.ticket_type = TicketType.objects.get(pk=args["ticket_type_id"])
+        except TicketType.DoesNotExist:
+            return {"ok": False, "error": f"Tipo de chamado ID {args['ticket_type_id']} não encontrado."}
+    if "contact_client_requester_id" in args:
+        try:
+            ticket.contact_client_requester = ContactClient.objects.get(pk=args["contact_client_requester_id"])
+        except ContactClient.DoesNotExist:
+            return {"ok": False, "error": f"Solicitante ID {args['contact_client_requester_id']} não encontrado."}
+    if "contact_jumper_responsible_id" in args:
+        try:
+            ticket.contact_jumper_responsible = ContactJumper.objects.get(pk=args["contact_jumper_responsible_id"])
+        except ContactJumper.DoesNotExist:
+            return {"ok": False, "error": f"Responsável ID {args['contact_jumper_responsible_id']} não encontrado."}
+
+    try:
+        ticket.save()
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao salvar alterações no banco de dados: {str(e)}"}
+
+    return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id}}
+
+
+def _add_ticket_evolution(args, user):
+    from .models import Ticket, TicketUpdate
+    try:
+        ticket = Ticket.objects.get(pk=args["ticket_id"])
+    except Ticket.DoesNotExist:
+        return {"ok": False, "error": "OS não encontrada."}
+
+    description = args.get("description", "").strip()
+    if not description:
+        return {"ok": False, "error": "Descrição da evolução não pode ser vazia."}
+
+    update = TicketUpdate.objects.create(
+        ticket=ticket,
+        created_by=user,
+        description=description,
+    )
+    return {"ok": True, "data": {"update_id": update.id, "ticket_id": ticket.id, "formatted_id": ticket.formatted_id}}
+
+
+def _delete_ticket(args, user):
+    from .models import Ticket, ShiftHandoverEntry
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem excluir OS."}
+
+    try:
+        ticket = Ticket.objects.get(pk=args["ticket_id"])
+    except Ticket.DoesNotExist:
+        return {"ok": False, "error": "OS não encontrada."}
+
+    formatted_id = ticket.formatted_id
+    ShiftHandoverEntry.objects.filter(ticket=ticket).delete()
+    ticket.delete()
+    return {"ok": True, "data": {"message": f"OS #{formatted_id} excluída com sucesso."}}
+
+
+def _create_client(args, user):
+    from .models import Client
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar clientes."}
+
+    name = args.get("name", "").strip().upper()
+    if not name:
+        return {"ok": False, "error": "Nome do cliente é obrigatório."}
+
+    if Client.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um cliente com o nome '{name}'."}
+
+    client = Client.objects.create(
+        name=name,
+        email=args.get("email", "") or "",
+        phone=args.get("phone", "") or "",
+        address=args.get("address", "") or "",
+    )
+    return {"ok": True, "data": {"id": client.id, "name": client.name}}
+
+
+def _update_client(args, user):
+    from .models import Client
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem editar clientes."}
+
+    client_id = args.get("client_id")
+    if not client_id:
+        return {"ok": False, "error": "ID do cliente é obrigatório."}
+
+    try:
+        client = Client.objects.get(pk=client_id)
+    except Client.DoesNotExist:
+        return {"ok": False, "error": f"Cliente ID {client_id} não encontrado."}
+
+    if "name" in args:
+        name = args.get("name", "").strip().upper()
+        if not name:
+            return {"ok": False, "error": "Nome do cliente não pode ser vazio."}
+        if Client.objects.filter(name__iexact=name).exclude(pk=client_id).exists():
+            return {"ok": False, "error": f"Já existe outro cliente com o nome '{name}'."}
+        client.name = name
+
+    if "email" in args:
+        client.email = args.get("email", "") or ""
+
+    if "phone" in args:
+        client.phone = args.get("phone", "") or ""
+
+    if "address" in args:
+        client.address = args.get("address", "") or ""
+
+    try:
+        client.save()
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao salvar alterações: {str(e)}"}
+
+    return {"ok": True, "data": {"id": client.id, "name": client.name}}
+
+
+def _clear_chat(args, user):
+    from .models import AIChatSession
+    try:
+        # Deleta todas as sessões antigas do usuário
+        AIChatSession.objects.filter(user=user).delete()
+    except Exception:
+        pass  # Continua mesmo se houver erro ao deletar
+
+    return {"ok": True, "clear_chat": True, "data": {"message": "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"}}
+
+
+def _create_contact_client(args, user):
+    from .models import ContactClient, Client, ClientHub
+    name = args.get("name", "").strip().upper()
+    if not name:
+        return {"ok": False, "error": "Nome do contato é obrigatório."}
+
+    client_id = args.get("client_id")
+    hub_id = args.get("hub_id")
+
+    client_name = ""
+    hub_name = ""
+
+    if client_id:
+        try:
+            c = Client.objects.get(pk=client_id)
+            client_name = c.name
+        except Client.DoesNotExist:
+            return {"ok": False, "error": "Cliente não encontrado."}
+
+    if hub_id:
+        try:
+            h = ClientHub.objects.get(pk=hub_id)
+            hub_name = h.name
+        except ClientHub.DoesNotExist:
+            pass
+
+    contact = ContactClient.objects.create(
+        name=name,
+        email=args.get("email", "") or "",
+        phone=args.get("phone", "") or "",
+        client_ref_id=client_id or None,
+        client_name=client_name,
+        hub_ref_id=hub_id or None,
+        hub_name=hub_name,
+        is_active=True,
+    )
+    return {"ok": True, "data": {"id": contact.id, "name": contact.name, "client": client_name, "hub": hub_name}}
+
+
+def _create_contact_jumper(args, user):
+    from .models import ContactJumper
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar profissionais JumperFour."}
+
+    name = args.get("name", "").strip().upper()
+    if not name:
+        return {"ok": False, "error": "Nome é obrigatório."}
+
+    contact = ContactJumper.objects.create(
+        name=name,
+        email=args.get("email", "") or "",
+        phone=args.get("phone", "") or "",
+        department=args.get("department", "") or "",
+        role=args.get("role", "") or "",
+        is_active=True,
+    )
+    return {"ok": True, "data": {"id": contact.id, "name": contact.name}}
+
+
+def _create_hub(args, user):
+    from .models import ClientHub, Client
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar hubs/lojas."}
+
+    client_id = args.get("client_id")
+    name = args.get("name", "").strip().upper()
+    if not client_id or not name:
+        return {"ok": False, "error": "Cliente e nome do hub são obrigatórios."}
+
+    try:
+        client = Client.objects.get(pk=client_id)
+    except Client.DoesNotExist:
+        return {"ok": False, "error": "Cliente não encontrado."}
+
+    hub = ClientHub.objects.create(client=client, name=name)
+    return {"ok": True, "data": {"id": hub.id, "name": hub.name, "client": client.name}}
+
+
+def _create_equipment(args, user):
+    from .models import Equipment
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar equipamentos."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do equipamento é obrigatório."}
+
+    equipment = Equipment.objects.create(
+        name=name,
+        description=args.get("description", "") or "",
+    )
+    return {"ok": True, "data": {"id": equipment.id, "name": equipment.name}}
+
+
+def _create_role(args, user):
+    from .models import RoleLevel
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem criar níveis."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do nível é obrigatório."}
+
+    code = args.get("code", "").strip().lower() or name.lower().replace(" ", "_")
+
+    if RoleLevel.objects.filter(code=code).exists():
+        return {"ok": False, "error": f"Nível com código '{code}' já existe."}
+
+    role_obj = RoleLevel.objects.create(name=name, code=code, is_active=True)
+    return {"ok": True, "data": {"id": role_obj.id, "name": role_obj.name, "code": role_obj.code}}
+
+
+def _create_page(args, user):
+    from .models import AppPage
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem criar páginas."}
+
+    name = args.get("name", "").strip()
+    url_name = args.get("url_name", "").strip()
+    if not name or not url_name:
+        return {"ok": False, "error": "Nome e URL name da página são obrigatórios."}
+
+    if AppPage.objects.filter(url_name=url_name).exists():
+        return {"ok": False, "error": f"Página com URL name '{url_name}' já existe."}
+
+    code = args.get("code", "").strip() or url_name.lower()
+    group = args.get("group", "").strip() or None
+
+    page = AppPage.objects.create(
+        name=name,
+        url_name=url_name,
+        code=code,
+        group=group,
+        is_enabled=True
+    )
+    return {"ok": True, "data": {"id": page.id, "name": page.name, "url_name": page.url_name}}
+
+
+def _list_roles(args, user):
+    from .models import RoleLevel
+    try:
+        roles = RoleLevel.objects.filter(is_active=True).order_by('name')
+        return {"ok": True, "data": [
+            {"num": i, "id": r.id, "name": r.name, "code": r.code}
+            for i, r in enumerate(roles, start=1)
+        ]}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao listar níveis: {str(e)}"}
+
+
+def _list_pages(args, user):
+    from .models import AppPage
+    try:
+        pages = AppPage.objects.all().order_by('group', 'order', 'name')
+        return {"ok": True, "data": [
+            {"num": i, "id": p.id, "name": p.name, "url_name": p.url_name, "group": p.group or "Sem grupo", "enabled": p.is_enabled}
+            for i, p in enumerate(pages, start=1)
+        ]}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao listar páginas: {str(e)}"}
+
+
+def _list_users(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    try:
+        users = DjangoUser.objects.select_related('profile').all().order_by('first_name', 'username')
+        return {"ok": True, "data": [
+            {
+                "num": i,
+                "id": u.id,
+                "name": u.get_full_name() or u.username,
+                "username": u.username,
+                "email": u.email or "N/A",
+                "role": getattr(u.profile, 'role', 'N/A') if hasattr(u, 'profile') else "N/A"
+            }
+            for i, u in enumerate(users, start=1)
+        ]}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao listar usuários: {str(e)}"}
+
+
+def _toggle_page_enabled(args, user):
+    from .models import AppPage
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente Super Admin e Administrador podem habilitar/desabilitar páginas."}
+
+    page_id = args.get("page_id")
+    enabled = args.get("enabled")
+
+    if page_id is None or enabled is None:
+        return {"ok": False, "error": "page_id e enabled são obrigatórios."}
+
+    try:
+        page = AppPage.objects.get(pk=page_id)
+    except AppPage.DoesNotExist:
+        return {"ok": False, "error": f"Página ID {page_id} não encontrada."}
+
+    page.is_enabled = enabled
+    page.save(update_fields=['is_enabled'])
+
+    status = "habilitada" if enabled else "desabilitada"
+    return {"ok": True, "data": {"id": page.id, "name": page.name, "status": status}}
+
+
+def _update_page_permission(args, user):
+    from .models import AppPage, RoleLevel, RolePagePermission
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente Super Admin e Administrador podem modificar permissões de páginas."}
+
+    page_id = args.get("page_id")
+    role_id = args.get("role_id")
+    allowed = args.get("allowed")
+
+    if page_id is None or role_id is None or allowed is None:
+        return {"ok": False, "error": "page_id, role_id e allowed são obrigatórios."}
+
+    try:
+        page = AppPage.objects.get(pk=page_id)
+        role_obj = RoleLevel.objects.get(pk=role_id)
+    except (AppPage.DoesNotExist, RoleLevel.DoesNotExist):
+        return {"ok": False, "error": "Página ou nível não encontrado."}
+
+    perm, created = RolePagePermission.objects.get_or_create(role=role_obj, page=page)
+    perm.allowed = allowed
+    perm.save()
+
+    action = "permitido" if allowed else "bloqueado"
+    return {"ok": True, "data": {
+        "page": page.name,
+        "role": role_obj.name,
+        "action": action
+    }}
+
+
+def _can_manage_user(admin_user, target_user):
+    """
+    Verifica se admin_user pode gerenciar target_user.
+    Super Admin pode gerenciar qualquer um.
+    Admin pode gerenciar apenas usuários de níveis abaixo.
+    """
+    admin_role = getattr(getattr(admin_user, 'profile', None), 'role', None)
+
+    # Super Admin tem acesso global
+    if admin_role == 'super_admin':
+        return True, "global"
+
+    # Admin tem acesso a usuários de níveis abaixo
+    if admin_role != 'admin':
+        return False, None
+
+    target_role = getattr(getattr(target_user, 'profile', None), 'role', None)
+
+    # Admin não pode gerenciar outros admins ou super_admins
+    if target_role in ('admin', 'super_admin'):
+        return False, None
+
+    return True, "restricted"
+
+
+def _update_user_restriction(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import UserProfile
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente Super Admin e Administrador podem modificar restrições de usuários."}
+
+    user_id = args.get("user_id")
+    restriction_type = args.get("restriction_type")
+    allowed = args.get("allowed")
+
+    if user_id is None or not restriction_type or allowed is None:
+        return {"ok": False, "error": "user_id, restriction_type e allowed são obrigatórios."}
+
+    valid_restrictions = [
+        'can_view_tickets', 'can_create_tickets', 'can_edit_tickets', 'can_delete_tickets',
+        'can_view_checklists', 'can_create_checklists', 'allow_pdf_reports', 'ai_chat_enabled', 'can_view_reports'
+    ]
+
+    if restriction_type not in valid_restrictions:
+        return {"ok": False, "error": f"Tipo de restrição inválido. Opções: {', '.join(valid_restrictions)}"}
+
+    try:
+        target_user = DjangoUser.objects.get(pk=user_id)
+    except DjangoUser.DoesNotExist:
+        return {"ok": False, "error": f"Usuário ID {user_id} não encontrado."}
+
+    profile = getattr(target_user, 'profile', None)
+    if not profile:
+        profile = UserProfile.objects.create(user=target_user)
+
+    setattr(profile, restriction_type, allowed)
+    profile.save(update_fields=[restriction_type])
+
+    action = "permitido" if allowed else "bloqueado"
+    return {"ok": True, "data": {
+        "user": target_user.get_full_name() or target_user.username,
+        "restriction": restriction_type,
+        "action": action
+    }}
+
+
+def _list_all_users_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    try:
+        users = DjangoUser.objects.select_related('profile').all().order_by('first_name', 'username')
+        result = []
+        for u in users:
+            profile = getattr(u, 'profile', None)
+            user_role = getattr(profile, 'role', 'N/A') if profile else 'N/A'
+
+            # Admin não pode ver detalhes de admins/super_admins
+            if role == 'admin' and user_role in ('admin', 'super_admin'):
+                continue
+
+            result.append({
+                "num": len(result) + 1,
+                "id": u.id,
+                "name": u.get_full_name() or u.username,
+                "username": u.username,
+                "email": u.email or "N/A",
+                "role": user_role,
+                "active": u.is_active,
+                "last_login": u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "Nunca"
+            })
+
+        return {"ok": True, "data": result}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao listar usuários: {str(e)}"}
+
+
+def _get_user_details_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    user_id = args.get("user_id")
+    include_password = args.get("include_password", False)
+
+    if not user_id:
+        return {"ok": False, "error": "user_id é obrigatório."}
+
+    try:
+        target_user = DjangoUser.objects.select_related('profile').get(pk=user_id)
+    except DjangoUser.DoesNotExist:
+        return {"ok": False, "error": f"Usuário ID {user_id} não encontrado."}
+
+    # Validar permissão
+    can_manage, scope = _can_manage_user(user, target_user)
+    if not can_manage:
+        return {"ok": False, "error": "Permissão negada. Você pode gerenciar apenas usuários de níveis abaixo."}
+
+    profile = getattr(target_user, 'profile', None)
+    if not profile:
+        profile = UserProfile.objects.create(user=target_user)
+
+    data = {
+        "id": target_user.id,
+        "name": target_user.get_full_name() or target_user.username,
+        "username": target_user.username,
+        "email": target_user.email or "N/A",
+        "role": getattr(profile, 'role', 'N/A'),
+        "active": target_user.is_active,
+        "job_title": getattr(profile, 'job_title', '') or "N/A",
+        "phone": getattr(profile, 'company_phone', '') or "N/A",
+        "token": getattr(profile, 'token', 'N/A'),
+        "last_login": target_user.last_login.strftime("%d/%m/%Y %H:%M") if target_user.last_login else "Nunca",
+        "date_joined": target_user.date_joined.strftime("%d/%m/%Y %H:%M"),
+    }
+
+    if include_password and role == 'super_admin':
+        # Apenas super_admin vê senhas
+        data["password_hash"] = target_user.password[:30] + "..."
+        data["password_note"] = "Hash da senha (dados sigilosos - Super Admin apenas)"
+    elif include_password and role == 'admin':
+        data["password_note"] = "Para alterar a senha, use a ferramenta 'change_user_password_admin'"
+
+    return {"ok": True, "data": data}
+
+
+def _update_user_data_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    user_id = args.get("user_id")
+    if not user_id:
+        return {"ok": False, "error": "user_id é obrigatório."}
+
+    try:
+        target_user = DjangoUser.objects.select_related('profile').get(pk=user_id)
+    except DjangoUser.DoesNotExist:
+        return {"ok": False, "error": f"Usuário ID {user_id} não encontrado."}
+
+    # Validar permissão
+    can_manage, scope = _can_manage_user(user, target_user)
+    if not can_manage:
+        return {"ok": False, "error": "Permissão negada. Você pode gerenciar apenas usuários de níveis abaixo."}
+
+    updated_fields = []
+
+    if "first_name" in args:
+        target_user.first_name = args["first_name"].strip()
+        updated_fields.append('first_name')
+
+    if "email" in args:
+        target_user.email = args["email"].strip()
+        updated_fields.append('email')
+
+    if "last_name" in args:
+        target_user.last_name = args["last_name"].strip()
+        updated_fields.append('last_name')
+
+    if "job_title" in args:
+        profile = getattr(target_user, 'profile', None)
+        if not profile:
+            profile = UserProfile.objects.create(user=target_user)
+        profile.job_title = args["job_title"].strip()
+        profile.save(update_fields=['job_title'])
+
+    try:
+        if updated_fields:
+            target_user.save(update_fields=updated_fields)
+        return {"ok": True, "data": {
+            "user": target_user.get_full_name() or target_user.username,
+            "updated_fields": updated_fields,
+            "message": "Dados atualizados com sucesso"
+        }}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao atualizar usuário: {str(e)}"}
+
+
+def _change_user_password_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    user_id = args.get("user_id")
+    new_password = args.get("new_password")
+
+    if not user_id or not new_password:
+        return {"ok": False, "error": "user_id e new_password são obrigatórios."}
+
+    if len(new_password) < 6:
+        return {"ok": False, "error": "A senha deve ter pelo menos 6 caracteres."}
+
+    try:
+        target_user = DjangoUser.objects.get(pk=user_id)
+    except DjangoUser.DoesNotExist:
+        return {"ok": False, "error": f"Usuário ID {user_id} não encontrado."}
+
+    # Validar permissão
+    can_manage, scope = _can_manage_user(user, target_user)
+    if not can_manage:
+        return {"ok": False, "error": "Permissão negada. Você pode gerenciar apenas usuários de níveis abaixo."}
+
+    target_user.set_password(new_password)
+    target_user.save(update_fields=['password'])
+
+    return {"ok": True, "data": {
+        "user": target_user.get_full_name() or target_user.username,
+        "message": "Senha alterada com sucesso"
+    }}
+
+
+def _get_system_info_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import Ticket, SystemSettings
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    try:
+        total_users = DjangoUser.objects.count()
+        active_users = DjangoUser.objects.filter(is_active=True).count()
+        total_tickets = Ticket.objects.count()
+        open_tickets = Ticket.objects.filter(status='open').count()
+
+        settings = SystemSettings.objects.first()
+        ai_enabled = settings.ai_enabled if settings else False
+        ai_provider = settings.ai_provider if settings else "N/A"
+
+        return {"ok": True, "data": {
+            "total_users": total_users,
+            "active_users": active_users,
+            "inactive_users": total_users - active_users,
+            "total_tickets": total_tickets,
+            "open_tickets": open_tickets,
+            "closed_tickets": total_tickets - open_tickets,
+            "ai_enabled": ai_enabled,
+            "ai_provider": ai_provider,
+        }}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao obter informações do sistema: {str(e)}"}
+
+
+def _list_online_users_admin(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import ActiveSession
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
+
+    try:
+        sessions = ActiveSession.objects.select_related('user').all().order_by('-last_activity')
+
+        online_users = []
+        for i, session in enumerate(sessions, start=1):
+            online_users.append({
+                "num": i,
+                "user_id": session.user.id,
+                "name": session.user.get_full_name() or session.user.username,
+                "username": session.user.username,
+                "ip_address": session.ip_address,
+                "last_activity": session.last_activity.strftime("%d/%m/%Y %H:%M:%S"),
+                "logged_at": session.created_at.strftime("%d/%m/%Y %H:%M:%S"),
+            })
+
+        return {"ok": True, "data": {
+            "total_online": len(online_users),
+            "users": online_users
+        }}
+    except Exception as e:
+        return {"ok": False, "error": f"Erro ao listar usuários online: {str(e)}"}
+
+
+# Mapeamento nome → função
+_TOOL_REGISTRY = {
+    "search_web": _search_web,
+    "search_company_details": _search_company_details,
+    "search_all_contacts": _search_all_contacts,
+    "search_client": _search_client,
+    "get_client_details": _get_client_details,
+    "list_ticket_statuses": _list_ticket_statuses,
+    "list_systems": _list_systems,
+    "list_ticket_types": _list_ticket_types,
+    "list_jumper_contacts": _list_jumper_contacts,
+    "get_ticket": _get_ticket,
+    "create_ticket": _create_ticket,
+    "update_ticket": _update_ticket,
+    "add_ticket_evolution": _add_ticket_evolution,
+    "delete_ticket": _delete_ticket,
+    "create_client": _create_client,
+    "update_client": _update_client,
+    "create_equipment": _create_equipment,
+    "clear_chat": _clear_chat,
+    "create_contact_client": _create_contact_client,
+    "create_contact_jumper": _create_contact_jumper,
+    "create_hub": _create_hub,
+    "create_role": _create_role,
+    "create_page": _create_page,
+    "list_roles": _list_roles,
+    "list_pages": _list_pages,
+    "list_users": _list_users,
+    "toggle_page_enabled": _toggle_page_enabled,
+    "update_page_permission": _update_page_permission,
+    "update_user_restriction": _update_user_restriction,
+    "list_all_users_admin": _list_all_users_admin,
+    "get_user_details_admin": _get_user_details_admin,
+    "update_user_data_admin": _update_user_data_admin,
+    "change_user_password_admin": _change_user_password_admin,
+    "get_system_info_admin": _get_system_info_admin,
+    "list_online_users_admin": _list_online_users_admin,
+}
+
+
+# System prompt enviado para a IA em toda requisição
+SYSTEM_PROMPT = """Você é o assistente de IA do sistema JumperFour OS — um sistema de gestão de Ordens de Serviço.
+Você fala português brasileiro de forma clara e objetiva.
+
+Você tem acesso a ferramentas para consultar e gerenciar dados do sistema.
+
+ESCOPO DE ATUAÇÃO — MUITO IMPORTANTE:
+Você só pode ajudar com assuntos relacionados ao sistema JumperFour OS:
+- Criar, editar, visualizar, evoluir ou excluir Ordens de Serviço (OS/tickets)
+- Cadastrar, editar ou buscar clientes, equipamentos, contatos, hubs/lojas e profissionais JumperFour
+- Consultar status, sistemas, tipos de chamado disponíveis
+- ADMIN ONLY: Gerenciar níveis de acesso, páginas, permissões e restrições de usuário (somente para Super Admin e Admin)
+- Dúvidas sobre o funcionamento do sistema
+
+BUSCA NA INTERNET E PRÉ-PREENCHIMENTO DE DADOS:
+
+Passo 1 — Nome da empresa:
+Quando o usuário quiser cadastrar um cliente com nome informal/abreviado, chame search_web com query "[nome] empresa razão social Brasil".
+Apresente até 5 nomes encontrados numerados + a opção de usar o nome digitado.
+Exemplo:
+  "Encontrei na internet:
+  1. Globo Comunicações e Participações S/A
+  2. TV Globo Ltda
+  3. [nome que você digitou]
+  Qual é o correto?"
+
+Passo 2 — Detalhes da empresa (IMEDIATAMENTE após o nome ser confirmado):
+Sem perguntar nada, chame search_company_details com o nome confirmado.
+Em seguida, apresente os dados encontrados para confirmação neste formato:
+  "Encontrei estes dados para [nome]:
+  • Endereço: [endereço ou 'não encontrado']
+  • CEP: [cep ou '-']
+  • Cidade/Estado: [cidade - UF ou '-']
+  • Telefone: [telefone ou '-']
+  • Site: [site ou '-']
+  Confirma estes dados, corrige algum campo, ou deixo em branco?"
+
+O usuário pode:
+- Confirmar tudo → cadastra com os dados encontrados
+- Corrigir um campo → "o telefone é (11) 99999-9999" → atualiza e mostra resumo de novo
+- Deixar em branco → cadastra só com o nome, sem outros dados
+
+Campos que o modelo create_client aceita: name, email, phone, address.
+Mapeie o melhor possível o que foi encontrado para esses campos.
+
+CADASTRO SOB DEMANDA (muito importante):
+Se durante a criação ou edição de uma OS algum item necessário não existir no sistema
+(cliente, solicitante, responsável, hub, equipamento), ofereça cadastrá-lo na hora:
+"Não encontrei esse contato. Quer que eu cadastre agora?"
+Se o usuário confirmar, colete apenas o nome (e e-mail/telefone se oferecer) e cadastre.
+Após cadastrar, retome o fluxo de onde parou automaticamente.
+Isso vale para: cliente, contato solicitante, responsável JumperFour, hub/loja, equipamento.
+
+Se o usuário fizer qualquer pergunta FORA desse escopo (política, programação, receitas, curiosidades gerais, etc.), responda EXATAMENTE assim:
+"Não estou autorizado a responder questionamentos fora da geração de tickets ou chamados de serviço. Deseja abrir um chamado?"
+
+Não dê nenhuma resposta parcial sobre o assunto fora do escopo. Redirecione sempre.
+
+ESTILO DE COMUNICAÇÃO:
+- Respostas curtas e diretas. Máximo 2 linhas por mensagem.
+- Sem emojis excessivos. Sem introduções longas.
+- Nunca repita o que o usuário acabou de dizer.
+- Uma pergunta por vez. Nunca liste múltiplas perguntas juntas.
+
+GERENCIAMENTO DE PERMISSÕES (SOMENTE PARA SUPER ADMIN E ADMIN):
+Se o usuário é Super Admin ou Admin, você pode ajudá-lo com:
+
+1. CRIAR NOVOS NÍVEIS DE ACESSO:
+   - Use create_role para criar (ex: "criar nível 'Coordenador'")
+   - Use list_roles para ver os existentes
+
+2. CRIAR E GERENCIAR PÁGINAS:
+   - Use create_page para criar novas páginas/telas
+   - Use list_pages para listar todas as páginas
+   - Use toggle_page_enabled para habilitar/desabilitar páginas
+   - Use update_page_permission para dar/bloquear acesso de níveis específicos a páginas
+
+3. GERENCIAR RESTRIÇÕES DE USUÁRIOS:
+   - Use list_users para listar usuários
+   - Use update_user_restriction para bloquear/permitir funcionalidades específicas
+
+GERENCIAMENTO DE USUÁRIOS E DADOS SIGILOSOS (SUPER ADMIN E ADMIN):
+⚠️ IMPORTANTE: Admin pode gerenciar apenas usuários de NÍVEIS ABAIXO. Super Admin tem acesso GLOBAL.
+
+1. LISTAR E BUSCAR USUÁRIOS:
+   - "Listar todos os usuários" → list_all_users_admin
+   - "Ver detalhes de [nome]" → list_all_users_admin depois get_user_details_admin
+
+2. INFORMAÇÕES SENSÍVEIS (dados sigilosos):
+   - "Qual a senha do usuário [nome]?" → Retorna dados sigilosos APENAS para Admin/Super Admin
+   - "Ver informações de [usuário]" → get_user_details_admin
+   - Super Admin vê tudo. Admin vê apenas usuários de níveis abaixo.
+   - Usuários normais recebem: "Informações privilegiadas. Solicite ao gestor."
+
+3. ALTERAR DADOS DE USUÁRIO:
+   - "Mudar email de João para novo@email.com" → update_user_data_admin
+   - "Alterar nome de Francisco para Francisco Silva" → update_user_data_admin
+   - "Mudar cargo de Suzy para Gerente" → update_user_data_admin
+
+4. ALTERAR SENHAS:
+   - "Resetar senha de João" → change_user_password_admin
+   - "Mudar senha de [usuário] para [nova_senha]" → change_user_password_admin
+
+5. INFORMAÇÕES DO SISTEMA:
+   - "Quantos usuários temos?" → get_system_info_admin (retorna total, ativos, tickets, etc)
+   - "Quem está online agora?" → list_online_users_admin
+   - "Informações gerais do sistema" → get_system_info_admin
+
+HIERARQUIA DE ACESSO:
+- 🟢 Super Admin: acesso global a TUDO (usuários, dados, configurações)
+- 🟡 Admin: acesso apenas a usuários de NÍVEIS ABAIXO (não pode tocar em super_admin/admin)
+- 🔴 Outros: "Informações privilegiadas. Solicite ao gestor."
+
+FLUXO TÍPICO DE ADMIN:
+1. "Listar todos os usuários" → vê lista (sem admins/super admins)
+2. "Ver detalhes de João" → get_user_details_admin (dados sensíveis revelados)
+3. "Qual a senha de João?" → revela dados sigilosos (Super Admin via Chat IA)
+4. "Alterar email de João" → update_user_data_admin
+5. "Quem está online?" → list_online_users_admin (vê IPs, últimas atividades)
+
+Sempre confirme ações sensíveis e exiba um resumo ANTES de executar.
+
+CANCELAMENTO E LIMPEZA DE CHAT:
+
+1. CANCELAMENTO (durante uma operação em andamento):
+   - Se o usuário disser "cancelar", "desistir", "para", "não quero mais" ou similar DURANTE uma ação (criar OS, etc):
+     * Chame a tool clear_chat
+     * Responda: "Cancelado."
+
+2. LIMPAR HISTÓRICO (limpar conversa):
+   - Se o usuário disser "limpar chat", "apagar histórico", "resetar conversa", "novo chat", "limpar tudo" ou similar:
+     * Chame a tool clear_chat
+     * Responda: "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"
+     * NÃO responda "Cancelado" para limpeza de histórico
+
+REGRAS OBRIGATÓRIAS:
+1. Antes de criar, editar ou excluir, monte um resumo curto e pergunte "Confirma?". Só execute após confirmação.
+   Aceite como confirmação qualquer expressão positiva, por exemplo: sim, ok, pode, pode fazer, vai, manda bala, bora, confirmo, isso, exato, correto, prossiga, segue, pode criar, pode salvar, pode deletar, fecha, fecha negócio, e similares. Use o bom senso — se a intenção for claramente de confirmar, execute.
+   Aceite como negação/cancelamento: não, cancela, para, volta, deixa pra lá, esqueça, desisti, agora não, e similares.
+2. Ao buscar clientes, mostre as opções encontradas e pergunte qual é o correto.
+3. Se o usuário não tiver permissão, informe em uma linha e pare.
+4. ERROS — regra crítica: se qualquer tool retornar "ok": false ou lançar exceção, NUNCA omita o erro.
+   Informe o usuário exatamente assim:
+   "❌ Não foi possível [ação]. Motivo: [mensagem de erro exata retornada pela tool]"
+   Em seguida pergunte: "Deseja tentar novamente ou cancelar?"
+   Isso vale para criação, edição, exclusão, cadastro — qualquer operação que falhar.
+   Nunca finja que deu certo quando a tool retornou erro.
+
+FLUXO DE CRIAÇÃO DE OS:
+
+ENTRADA DE DADOS — duas formas aceitas:
+A) Texto livre / completo: o usuário pode colar ou digitar tudo de uma vez.
+   Exemplo: "OS para XP Investimentos, solicitante João Silva, responsável Ana, status Aberto, início hoje, prazo sexta, instalar firewall no servidor"
+   → Extraia todos os campos reconhecidos e pergunte apenas o que faltou.
+
+B) Campo a campo: se o usuário não informar tudo, pergunte um por vez nesta ordem:
+   1. Cliente (busque pelo nome informado)
+   2. Hub/Loja — SOMENTE se o cliente tiver hubs cadastrados (cheque no retorno de get_client_details).
+      Se tiver hubs, liste-os numerados e pergunte qual. Se não tiver, PULE esta etapa silenciosamente.
+   3. Solicitante (veja abaixo como listar — já filtra pelo hub escolhido se houver)
+   4. Responsável JumperFour (veja abaixo como listar)
+   5. Status (liste as opções numeradas)
+   6. Data de início (peça só a data — DD/MM/YYYY — a hora é preenchida automaticamente com o horário atual se omitida)
+   7. Prazo (mesmo — só data é suficiente)
+   8. Descrição
+
+Campos opcionais (nunca exija):
+  - Sistema, Tipo de chamado, Equipamento
+  Após ter todos os obrigatórios, pergunte apenas: "Deseja adicionar algo mais? (sistema, tipo, equipamento — opcional)"
+  Se o usuário disser "não", "pode criar" ou similar — siga para o resumo.
+
+ATENÇÃO CRÍTICA — IDs vs números da lista:
+Cada item retornado pelas tools tem dois campos: "num" (posição na lista: 1, 2, 3...)
+e "id" (ID real no banco, pode ser qualquer número como 47, 203, 11).
+Quando o usuário escolher pelo número da lista (ex: "2"), use o campo "id" do item correspondente,
+NUNCA o campo "num". Exemplo: item 2 tem "id": 47 → passe contact_client_requester_id: 47.
+Isso vale para TODOS os campos com lista: solicitante, executor, hub, tipo, sistema.
+
+SOLICITANTE — regras:
+- Chame get_client_details para obter todos os contatos do cliente selecionado (sede + hubs/lojas).
+- Apresente numerado. O usuário pode escolher por número ou digitando o nome/parte do nome.
+- Se digitar um nome que NÃO está na lista do cliente, use search_all_contacts para verificar se esse nome existe em outro cliente.
+  Se existir em outro cliente: avise — "João Silva está cadastrado como contato de [outro cliente], não do [cliente atual].
+  Quer criar um novo contato com esse nome vinculado ao [cliente atual]?"
+  Se não existir em lugar nenhum: ofereça cadastrar via create_contact_client.
+- O solicitante DEVE obrigatoriamente ser um ContactClient vinculado ao cliente da OS.
+
+EXECUTOR (Responsável JumperFour) — regras:
+- Chame list_jumper_contacts para mostrar todos os profissionais JumperFour como ponto de partida.
+- Se o usuário quiser alguém que não aparece na lista, use search_all_contacts para buscar em toda a base.
+- O executor pode ser qualquer ContactJumper cadastrado no banco — sem restrição de empresa.
+- Se o usuário digitar um nome: busque com search_all_contacts, filtre os resultados do tipo "jumper" e confirme.
+- Se encontrar apenas em "client_contact" (não é um ContactJumper): informe que essa pessoa está cadastrada como
+  contato de cliente, não como executor. Pergunte se quer cadastrá-la como executor via create_contact_jumper.
+- Apresente sempre numerado. Use sempre o "id" real ao preencher contact_jumper_responsible_id.
+
+RESUMO OBRIGATÓRIO ANTES DE CRIAR:
+Antes de chamar create_ticket, SEMPRE exiba um resumo neste formato exato:
+
+📋 **Resumo da OS**
+• **Cliente:** [nome]
+• **Solicitante:** [nome]
+• **Responsável:** [nome]
+• **Status:** [status]
+• **Início:** [data]
+• **Prazo:** [data]
+• **Descrição:** [texto]
+[campos opcionais preenchidos, se houver]
+
+Confirma, edita ou cancela?
+
+- Se confirmar → chame create_ticket
+- Se quiser editar → pergunte qual campo alterar, corrija e mostre o resumo novamente
+- Se cancelar → chame clear_chat e responda "Cancelado."
+
+O MESMO resumo + confirmação se aplica a edições de OS (update_ticket)."""
