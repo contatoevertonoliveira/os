@@ -9,12 +9,13 @@
     <!-- Painel do Chat (posicionado acima do FAB) -->
     <div id="aiChatPanel"
          style="position:absolute;bottom:62px;right:0;
-                width:370px;max-height:580px;border-radius:16px;
+                width:370px;height:580px;border-radius:16px;
                 box-shadow:0 8px 32px rgba(0,0,0,.18);overflow:hidden;
                 display:flex;flex-direction:column;background:#fff;
                 transform:scale(0.85) translateY(20px);opacity:0;
                 pointer-events:none;
-                transition:transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;">
+                transition:transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;
+                resize:both;user-select:none;">
 
         <!-- Header -->
         <div style="background:linear-gradient(135deg,#009542,#1cd362);padding:12px 16px;
@@ -43,7 +44,7 @@
         <!-- Área de mensagens -->
         <div id="aiChatMessages"
              style="flex:1;overflow-y:auto;padding:14px;background:#f8f9fa;
-                    display:flex;flex-direction:column;gap:10px;min-height:160px;max-height:370px;">
+                    display:flex;flex-direction:column;gap:10px;">
         </div>
 
         <!-- Indicador de digitando -->
@@ -77,6 +78,16 @@
                 Enter envia &nbsp;·&nbsp; Shift+Enter nova linha
             </div>
         </div>
+
+        <!-- Resize handles -->
+        <div id="aiResizeN" style="position:absolute;top:0;left:0;right:0;height:4px;cursor:ns-resize;z-index:10;"></div>
+        <div id="aiResizeS" style="position:absolute;bottom:0;left:0;right:0;height:4px;cursor:ns-resize;z-index:10;"></div>
+        <div id="aiResizeW" style="position:absolute;top:0;bottom:0;left:0;width:4px;cursor:ew-resize;z-index:10;"></div>
+        <div id="aiResizeE" style="position:absolute;top:0;bottom:0;right:0;width:4px;cursor:ew-resize;z-index:10;"></div>
+        <div id="aiResizeNW" style="position:absolute;top:0;left:0;width:12px;height:12px;cursor:nwse-resize;z-index:11;"></div>
+        <div id="aiResizeNE" style="position:absolute;top:0;right:0;width:12px;height:12px;cursor:nesw-resize;z-index:11;"></div>
+        <div id="aiResizeSW" style="position:absolute;bottom:0;left:0;width:12px;height:12px;cursor:nesw-resize;z-index:11;"></div>
+        <div id="aiResizeSE" style="position:absolute;bottom:0;right:0;width:12px;height:12px;cursor:nwse-resize;z-index:11;"></div>
     </div>
 
     <!-- FAB do Robô -->
@@ -169,6 +180,122 @@
     let _isOpen        = false;
     let _historyLoaded = false;
 
+    // ── Redimensionamento do painel ───────────────────────────────────────
+    const RESIZE_MIN_WIDTH = 280;
+    const RESIZE_MIN_HEIGHT = 300;
+    const RESIZE_MAX_WIDTH = window.innerWidth - 50;
+    const RESIZE_MAX_HEIGHT = window.innerHeight - 100;
+
+    function loadPanelSize() {
+        const saved = localStorage.getItem('aiChatPanelSize');
+        if (saved) {
+            try {
+                const { width, height, left, top } = JSON.parse(saved);
+                panel.style.width = width + 'px';
+                panel.style.height = height + 'px';
+                if (left !== null && left !== undefined) {
+                    panel.style.left = left + 'px';
+                    panel.style.bottom = 'auto';
+                }
+                if (top !== null && top !== undefined) {
+                    panel.style.top = top + 'px';
+                    panel.style.right = 'auto';
+                }
+            } catch {}
+        }
+    }
+
+    function savePanelSize() {
+        const data = {
+            width: panel.offsetWidth,
+            height: panel.offsetHeight,
+            left: null,
+            top: null
+        };
+        // Salva posição apenas se o painel foi redimensionado (está em top/left)
+        if (panel.style.left && panel.style.left !== 'auto') {
+            data.left = parseFloat(panel.style.left);
+        }
+        if (panel.style.top && panel.style.top !== 'auto') {
+            data.top = parseFloat(panel.style.top);
+        }
+        localStorage.setItem('aiChatPanelSize', JSON.stringify(data));
+    }
+
+    function startResize(e, direction) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startWidth = panel.offsetWidth;
+        const startHeight = panel.offsetHeight;
+        let startLeft = parseFloat(panel.style.left);
+        let startTop = parseFloat(panel.style.top);
+
+        // Se o painel está usando bottom/right, converte para top/left
+        if (isNaN(startLeft)) {
+            const rect = panel.getBoundingClientRect();
+            startLeft = rect.left;
+            panel.style.left = startLeft + 'px';
+            panel.style.bottom = 'auto';
+        }
+        if (isNaN(startTop)) {
+            const rect = panel.getBoundingClientRect();
+            startTop = rect.top;
+            panel.style.top = startTop + 'px';
+            panel.style.right = 'auto';
+        }
+
+        // Desabilita transição durante resize
+        panel.style.transition = 'none';
+
+        function onResizeMove(e) {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            let newWidth = startWidth;
+            let newHeight = startHeight;
+            let newLeft = startLeft;
+            let newTop = startTop;
+
+            if (direction.includes('E')) newWidth = Math.max(RESIZE_MIN_WIDTH, Math.min(startWidth + deltaX, RESIZE_MAX_WIDTH));
+            if (direction.includes('W')) {
+                newWidth = Math.max(RESIZE_MIN_WIDTH, Math.min(startWidth - deltaX, RESIZE_MAX_WIDTH));
+                newLeft = startLeft + (startWidth - newWidth);
+            }
+            if (direction.includes('S')) newHeight = Math.max(RESIZE_MIN_HEIGHT, Math.min(startHeight + deltaY, RESIZE_MAX_HEIGHT));
+            if (direction.includes('N')) {
+                newHeight = Math.max(RESIZE_MIN_HEIGHT, Math.min(startHeight - deltaY, RESIZE_MAX_HEIGHT));
+                newTop = startTop + (startHeight - newHeight);
+            }
+
+            panel.style.width = newWidth + 'px';
+            panel.style.height = newHeight + 'px';
+            panel.style.left = newLeft + 'px';
+            panel.style.top = newTop + 'px';
+        }
+
+        function onResizeEnd() {
+            document.removeEventListener('mousemove', onResizeMove);
+            document.removeEventListener('mouseup', onResizeEnd);
+            // Reabilita transição
+            panel.style.transition = '';
+            savePanelSize();
+        }
+
+        document.addEventListener('mousemove', onResizeMove);
+        document.addEventListener('mouseup', onResizeEnd);
+    }
+
+    // Attach resize handlers
+    ['N', 'S', 'E', 'W', 'NW', 'NE', 'SW', 'SE'].forEach(dir => {
+        const handle = document.getElementById(`aiResize${dir}`);
+        if (handle) handle.addEventListener('mousedown', (e) => startResize(e, dir));
+    });
+
+    // Carregar tamanho salvo ao inicializar
+    loadPanelSize();
+
     // ── Drag ─────────────────────────────────────────────────────────────
     let _dragging  = false;
     let _dragStart = null;   // {x, y, left, top}
@@ -202,14 +329,20 @@
     const GAP     = 10;  // espaço entre FAB e painel
 
     function repositionPanel() {
+        // Se o painel foi redimensionado (tem top/left definidos), não reposiciona
+        if (panel.style.top !== 'auto' && panel.style.top !== '') return;
+        if (panel.style.left !== 'auto' && panel.style.left !== '') return;
+
         const wr = widget.getBoundingClientRect();
         const vw = window.innerWidth;
         const vh = window.innerHeight;
+        const panelW = panel.offsetWidth || PANEL_W;
+        const panelH = panel.offsetHeight || PANEL_H;
 
         // Vertical: painel vai abaixo se não couber acima
         const spaceAbove = wr.top;
         const spaceBelow = vh - wr.bottom;
-        if (spaceAbove >= PANEL_H + GAP || spaceAbove >= spaceBelow) {
+        if (spaceAbove >= panelH + GAP || spaceAbove >= spaceBelow) {
             panel.style.bottom = (FAB_SIZE + GAP) + 'px';
             panel.style.top    = 'auto';
         } else {
@@ -218,10 +351,8 @@
         }
 
         // Horizontal: alinha à direita do FAB mas impede sair da tela
-        // O painel usa right:0 por padrão (alinhado à direita do widget)
-        // Se o painel ultrapassar a borda esquerda, muda para left:0
-        const panelRight = wr.right;   // borda direita do FAB = borda direita do painel com right:0
-        const panelLeft  = panelRight - PANEL_W;
+        const panelRight = wr.right;
+        const panelLeft  = panelRight - panelW;
         if (panelLeft < 8) {
             panel.style.right = 'auto';
             panel.style.left  = '0';
