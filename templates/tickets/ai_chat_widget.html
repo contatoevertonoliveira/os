@@ -497,16 +497,29 @@
     }
 
     async function loadSessionMessages(sessionId) {
+        console.log('[AI Chat] loadSessionMessages() chamado com sessionId:', sessionId);
         try {
-            const resp = await fetch(`{% url 'ai_chat_history' %}?session_id=${sessionId}`, {
+            const url = `{% url 'ai_chat_history' %}?session_id=${sessionId}`;
+            console.log('[AI Chat] Fazendo fetch para:', url);
+            const resp = await fetch(url, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
+            console.log('[AI Chat] Resposta da sessão:', resp.status);
             const data = await resp.json();
+            console.log('[AI Chat] Dados da sessão:', data);
             messages.innerHTML = '';
-            if (data.ok && data.messages && data.messages.length > 0)
+            if (data.ok && data.messages && data.messages.length > 0) {
+                console.log('[AI Chat] Adicionando', data.messages.length, 'mensagens');
                 data.messages.forEach(m => appendMessage(m.role, m.content, m.created_at));
-            else showWelcome();
-        } catch { showWelcome(); }
+            }
+            else {
+                console.log('[AI Chat] Sem mensagens na sessão, mostrando welcome');
+                showWelcome();
+            }
+        } catch (err) {
+            console.error('[AI Chat] Erro em loadSessionMessages:', err);
+            showWelcome();
+        }
     }
 
     function showWelcome() {
@@ -594,6 +607,7 @@
 
     // ── Renderização ──────────────────────────────────────────────────────
     function appendMessage(role, content, time) {
+        console.log('[AI Chat] appendMessage() chamado:', role, 'content length:', content?.length);
         const wrap = document.createElement('div');
         wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
         wrap.className = role === 'user' ? 'align-items-end' : 'align-items-start';
@@ -609,6 +623,7 @@
             t.textContent = time; wrap.appendChild(t);
         }
         messages.appendChild(wrap);
+        console.log('[AI Chat] Mensagem adicionada, messages.children.length agora é:', messages.children.length);
     }
 
     function appendSystemMsg(text) {
