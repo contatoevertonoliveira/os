@@ -433,6 +433,17 @@
             panel.style.opacity       = '1';
             panel.style.transform     = 'scale(1) translateY(0)';
             fabBtn.classList.add('ai-open');
+            console.log('[AI Chat] Estilos aplicados:');
+            console.log('  - opacity:', panel.style.opacity);
+            console.log('  - transform:', panel.style.transform);
+            console.log('  - pointerEvents:', panel.style.pointerEvents);
+            console.log('  - display:', panel.style.display);
+            console.log('  - visibility:', panel.style.visibility);
+            console.log('  - position:', panel.style.position);
+            console.log('  - top:', panel.style.top);
+            console.log('  - bottom:', panel.style.bottom);
+            console.log('  - left:', panel.style.left);
+            console.log('  - right:', panel.style.right);
             console.log('[AI Chat] Painel deve estar visível agora');
             if (!_historyLoaded) {
                 console.log('[AI Chat] Carregando histórico...');
