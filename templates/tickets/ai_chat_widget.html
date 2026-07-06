@@ -369,13 +369,32 @@
     function onDragStart(e) {
         // Distinguir clique de drag: começa como potencial drag
         const { x, y } = getClientXY(e);
-        toTopLeft();
-        _dragStart = {
-            x, y,
-            left: parseFloat(widget.style.left),
-            top:  parseFloat(widget.style.top),
-            moved: false,
-        };
+
+        // Prepara para drag, mas não converte para top/left ainda
+        // A conversão só acontece se houver movimento real
+        const isAlreadyTopLeft = widget.style.top && widget.style.top !== 'auto';
+
+        if (!isAlreadyTopLeft) {
+            // Ainda está em bottom/right, prepare para conversão
+            const r = widget.getBoundingClientRect();
+            _dragStart = {
+                x, y,
+                left: r.left,
+                top: r.top,
+                moved: false,
+                needsConversion: true
+            };
+        } else {
+            // Já está em top/left, use valores atuais
+            _dragStart = {
+                x, y,
+                left: parseFloat(widget.style.left),
+                top:  parseFloat(widget.style.top),
+                moved: false,
+                needsConversion: false
+            };
+        }
+
         _dragging = true;
         widget.classList.add('dragging');
 
@@ -393,6 +412,14 @@
         const dy = y - _dragStart.y;
 
         if (!_dragStart.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+
+        // Primeira vez com movimento real: converter de bottom/right para top/left se necessário
+        if (!_dragStart.moved && _dragStart.needsConversion) {
+            widget.style.bottom = '';
+            widget.style.right  = '';
+            _dragStart.needsConversion = false;
+        }
+
         _dragStart.moved = true;
 
         const pos = clampPosition(_dragStart.left + dx, _dragStart.top + dy);
