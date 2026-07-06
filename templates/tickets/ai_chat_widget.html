@@ -165,7 +165,7 @@
     const sendBtn = document.getElementById('aiSendBtn');
     const fabBtn  = document.getElementById('aiFabBtn');
 
-    let _sessionId     = null;
+    let _sessionId     = localStorage.getItem('aiChatSessionId') || null;
     let _isOpen        = false;
     let _historyLoaded = false;
 
@@ -305,6 +305,13 @@
         }
     };
 
+    // ── Persistência de sessão ───────────────────────────────────────────
+    function saveSessionId(id) {
+        _sessionId = id;
+        if (id) localStorage.setItem('aiChatSessionId', id);
+        else localStorage.removeItem('aiChatSessionId');
+    }
+
     // ── Histórico ─────────────────────────────────────────────────────────
     async function loadHistory() {
         appendSystemMsg('Carregando histórico...');
@@ -316,7 +323,7 @@
             messages.innerHTML = '';
             if (data.ok && data.sessions && data.sessions.length > 0) {
                 const firstSession = data.sessions[0];
-                _sessionId = firstSession.id;
+                saveSessionId(firstSession.id);
 
                 // Carrega mensagens da primeira sessão
                 await loadSessionMessages(_sessionId);
@@ -373,7 +380,7 @@
                 body: JSON.stringify({})
             });
             const data = await resp.json();
-            if (data.ok) { _sessionId = data.session_id; messages.innerHTML = ''; showWelcome(); input.value = ''; input.focus(); }
+            if (data.ok) { saveSessionId(data.session_id); messages.innerHTML = ''; showWelcome(); input.value = ''; input.focus(); }
         } catch {}
     };
 
@@ -395,7 +402,7 @@
             const data = await resp.json();
             typing.style.display = 'none';
             if (data.ok) {
-                _sessionId = data.session_id;
+                saveSessionId(data.session_id);
                 if (data.clear_chat) {
                     await clearChat(data.response);
                 } else {
@@ -422,7 +429,7 @@
         messages.innerHTML = '';
         if (confirmMsg) appendSystemMsg(confirmMsg);
         showWelcome();
-        _sessionId = null;
+        saveSessionId(null);
         try {
             const resp = await fetch("{% url 'ai_chat_new' %}", {
                 method: 'POST',
@@ -430,7 +437,7 @@
                 body: JSON.stringify({})
             });
             const data = await resp.json();
-            if (data.ok) _sessionId = data.session_id;
+            if (data.ok) saveSessionId(data.session_id);
         } catch {}
     }
 
