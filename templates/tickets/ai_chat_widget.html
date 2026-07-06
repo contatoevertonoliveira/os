@@ -457,15 +457,21 @@
 
     // ── Histórico ─────────────────────────────────────────────────────────
     async function loadHistory() {
+        console.log('[AI Chat] loadHistory() iniciado');
         appendSystemMsg('Carregando histórico...');
         try {
-            const resp = await fetch("{% url 'ai_chat_history' %}", {
+            const url = "{% url 'ai_chat_history' %}";
+            console.log('[AI Chat] Fazendo fetch para:', url);
+            const resp = await fetch(url, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
+            console.log('[AI Chat] Resposta recebida:', resp.status);
             const data = await resp.json();
+            console.log('[AI Chat] Dados:', data);
             messages.innerHTML = '';
             if (data.ok && data.sessions && data.sessions.length > 0) {
                 const firstSession = data.sessions[0];
+                console.log('[AI Chat] Primeira sessão:', firstSession);
                 saveSessionId(firstSession.id);
 
                 // Carrega mensagens da primeira sessão
@@ -477,9 +483,11 @@
                     showWelcome();
                 }
             } else {
+                console.log('[AI Chat] Sem sessões anteriores, mostrando boas-vindas');
                 showWelcome();
             }
-        } catch {
+        } catch (err) {
+            console.error('[AI Chat] Erro em loadHistory:', err);
             messages.innerHTML = '';
             showWelcome();
         }
