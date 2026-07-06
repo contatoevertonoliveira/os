@@ -329,9 +329,10 @@
     const GAP     = 10;  // espaço entre FAB e painel
 
     function repositionPanel() {
-        // Se o painel foi redimensionado (tem top/left definidos), não reposiciona
-        if (panel.style.top !== 'auto' && panel.style.top !== '') return;
-        if (panel.style.left !== 'auto' && panel.style.left !== '') return;
+        // Se o painel foi redimensionado (tem top/left com valores numéricos), não reposiciona
+        const hasCustomTop = panel.style.top && panel.style.top !== 'auto' && panel.style.top !== '';
+        const hasCustomLeft = panel.style.left && panel.style.left !== 'auto' && panel.style.left !== '';
+        if (hasCustomTop || hasCustomLeft) return;
 
         const wr = widget.getBoundingClientRect();
         const vw = window.innerWidth;
