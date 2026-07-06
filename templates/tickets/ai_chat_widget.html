@@ -408,9 +408,12 @@
         document.removeEventListener('touchend',  onDragEnd);
         widget.classList.remove('dragging');
 
-        if (_dragging && !_dragStart.moved) {
+        console.log('[AI Chat] onDragEnd: _dragging=', _dragging, '!_dragStart.moved=', !_dragStart?.moved);
+        if (_dragging && _dragStart && !_dragStart.moved) {
+            console.log('[AI Chat] Chamando aiChatToggle()...');
             aiChatToggle();
         } else {
+            console.log('[AI Chat] Apenas reposicionando painel...');
             // Reposiciona o painel após o arraste
             repositionPanel();
         }
@@ -420,16 +423,24 @@
 
     // ── Toggle abrir/fechar ───────────────────────────────────────────────
     window.aiChatToggle = function () {
+        console.log('[AI Chat] aiChatToggle() chamado, _isOpen=', _isOpen);
         _isOpen = !_isOpen;
+        console.log('[AI Chat] _isOpen agora é', _isOpen);
         if (_isOpen) {
+            console.log('[AI Chat] Abrindo painel...');
             repositionPanel();
             panel.style.pointerEvents = 'auto';
             panel.style.opacity       = '1';
             panel.style.transform     = 'scale(1) translateY(0)';
             fabBtn.classList.add('ai-open');
-            if (!_historyLoaded) loadHistory();
+            console.log('[AI Chat] Painel deve estar visível agora');
+            if (!_historyLoaded) {
+                console.log('[AI Chat] Carregando histórico...');
+                loadHistory();
+            }
             else setTimeout(() => input.focus(), 220);
         } else {
+            console.log('[AI Chat] Fechando painel...');
             panel.style.opacity       = '0';
             panel.style.transform     = 'scale(0.85) translateY(20px)';
             panel.style.pointerEvents = 'none';
