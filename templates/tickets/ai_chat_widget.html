@@ -478,7 +478,7 @@
                 await loadSessionMessages(_sessionId);
 
                 // Se nenhuma mensagem foi carregada, mostra boas-vindas
-                if (!_historyLoaded || messages.children.length === 0) {
+                if (messages.children.length === 0) {
                     messages.innerHTML = '';
                     showWelcome();
                 }
