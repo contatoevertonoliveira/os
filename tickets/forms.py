@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, ProblemType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
 
 
 class ContactClientForm(forms.ModelForm):
@@ -399,6 +399,13 @@ class TicketForm(forms.ModelForm):
         required=False,
         label="Tipo de Chamado",
         empty_label="Selecione o tipo de chamado"
+    )
+
+    problem_type = forms.ModelChoiceField(
+        queryset=ProblemType.objects.all().order_by('name'),
+        required=False,
+        label="Tipo de Problema",
+        empty_label="Selecione o tipo de problema"
     )
 
     class Meta:

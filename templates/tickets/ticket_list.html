@@ -2451,6 +2451,32 @@
             return accordionItemUrlTpl.replace('999999', String(ticketId));
         }
 
+        // Marca em vermelho os campos obrigatórios vazios dentro do form e retorna
+        // os rótulos legíveis dos que faltaram (para exibir no toast de aviso).
+        function highlightRequiredErrors(formEl) {
+            const invalidLabels = [];
+            formEl.querySelectorAll('[required]').forEach(function (el) {
+                el.classList.remove('is-invalid');
+                if (!el.checkValidity()) {
+                    el.classList.add('is-invalid');
+                    const label = formEl.querySelector(`label[for="${el.id}"]`);
+                    const text = label ? label.textContent.trim() : (el.name || 'Campo obrigatório');
+                    if (!invalidLabels.includes(text)) invalidLabels.push(text);
+                }
+            });
+            return invalidLabels;
+        }
+
+        // Remove o destaque vermelho assim que o usuário mexe no campo
+        if (createModalContent) {
+            createModalContent.addEventListener('input', function (e) {
+                if (e.target.classList && e.target.classList.contains('is-invalid')) e.target.classList.remove('is-invalid');
+            });
+            createModalContent.addEventListener('change', function (e) {
+                if (e.target.classList && e.target.classList.contains('is-invalid')) e.target.classList.remove('is-invalid');
+            });
+        }
+
         async function insertNewTicket(ticketId) {
             const resp = await fetch(ticketAccordionItemUrl(ticketId), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const html = await resp.text();
@@ -2565,6 +2591,17 @@
                 if (!form || form.id !== 'createTicketForm') return;
                 e.preventDefault();
 
+                const invalidLabels = highlightRequiredErrors(form);
+                if (invalidLabels.length) {
+                    _showToast('danger', `<strong>Preencha os campos obrigatórios:</strong> ${invalidLabels.join(', ')}`);
+                    const firstInvalid = form.querySelector('.is-invalid');
+                    if (firstInvalid) {
+                        firstInvalid.focus({ preventScroll: true });
+                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+
                 const fd = new FormData(form);
                 try {
                     const resp = await fetch(form.action, {
@@ -2579,6 +2616,11 @@
                             createModalContent.innerHTML = data.html;
                             execScripts(createModalContent);
                             initTooltips(createModalContent);
+                            const newForm = createModalContent.querySelector('#createTicketForm');
+                            const labels = newForm ? highlightRequiredErrors(newForm) : [];
+                            _showToast('danger', labels.length
+                                ? `<strong>Preencha os campos obrigatórios:</strong> ${labels.join(', ')}`
+                                : '<strong>Não foi possível salvar.</strong> Verifique os campos destacados.');
                             return;
                         }
                         throw new Error('Erro ao criar OS');
