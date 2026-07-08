@@ -1,10 +1,29 @@
-from .models import SystemSettings, ActiveSession
+from .models import SystemSettings, ActiveSession, UserProfile, AppPage, RoleLevel, RolePagePermission
 from django.core.exceptions import PermissionDenied
 from django.urls import resolve
-from .models import AppPage, RoleLevel, RolePagePermission
 from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 from django.contrib.auth import logout
+
+class EnsureUserProfileMiddleware:
+    """
+    Garante que todo usuário autenticado tenha um UserProfile.
+    Se não tiver, cria um automaticamente com ai_chat_enabled = True por padrão.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.user.is_authenticated:
+            try:
+                if not hasattr(request.user, 'profile') or request.user.profile is None:
+                    UserProfile.objects.get_or_create(user=request.user)
+            except Exception:
+                pass
+
+        response = self.get_response(request)
+        return response
+
 
 class SingleSessionPerIpMiddleware:
     """

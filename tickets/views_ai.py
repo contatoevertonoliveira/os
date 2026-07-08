@@ -26,9 +26,11 @@ class AIChatView(LoginRequiredMixin, View):
         if not settings_obj.ai_enabled:
             return JsonResponse({"ok": False, "error": "Assistente de IA não está ativado."}, status=403)
 
-        # Verifica se o usuário tem permissão para acessar o chat IA
+        # Verifica se o usuário tem permissão para acessar o chat IA.
+        # Super Admin sempre tem acesso, independente do valor salvo no profile.
         user_profile = getattr(request.user, 'profile', None)
-        if user_profile and not user_profile.ai_chat_enabled:
+        is_super_admin = user_profile and user_profile.role == 'super_admin'
+        if user_profile and not user_profile.ai_chat_enabled and not is_super_admin:
             return JsonResponse({"ok": False, "error": "Você não tem permissão para usar o Chat IA."}, status=403)
 
         try:

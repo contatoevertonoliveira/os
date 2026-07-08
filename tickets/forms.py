@@ -690,14 +690,17 @@ class UserProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role', 'ai_chat_enabled']
+        # 'ai_chat_enabled' foi removido de propósito: como o template deste formulário
+        # não renderiza o checkbox, o ModelForm gravava False a cada salvamento (checkbox
+        # ausente = não enviado = False), fazendo o Chat IA sumir. É uma permissão
+        # gerenciada apenas pela tela de Permissões.
+        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
             'job_title': forms.TextInput(attrs={'class': 'form-control'}),
             'personal_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 00000-0000'}),
             'company_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
-            'ai_chat_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -718,7 +721,6 @@ class UserProfileForm(forms.ModelForm):
             self.fields['role'].disabled = True
             self.fields['station'].disabled = True # Assuming station is assigned by admin
             self.fields['job_title'].disabled = True
-            self.fields['ai_chat_enabled'].disabled = True
         
     def save(self, commit=True):
         profile = super().save(commit=False)
@@ -954,7 +956,9 @@ class UserManagementForm(forms.ModelForm):
     personal_phone = forms.CharField(label="Telefone Pessoal", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
     company_phone = forms.CharField(label="Telefone Empresa", max_length=20, required=False, widget=forms.TextInput(attrs={'class': 'form-control phone-mask'}))
     photo = forms.ImageField(label="Foto de Perfil", required=False, widget=forms.FileInput(attrs={'class': 'form-control'}))
-    ai_chat_enabled = forms.BooleanField(label="Ativar Chat IA", required=False, widget=forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch'}))
+    # NOTA: 'ai_chat_enabled' NÃO faz parte deste formulário de propósito. É uma permissão
+    # gerenciada exclusivamente pela tela de Permissões. Se fosse incluída aqui sem um
+    # checkbox no template, todo salvamento (nome/senha/token) a zeraria silenciosamente.
 
     class Meta:
         model = User
@@ -977,7 +981,6 @@ class UserManagementForm(forms.ModelForm):
                 self.fields['company_phone'].initial = self.instance.profile.company_phone
                 self.fields['photo'].initial = self.instance.profile.photo
                 self.fields['access_token'].initial = self.instance.profile.token
-                self.fields['ai_chat_enabled'].initial = self.instance.profile.ai_chat_enabled
         else:
              self.fields['password'].required = True
              self.fields['password'].help_text = "Senha inicial para o usuário."
@@ -1000,7 +1003,8 @@ class UserManagementForm(forms.ModelForm):
             profile.station = self.cleaned_data['station']
             profile.personal_phone = self.cleaned_data['personal_phone']
             profile.company_phone = self.cleaned_data['company_phone']
-            profile.ai_chat_enabled = self.cleaned_data.get('ai_chat_enabled', True)
+            # 'ai_chat_enabled' NÃO é alterado aqui de propósito — ver nota na definição
+            # do formulário. É gerenciado apenas pela tela de Permissões.
 
             if self.cleaned_data.get('photo'):
                  profile.photo = self.cleaned_data['photo']
