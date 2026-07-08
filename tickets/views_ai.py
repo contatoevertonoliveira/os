@@ -2,6 +2,7 @@
 Views do Chat IA — endpoints para o widget de chat inteligente.
 """
 import json
+import re
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views import View
@@ -11,6 +12,22 @@ from django.utils.decorators import method_decorator
 from .models import SystemSettings, AIChatSession, AIChatMessage
 from .ai_service import run_agent
 from .ai_tools import TOOL_DEFINITIONS, SYSTEM_PROMPT, execute_tool
+
+CLEAR_CHAT_CONFIRMATION = "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"
+
+# Detecta pedidos explícitos de "limpar o chat" antes de chamar o modelo — o
+# modelo às vezes apenas repete o texto de confirmação sem de fato chamar a
+# tool clear_chat, o que deixava o histórico intacto no servidor.
+_CLEAR_CHAT_RE = re.compile(
+    r'\b(limp\w*|apag\w*|reset\w*)\b.{0,12}\b(chat|conversa|hist[oó]ric\w*)\b'
+    r'|\blimp\w*\s+tudo\b'
+    r'|\bnovo\s+chat\b',
+    re.IGNORECASE
+)
+
+
+def _is_clear_chat_request(text):
+    return bool(_CLEAR_CHAT_RE.search(text))
 
 
 def _get_settings():
@@ -43,6 +60,19 @@ class AIChatView(LoginRequiredMixin, View):
 
         if not user_message:
             return JsonResponse({"ok": False, "error": "Mensagem vazia."}, status=400)
+
+        if _is_clear_chat_request(user_message):
+            AIChatSession.objects.filter(user=request.user).delete()
+            new_session = AIChatSession.objects.create(user=request.user, title="Nova conversa")
+            AIChatMessage.objects.create(session=new_session, role='assistant', content=CLEAR_CHAT_CONFIRMATION)
+            return JsonResponse({
+                "ok": True,
+                "session_id": new_session.id,
+                "response": CLEAR_CHAT_CONFIRMATION,
+                "clear_chat": True,
+                "new_ticket_id": None,
+                "new_ticket_formatted_id": None,
+            })
 
         # Obtém ou cria sessão
         session = None
@@ -77,30 +107,49 @@ class AIChatView(LoginRequiredMixin, View):
         ]
 
         # Executor de tools que injeta o usuário atual; rastreia se clear_chat foi chamado
-        _clear_requested = {"value": False}
-        _new_ticket      = {"id": None, "formatted_id": None}
+        # e se alguma tool alterou uma OS (para o front-end saber que precisa
+        # atualizar a lista sem esperar um F5 do usuário).
+        _clear_requested   = {"value": False}
+        _new_ticket        = {"id": None, "formatted_id": None}
+        _updated_ticket_id = {"value": None}
+        _list_changed      = {"value": False}
 
         def tool_executor(tool_name, args):
             result = execute_tool(tool_name, args, request.user)
             if result.get("clear_chat"):
                 _clear_requested["value"] = True
-            if tool_name == "create_ticket" and result.get("ok") and result.get("data"):
-                _new_ticket["id"]           = result["data"].get("id")
-                _new_ticket["formatted_id"] = result["data"].get("formatted_id")
+            data = result.get("data") or {}
+            if tool_name == "create_ticket" and result.get("ok"):
+                _new_ticket["id"]           = data.get("id")
+                _new_ticket["formatted_id"] = data.get("formatted_id")
+                _list_changed["value"] = True
+            elif tool_name in ("update_ticket", "add_ticket_evolution") and result.get("ok"):
+                _updated_ticket_id["value"] = data.get("ticket_id") or data.get("id") or args.get("ticket_id")
+                _list_changed["value"] = True
+            elif tool_name == "delete_ticket" and result.get("ok"):
+                _list_changed["value"] = True
             return result
 
         # Chama o agente
         response_text = run_agent(settings_obj, messages, TOOL_DEFINITIONS, tool_executor)
 
-        # Salva resposta do assistente
-        AIChatMessage.objects.create(session=session, role='assistant', content=response_text)
-
-        # Atualiza título da sessão se for a primeira resposta
-        if session.messages.count() <= 2:
-            session.title = user_message[:80]
-            session.save(update_fields=['title', 'updated_at'])
+        if _clear_requested["value"]:
+            # Apaga TODAS as sessões antigas do usuário (incluindo a atual, que
+            # já cumpriu seu papel nesta requisição) e começa uma sessão nova
+            # em folha — evita gravar na sessão que acabou de ser removida.
+            AIChatSession.objects.filter(user=request.user).delete()
+            session = AIChatSession.objects.create(user=request.user, title="Nova conversa")
+            AIChatMessage.objects.create(session=session, role='assistant', content=response_text)
         else:
-            session.save(update_fields=['updated_at'])
+            # Salva resposta do assistente
+            AIChatMessage.objects.create(session=session, role='assistant', content=response_text)
+
+            # Atualiza título da sessão se for a primeira resposta
+            if session.messages.count() <= 2:
+                session.title = user_message[:80]
+                session.save(update_fields=['title', 'updated_at'])
+            else:
+                session.save(update_fields=['updated_at'])
 
         return JsonResponse({
             "ok": True,
@@ -109,6 +158,8 @@ class AIChatView(LoginRequiredMixin, View):
             "clear_chat": _clear_requested["value"],
             "new_ticket_id": _new_ticket["id"],
             "new_ticket_formatted_id": _new_ticket["formatted_id"],
+            "updated_ticket_id": _updated_ticket_id["value"],
+            "ticket_list_changed": _list_changed["value"],
         })
 
 

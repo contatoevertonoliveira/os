@@ -146,6 +146,27 @@ TOOL_DEFINITIONS = [
         "parameters": {"type": "object", "properties": {}}
     },
     {
+        "name": "list_equipments",
+        "description": "Busca equipamentos já cadastrados no sistema (busca parcial pelo nome). Use SEMPRE antes de create_equipment, para verificar se o equipamento já existe e evitar duplicidade. Se não passar 'name', lista todos.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome ou parte do nome do equipamento (opcional — se omitido, lista todos)"}
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "list_equipment_types",
+        "description": "Lista os tipos de equipamento cadastrados no sistema. Use antes de create_equipment_type para verificar se o tipo já existe.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "list_problem_types",
+        "description": "Lista os tipos de problema cadastrados no sistema, usados para associar à OS. Use antes de create_problem_type para verificar se o tipo já existe.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
         "name": "get_ticket",
         "description": "Busca uma OS (Ordem de Serviço) pelo número do ticket. Use para editar ou visualizar uma OS existente.",
         "parameters": {
@@ -172,6 +193,8 @@ TOOL_DEFINITIONS = [
                 "contact_jumper_responsible_id": {"type": "integer", "description": "ID do responsável JumperFour (ContactJumper)"},
                 "ticket_type_id": {"type": "integer", "description": "ID do tipo de chamado (opcional)"},
                 "system_id": {"type": "integer", "description": "ID do sistema (opcional)"},
+                "problem_type_id": {"type": "integer", "description": "ID do tipo de problema (opcional, use list_problem_types para buscar)"},
+                "equipment_ids": {"type": "array", "items": {"type": "integer"}, "description": "IDs dos equipamentos a vincular à OS (opcional, use list_equipments para buscar)"},
                 "leankeep_id": {"type": "string", "description": "ID no Leankeep (opcional)"},
                 "final_description": {"type": "string", "description": "Descrição final/resolução (opcional)"}
             },
@@ -192,7 +215,9 @@ TOOL_DEFINITIONS = [
                 "deadline": {"type": "string", "description": "Novo prazo YYYY-MM-DDTHH:MM"},
                 "contact_client_requester_id": {"type": "integer", "description": "Novo ID do solicitante"},
                 "contact_jumper_responsible_id": {"type": "integer", "description": "Novo ID do responsável"},
-                "ticket_type_id": {"type": "integer", "description": "Novo tipo de chamado"}
+                "ticket_type_id": {"type": "integer", "description": "Novo tipo de chamado"},
+                "problem_type_id": {"type": "integer", "description": "Novo tipo de problema (use list_problem_types para buscar)"},
+                "equipment_ids": {"type": "array", "items": {"type": "integer"}, "description": "Novos IDs dos equipamentos vinculados à OS — substitui a lista atual (use list_equipments para buscar)"}
             },
             "required": ["ticket_id"]
         }
@@ -833,11 +858,42 @@ def _list_jumper_contacts(args, user):
     ]}
 
 
+def _list_equipments(args, user):
+    from .models import Equipment
+    name = (args.get("name") or "").strip()
+    qs = Equipment.objects.select_related('equipment_type').order_by('name')
+    if name:
+        qs = qs.filter(name__icontains=name)
+    qs = qs[:30]
+    return {"ok": True, "data": [
+        {"num": i, "id": e.id, "name": e.name, "type": e.equipment_type.name if e.equipment_type else ""}
+        for i, e in enumerate(qs, start=1)
+    ]}
+
+
+def _list_equipment_types(args, user):
+    from .models import EquipmentType
+    qs = EquipmentType.objects.all().order_by('name')
+    return {"ok": True, "data": [
+        {"num": i, "id": t.id, "name": t.name}
+        for i, t in enumerate(qs, start=1)
+    ]}
+
+
+def _list_problem_types(args, user):
+    from .models import ProblemType
+    qs = ProblemType.objects.all().order_by('name')
+    return {"ok": True, "data": [
+        {"num": i, "id": t.id, "name": t.name}
+        for i, t in enumerate(qs, start=1)
+    ]}
+
+
 def _get_ticket(args, user):
     from .models import Ticket
     number = str(args.get("ticket_number", "")).strip().lstrip("0") or "0"
     try:
-        ticket = Ticket.objects.select_related('client', 'hub', 'contact_client_requester', 'contact_jumper_responsible').get(id=int(number))
+        ticket = Ticket.objects.select_related('client', 'hub', 'contact_client_requester', 'contact_jumper_responsible', 'ticket_type', 'problem_type').get(id=int(number))
     except (Ticket.DoesNotExist, ValueError):
         # Tenta buscar pelo formatted_id
         tickets = Ticket.objects.filter(id__icontains=number)[:1]
@@ -861,12 +917,15 @@ def _get_ticket(args, user):
             "deadline": ticket.deadline.strftime("%d/%m/%Y %H:%M") if ticket.deadline else None,
             "requester": ticket.contact_client_requester.name if ticket.contact_client_requester else None,
             "responsible": ticket.contact_jumper_responsible.name if ticket.contact_jumper_responsible else None,
+            "ticket_type": ticket.ticket_type.name if ticket.ticket_type else None,
+            "problem_type": ticket.problem_type.name if ticket.problem_type else None,
+            "equipments": [e.name for e in ticket.equipments.all()],
         }
     }
 
 
 def _create_ticket(args, user):
-    from .models import Ticket, Client, ClientHub, TicketType, System, ContactClient, ContactJumper
+    from .models import Ticket, Client, ClientHub, TicketType, System, ContactClient, ContactJumper, ProblemType, Equipment
 
     role = getattr(getattr(user, 'profile', None), 'role', None)
     if not role:
@@ -931,6 +990,12 @@ def _create_ticket(args, user):
         except TicketType.DoesNotExist:
             return {"ok": False, "error": f"Tipo de chamado ID {args['ticket_type_id']} não encontrado."}
 
+    if args.get("problem_type_id"):
+        try:
+            ticket.problem_type = ProblemType.objects.get(pk=args["problem_type_id"])
+        except ProblemType.DoesNotExist:
+            return {"ok": False, "error": f"Tipo de problema ID {args['problem_type_id']} não encontrado."}
+
     try:
         ticket.save()
     except Exception as e:
@@ -942,11 +1007,16 @@ def _create_ticket(args, user):
         except System.DoesNotExist:
             pass  # sistema é opcional — não bloqueia
 
+    equipment_ids = args.get("equipment_ids") or []
+    if equipment_ids:
+        equipments = Equipment.objects.filter(pk__in=equipment_ids)
+        ticket.equipments.set(equipments)
+
     return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id, "url": f"/tickets/?open={ticket.id}"}}
 
 
 def _update_ticket(args, user):
-    from .models import Ticket, TicketType, ContactClient, ContactJumper
+    from .models import Ticket, TicketType, ContactClient, ContactJumper, ProblemType, Equipment
 
     try:
         ticket = Ticket.objects.get(pk=args["ticket_id"])
@@ -984,11 +1054,20 @@ def _update_ticket(args, user):
             ticket.contact_jumper_responsible = ContactJumper.objects.get(pk=args["contact_jumper_responsible_id"])
         except ContactJumper.DoesNotExist:
             return {"ok": False, "error": f"Responsável ID {args['contact_jumper_responsible_id']} não encontrado."}
+    if "problem_type_id" in args:
+        try:
+            ticket.problem_type = ProblemType.objects.get(pk=args["problem_type_id"])
+        except ProblemType.DoesNotExist:
+            return {"ok": False, "error": f"Tipo de problema ID {args['problem_type_id']} não encontrado."}
 
     try:
         ticket.save()
     except Exception as e:
         return {"ok": False, "error": f"Erro ao salvar alterações no banco de dados: {str(e)}"}
+
+    if "equipment_ids" in args:
+        equipments = Equipment.objects.filter(pk__in=args.get("equipment_ids") or [])
+        ticket.equipments.set(equipments)
 
     return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id}}
 
@@ -1092,13 +1171,10 @@ def _update_client(args, user):
 
 
 def _clear_chat(args, user):
-    from .models import AIChatSession
-    try:
-        # Deleta todas as sessões antigas do usuário
-        AIChatSession.objects.filter(user=user).delete()
-    except Exception:
-        pass  # Continua mesmo se houver erro ao deletar
-
+    # A exclusão real das sessões é feita pela view (views_ai.py) depois que a
+    # resposta desta requisição for salva — apagar a sessão aqui, no meio da
+    # requisição, deixaria a sessão atual órfã e quebraria a gravação da
+    # resposta do assistente (FOREIGN KEY constraint failed).
     return {"ok": True, "clear_chat": True, "data": {"message": "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"}}
 
 
@@ -1191,6 +1267,9 @@ def _create_equipment(args, user):
     name = args.get("name", "").strip()
     if not name:
         return {"ok": False, "error": "Nome do equipamento é obrigatório."}
+
+    if Equipment.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um equipamento com o nome '{name}'."}
 
     equipment_type = None
     equipment_type_id = args.get("equipment_type_id")
@@ -1951,6 +2030,9 @@ _TOOL_REGISTRY = {
     "list_systems": _list_systems,
     "list_ticket_types": _list_ticket_types,
     "list_jumper_contacts": _list_jumper_contacts,
+    "list_equipments": _list_equipments,
+    "list_equipment_types": _list_equipment_types,
+    "list_problem_types": _list_problem_types,
     "get_ticket": _get_ticket,
     "create_ticket": _create_ticket,
     "update_ticket": _update_ticket,
@@ -2049,7 +2131,7 @@ Se durante a criação ou edição de uma OS algum item necessário não existir
 "Não encontrei esse contato. Quer que eu cadastre agora?"
 Se o usuário confirmar, colete apenas o nome (e e-mail/telefone se oferecer) e cadastre.
 Após cadastrar, retome o fluxo de onde parou automaticamente.
-Isso vale para: cliente, contato solicitante, responsável JumperFour, hub/loja, equipamento.
+Isso vale para: cliente, contato solicitante, responsável JumperFour, hub/loja, equipamento, tipo de problema.
 
 Se o usuário fizer qualquer pergunta FORA desse escopo (política, programação, receitas, curiosidades gerais, etc.), responda EXATAMENTE assim:
 "Não estou autorizado a responder questionamentos fora da geração de tickets ou chamados de serviço. Deseja abrir um chamado?"
@@ -2161,6 +2243,12 @@ REGRAS OBRIGATÓRIAS:
    Em seguida pergunte: "Deseja tentar novamente ou cancelar?"
    Isso vale para criação, edição, exclusão, cadastro — qualquer operação que falhar.
    Nunca finja que deu certo quando a tool retornou erro.
+5. NÚMEROS E IDs — regra crítica contra alucinação: nunca invente, estime ou repita de memória um número de OS,
+   ID ou dado de cadastro. O único número de OS válido é o campo "formatted_id" devolvido pela tool create_ticket
+   (ou update_ticket/get_ticket) NESTA chamada. Se você ainda não chamou create_ticket nesta resposta, você NÃO
+   pode dizer "OS #... criada" — chame a tool primeiro, leia o "formatted_id" do resultado, e só então informe
+   esse valor exato ao usuário. O mesmo vale para qualquer outro cadastro (cliente, equipamento, contato, etc):
+   use sempre o "id"/"name" retornado pela tool, nunca um valor lembrado de mensagens anteriores.
 
 FLUXO DE CRIAÇÃO DE OS:
 
@@ -2181,9 +2269,15 @@ B) Campo a campo: se o usuário não informar tudo, pergunte um por vez nesta or
    8. Descrição
 
 Campos opcionais (nunca exija):
-  - Sistema, Tipo de chamado, Equipamento
-  Após ter todos os obrigatórios, pergunte apenas: "Deseja adicionar algo mais? (sistema, tipo, equipamento — opcional)"
+  - Sistema, Tipo de chamado, Tipo de problema, Equipamento(s)
+  Após ter todos os obrigatórios, pergunte apenas: "Deseja adicionar algo mais? (sistema, tipo, tipo de problema, equipamento — opcional)"
   Se o usuário disser "não", "pode criar" ou similar — siga para o resumo.
+
+  Se o usuário mencionar um ou mais equipamentos (ex: "equipamento câmera 3", "equipamentos: nobreak e roteador"):
+  1. Chame list_equipments com o nome informado para buscar o que já existe (busca parcial, funciona mesmo digitando só "equipamento" para listar todos).
+  2. Se encontrar, mostre as opções numeradas e confirme qual(is) usar — pode ser mais de um, passe todos em equipment_ids.
+  3. Se não encontrar nenhum equipamento com esse nome, siga a regra de CADASTRO SOB DEMANDA: ofereça cadastrar (create_equipment, use list_equipment_types antes se precisar do tipo).
+  O mesmo vale para tipo de problema: use list_problem_types antes de perguntar ou de oferecer create_problem_type.
 
 ATENÇÃO CRÍTICA — IDs vs números da lista:
 Cada item retornado pelas tools tem dois campos: "num" (posição na lista: 1, 2, 3...)

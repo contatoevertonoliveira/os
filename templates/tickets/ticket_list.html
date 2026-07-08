@@ -1423,7 +1423,15 @@
                     if (newAcc && curAcc) {
                         curAcc.innerHTML = newAcc.innerHTML;
                         if (typeof bindTableEvents === 'function') bindTableEvents();
-                        if (typeof bindAccordionEvents === 'function') bindAccordionEvents();
+                        // Religa os eventos de collapse (show/hidden.bs.collapse) em cada
+                        // card recém-inserido — sem isso o accordion parece "travado", pois
+                        // o clique só alterna a classe do Bootstrap mas nunca carrega o
+                        // conteúdo inline via AJAX.
+                        curAcc.querySelectorAll('.accordion-collapse').forEach(function (el) {
+                            if (typeof window.bindTicketCollapseEvents === 'function') window.bindTicketCollapseEvents(el);
+                        });
+                        if (typeof window.initTooltips === 'function') window.initTooltips(curAcc);
+                        if (typeof window.applyRowBg === 'function') window.applyRowBg();
                     }
                     // Destaca o ticket recém criado
                     const item = document.querySelector(`[data-ticket-id="${ticketId}"]`)
@@ -2282,6 +2290,8 @@
         // Bind inicial
         accordionEl.querySelectorAll('.accordion-collapse').forEach(bindCollapseEvents);
         window.bindTicketCollapseEvents = bindCollapseEvents;
+        window.initTooltips = initTooltips;
+        window.applyRowBg = applyRowBg;
         applyRowBg();
 
         // Submit inline (AJAX) - substitui o conteúdo do card com o HTML retornado

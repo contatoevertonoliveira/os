@@ -642,9 +642,14 @@
                     await clearChat(data.response);
                 } else {
                     appendMessage('assistant', data.response);
-                    // Nova OS criada — atualiza lista e destaca
+                    // Nova OS criada ou existente editada — atualiza lista e destaca
                     if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.new_ticket_id);
+                    } else if (data.updated_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
+                        window.aiRefreshAndHighlight(data.updated_ticket_id);
+                    } else if (data.ticket_list_changed && typeof window.reorderTicketsList === 'function') {
+                        // Ex.: exclusão de OS — não há ticket específico para destacar, só recarrega a lista
+                        window.reorderTicketsList();
                     }
                 }
             } else {
@@ -663,7 +668,7 @@
     async function clearChat(confirmMsg) {
         messages.innerHTML = '';
         if (confirmMsg) appendSystemMsg(confirmMsg);
-        showWelcome();
+        else showWelcome();
         saveSessionId(null);
         try {
             const resp = await fetch("{% url 'ai_chat_new' %}", {
