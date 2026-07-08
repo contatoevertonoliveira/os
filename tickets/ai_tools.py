@@ -45,6 +45,26 @@ def _parse_dt(value):
     return dt
 
 
+def _generate_username(seed):
+    """Gera um login único a partir de um nome (slug + sufixo numérico se necessário)."""
+    import unicodedata
+    import re
+    from django.contrib.auth.models import User as DjangoUser
+
+    normalized = unicodedata.normalize('NFKD', seed or '')
+    normalized = ''.join(ch for ch in normalized if not unicodedata.combining(ch))
+    normalized = normalized.lower()
+    normalized = re.sub(r'[^a-z0-9]+', '.', normalized).strip('.')
+    base = normalized or 'user'
+
+    username = base
+    counter = 1
+    while DjangoUser.objects.filter(username=username).exists():
+        username = f"{base}{counter}"
+        counter += 1
+    return username
+
+
 # ---------------------------------------------------------------------------
 # Definições das tools (enviadas para o modelo de IA)
 # ---------------------------------------------------------------------------
@@ -236,7 +256,8 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Nome do equipamento"},
-                "description": {"type": "string", "description": "Descrição (opcional)"}
+                "description": {"type": "string", "description": "Descrição (opcional)"},
+                "equipment_type_id": {"type": "integer", "description": "ID do tipo de equipamento (opcional, use create_equipment_type para cadastrar um novo tipo se não existir)"}
             },
             "required": ["name"]
         }
@@ -316,6 +337,129 @@ TOOL_DEFINITIONS = [
                 "group": {"type": "string", "description": "Grupo/categoria (opcional, ex: Admin, Financeiro)"}
             },
             "required": ["name", "url_name"]
+        }
+    },
+    {
+        "name": "create_ticket_type",
+        "description": "Cadastra um novo Tipo de Chamado no sistema. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do tipo de chamado"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_problem_type",
+        "description": "Cadastra um novo Tipo de Problema no sistema. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do tipo de problema"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_system",
+        "description": "Cadastra um novo Sistema (usado para associar a OS e clientes). Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do sistema"},
+                "color": {"type": "string", "description": "Cor em hex (opcional, ex: #FF0000)"},
+                "description": {"type": "string", "description": "Descrição (opcional)"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_equipment_type",
+        "description": "Cadastra um novo Tipo de Equipamento. Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome do tipo de equipamento"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "create_ticket_status",
+        "description": "Cadastra um novo Status de OS (badge/cor exibida nas ordens de serviço). Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Código único do status, em minúsculas sem espaços (ex: aguardando_peca)"},
+                "name": {"type": "string", "description": "Nome exibido do status"},
+                "color": {"type": "string", "description": "Cor de fundo hex (opcional, ex: #28a745)"},
+                "font_color": {"type": "string", "description": "Cor da fonte hex (opcional)"},
+                "row_color": {"type": "string", "description": "Cor de fundo da linha na lista (opcional)"},
+                "order": {"type": "integer", "description": "Ordem de exibição (opcional)"}
+            },
+            "required": ["code", "name"]
+        }
+    },
+    {
+        "name": "create_technician",
+        "description": "Cadastra um novo Técnico (usuário do sistema com nível Técnico). Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "first_name": {"type": "string", "description": "Nome do técnico"},
+                "email": {"type": "string", "description": "E-mail (opcional)"},
+                "username": {"type": "string", "description": "Login (opcional, gerado automaticamente a partir do nome se não informado)"},
+                "job_title": {"type": "string", "description": "Cargo (opcional)"},
+                "station": {"type": "string", "description": "Posto de alocação (opcional)"},
+                "department": {"type": "string", "description": "Departamento/área (opcional)"}
+            },
+            "required": ["first_name"]
+        }
+    },
+    {
+        "name": "create_responsible",
+        "description": "Cadastra um novo Responsável (usuário operador vinculado a um cliente fixo). Requer permissão de administrador.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "first_name": {"type": "string", "description": "Nome do responsável"},
+                "client_id": {"type": "integer", "description": "ID do cliente ao qual o responsável fica vinculado"},
+                "email": {"type": "string", "description": "E-mail (opcional)"}
+            },
+            "required": ["first_name", "client_id"]
+        }
+    },
+    {
+        "name": "create_user_account",
+        "description": "Cadastra um novo usuário completo do sistema, com nível de acesso à escolha. Requer permissão de administrador. Admin só pode criar usuários de níveis abaixo do seu; Super Admin pode criar qualquer nível.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "first_name": {"type": "string", "description": "Nome completo"},
+                "role": {"type": "string", "description": "Código do nível de acesso (ex: standard, operator, technician, admin, super_admin, ou o código de um nível customizado criado via create_role)"},
+                "username": {"type": "string", "description": "Login (opcional, gerado automaticamente a partir do nome se não informado)"},
+                "email": {"type": "string", "description": "E-mail (opcional)"},
+                "password": {"type": "string", "description": "Senha inicial (opcional, gerada automaticamente se não informada)"},
+                "job_title": {"type": "string", "description": "Cargo (opcional)"}
+            },
+            "required": ["first_name", "role"]
+        }
+    },
+    {
+        "name": "create_travel",
+        "description": "Cadastra uma nova Viagem Técnica (agendamento de viagem de um técnico a um cliente). Requer permissão de administrador. Detalhes de voo/hotel podem ser adicionados depois pela tela de Viagens.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "client_id": {"type": "integer", "description": "ID do cliente"},
+                "technician_id": {"type": "integer", "description": "ID do usuário técnico responsável"},
+                "scheduled_date": {"type": "string", "description": "Data/hora agendada, formato YYYY-MM-DDTHH:MM"},
+                "hub_id": {"type": "integer", "description": "ID do hub/loja (opcional)"},
+                "system_id": {"type": "integer", "description": "ID do sistema (opcional)"},
+                "ticket_id": {"type": "integer", "description": "ID da OS relacionada (opcional)"}
+            },
+            "required": ["client_id", "technician_id", "scheduled_date"]
         }
     },
     {
@@ -1039,7 +1183,7 @@ def _create_hub(args, user):
 
 
 def _create_equipment(args, user):
-    from .models import Equipment
+    from .models import Equipment, EquipmentType
     role = getattr(getattr(user, 'profile', None), 'role', None)
     if role not in ('admin', 'super_admin'):
         return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar equipamentos."}
@@ -1048,9 +1192,17 @@ def _create_equipment(args, user):
     if not name:
         return {"ok": False, "error": "Nome do equipamento é obrigatório."}
 
+    equipment_type = None
+    equipment_type_id = args.get("equipment_type_id")
+    if equipment_type_id:
+        equipment_type = EquipmentType.objects.filter(pk=equipment_type_id).first()
+        if not equipment_type:
+            return {"ok": False, "error": "Tipo de equipamento não encontrado."}
+
     equipment = Equipment.objects.create(
         name=name,
         description=args.get("description", "") or "",
+        equipment_type=equipment_type,
     )
     return {"ok": True, "data": {"id": equipment.id, "name": equipment.name}}
 
@@ -1099,6 +1251,290 @@ def _create_page(args, user):
         is_enabled=True
     )
     return {"ok": True, "data": {"id": page.id, "name": page.name, "url_name": page.url_name}}
+
+
+def _create_ticket_type(args, user):
+    from .models import TicketType
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar tipos de chamado."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do tipo de chamado é obrigatório."}
+
+    if TicketType.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um tipo de chamado com o nome '{name}'."}
+
+    obj = TicketType.objects.create(name=name)
+    return {"ok": True, "data": {"id": obj.id, "name": obj.name}}
+
+
+def _create_problem_type(args, user):
+    from .models import ProblemType
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar tipos de problema."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do tipo de problema é obrigatório."}
+
+    if ProblemType.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um tipo de problema com o nome '{name}'."}
+
+    obj = ProblemType.objects.create(name=name)
+    return {"ok": True, "data": {"id": obj.id, "name": obj.name}}
+
+
+def _create_system(args, user):
+    from .models import System
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar sistemas."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do sistema é obrigatório."}
+
+    if System.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um sistema com o nome '{name}'."}
+
+    obj = System.objects.create(
+        name=name,
+        color=args.get("color", "") or "#6c757d",
+        description=args.get("description", "") or "",
+    )
+    return {"ok": True, "data": {"id": obj.id, "name": obj.name}}
+
+
+def _create_equipment_type(args, user):
+    from .models import EquipmentType
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar tipos de equipamento."}
+
+    name = args.get("name", "").strip()
+    if not name:
+        return {"ok": False, "error": "Nome do tipo de equipamento é obrigatório."}
+
+    if EquipmentType.objects.filter(name__iexact=name).exists():
+        return {"ok": False, "error": f"Já existe um tipo de equipamento com o nome '{name}'."}
+
+    obj = EquipmentType.objects.create(name=name)
+    return {"ok": True, "data": {"id": obj.id, "name": obj.name}}
+
+
+def _create_ticket_status(args, user):
+    from .models import TicketStatus
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar status de OS."}
+
+    code = args.get("code", "").strip().lower().replace(" ", "_")
+    name = args.get("name", "").strip()
+    if not code or not name:
+        return {"ok": False, "error": "Código e nome do status são obrigatórios."}
+
+    if TicketStatus.objects.filter(code=code).exists():
+        return {"ok": False, "error": f"Já existe um status com o código '{code}'."}
+
+    obj = TicketStatus.objects.create(
+        code=code,
+        name=name,
+        color=args.get("color", "") or "#6c757d",
+        font_color=args.get("font_color", "") or "",
+        row_color=args.get("row_color", "") or "",
+        order=args.get("order") or 0,
+        is_active=True,
+    )
+    return {"ok": True, "data": {"id": obj.id, "code": obj.code, "name": obj.name}}
+
+
+def _create_technician(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import UserProfile
+    import secrets
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar técnicos."}
+
+    first_name = args.get("first_name", "").strip()
+    if not first_name:
+        return {"ok": False, "error": "Nome do técnico é obrigatório."}
+
+    username = args.get("username", "").strip() or _generate_username(first_name)
+    if DjangoUser.objects.filter(username=username).exists():
+        return {"ok": False, "error": f"Já existe um usuário com o login '{username}'."}
+
+    temp_password = secrets.token_urlsafe(8)
+
+    new_user = DjangoUser.objects.create_user(
+        username=username,
+        email=args.get("email", "") or "",
+        password=temp_password,
+        first_name=first_name,
+    )
+    profile, _ = UserProfile.objects.get_or_create(user=new_user)
+    profile.role = 'technician'
+    profile.job_title = args.get("job_title", "") or ""
+    profile.station = args.get("station", "") or ""
+    profile.department = args.get("department", "") or ""
+    profile.save()
+
+    return {"ok": True, "data": {
+        "id": new_user.id, "name": first_name, "username": username,
+        "temp_password": temp_password, "token": profile.token,
+    }}
+
+
+def _create_responsible(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import UserProfile, Client
+    import secrets
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar responsáveis."}
+
+    first_name = args.get("first_name", "").strip()
+    client_id = args.get("client_id")
+    if not first_name or not client_id:
+        return {"ok": False, "error": "Nome e cliente são obrigatórios."}
+
+    try:
+        client = Client.objects.get(pk=client_id)
+    except Client.DoesNotExist:
+        return {"ok": False, "error": "Cliente não encontrado."}
+
+    username = _generate_username(first_name)
+    temp_password = secrets.token_urlsafe(8)
+
+    new_user = DjangoUser.objects.create_user(
+        username=username,
+        email=args.get("email", "") or "",
+        password=temp_password,
+        first_name=first_name,
+    )
+    profile, _ = UserProfile.objects.get_or_create(user=new_user)
+    profile.role = 'operator'
+    profile.fixed_client = client
+    profile.save()
+
+    return {"ok": True, "data": {
+        "id": new_user.id, "name": first_name, "username": username,
+        "client": client.name, "temp_password": temp_password, "token": profile.token,
+    }}
+
+
+def _create_user_account(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import UserProfile, RoleLevel
+    import secrets
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar usuários."}
+
+    first_name = args.get("first_name", "").strip()
+    target_role = (args.get("role") or "").strip().lower()
+
+    if not first_name or not target_role:
+        return {"ok": False, "error": "Nome e nível de acesso são obrigatórios."}
+
+    valid_roles = {c[0] for c in UserProfile.ROLE_CHOICES}
+    valid_roles |= set(RoleLevel.objects.filter(is_active=True).values_list('code', flat=True))
+
+    if target_role not in valid_roles:
+        return {"ok": False, "error": f"Nível inválido. Opções: {', '.join(sorted(valid_roles))}"}
+
+    # Admin não pode criar admin/super_admin
+    if role == 'admin' and target_role in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Administradores só podem criar usuários de níveis abaixo."}
+
+    username = args.get("username", "").strip() or _generate_username(first_name)
+    if DjangoUser.objects.filter(username=username).exists():
+        return {"ok": False, "error": f"Já existe um usuário com o login '{username}'."}
+
+    password = args.get("password", "").strip() or secrets.token_urlsafe(8)
+
+    new_user = DjangoUser.objects.create_user(
+        username=username,
+        email=args.get("email", "") or "",
+        password=password,
+        first_name=first_name,
+    )
+    profile, _ = UserProfile.objects.get_or_create(user=new_user)
+    profile.role = target_role
+    profile.job_title = args.get("job_title", "") or ""
+    profile.save()
+
+    return {"ok": True, "data": {
+        "id": new_user.id, "name": first_name, "username": username,
+        "role": target_role, "password": password, "token": profile.token,
+    }}
+
+
+def _create_travel(args, user):
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import TechnicianTravel, Client, ClientHub, System, Ticket
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem cadastrar viagens técnicas."}
+
+    client_id = args.get("client_id")
+    technician_id = args.get("technician_id")
+    scheduled_date_raw = args.get("scheduled_date")
+
+    if not client_id or not technician_id or not scheduled_date_raw:
+        return {"ok": False, "error": "Cliente, técnico e data agendada são obrigatórios."}
+
+    scheduled_date = _parse_dt(scheduled_date_raw)
+    if not scheduled_date:
+        return {"ok": False, "error": "Data agendada inválida."}
+
+    try:
+        client = Client.objects.get(pk=client_id)
+    except Client.DoesNotExist:
+        return {"ok": False, "error": "Cliente não encontrado."}
+
+    try:
+        technician = DjangoUser.objects.get(pk=technician_id)
+    except DjangoUser.DoesNotExist:
+        return {"ok": False, "error": "Técnico não encontrado."}
+
+    hub = None
+    hub_id = args.get("hub_id")
+    if hub_id:
+        hub = ClientHub.objects.filter(pk=hub_id).first()
+
+    system = None
+    system_id = args.get("system_id")
+    if system_id:
+        system = System.objects.filter(pk=system_id).first()
+
+    ticket = None
+    ticket_id = args.get("ticket_id")
+    if ticket_id:
+        ticket = Ticket.objects.filter(pk=ticket_id).first()
+
+    travel = TechnicianTravel.objects.create(
+        client=client,
+        hub=hub,
+        scheduled_date=scheduled_date,
+        technician=technician,
+        system=system,
+        service_order=ticket,
+        created_by=user,
+    )
+    return {"ok": True, "data": {
+        "id": travel.id,
+        "client": client.name,
+        "technician": technician.get_full_name() or technician.username,
+        "scheduled_date": scheduled_date.strftime("%d/%m/%Y %H:%M"),
+    }}
 
 
 def _list_roles(args, user):
@@ -1529,6 +1965,15 @@ _TOOL_REGISTRY = {
     "create_hub": _create_hub,
     "create_role": _create_role,
     "create_page": _create_page,
+    "create_ticket_type": _create_ticket_type,
+    "create_problem_type": _create_problem_type,
+    "create_system": _create_system,
+    "create_equipment_type": _create_equipment_type,
+    "create_ticket_status": _create_ticket_status,
+    "create_technician": _create_technician,
+    "create_responsible": _create_responsible,
+    "create_user_account": _create_user_account,
+    "create_travel": _create_travel,
     "list_roles": _list_roles,
     "list_pages": _list_pages,
     "list_users": _list_users,
@@ -1555,8 +2000,17 @@ Você só pode ajudar com assuntos relacionados ao sistema JumperFour OS:
 - Criar, editar, visualizar, evoluir ou excluir Ordens de Serviço (OS/tickets)
 - Cadastrar, editar ou buscar clientes, equipamentos, contatos, hubs/lojas e profissionais JumperFour
 - Consultar status, sistemas, tipos de chamado disponíveis
+- ADMIN ONLY: Cadastrar tipos de chamado, tipos de problema, sistemas, tipos de equipamento, status de OS, técnicos, responsáveis, usuários (qualquer nível) e viagens técnicas
 - ADMIN ONLY: Gerenciar níveis de acesso, páginas, permissões e restrições de usuário (somente para Super Admin e Admin)
 - Dúvidas sobre o funcionamento do sistema
+
+REGRA GERAL DE CADASTROS: você tem uma ferramenta "create_*" para TODO cadastro disponível no sistema
+(cliente, equipamento, tipo de equipamento, contato de cliente, profissional JumperFour, hub/loja,
+tipo de chamado, tipo de problema, sistema, status de OS, técnico, responsável, usuário, nível de acesso,
+página e viagem técnica). Se o usuário pedir para cadastrar algo que existe no sistema, use a ferramenta
+correspondente — nunca diga que não é capaz de cadastrar algo que tenha uma tool disponível.
+Cada tool já valida a permissão do usuário logado e retorna erro claro caso ele não tenha permissão —
+nesse caso, apenas repasse a mensagem de erro, não insista nem tente contornar.
 
 BUSCA NA INTERNET E PRÉ-PREENCHIMENTO DE DADOS:
 
@@ -1607,6 +2061,22 @@ ESTILO DE COMUNICAÇÃO:
 - Sem emojis excessivos. Sem introduções longas.
 - Nunca repita o que o usuário acabou de dizer.
 - Uma pergunta por vez. Nunca liste múltiplas perguntas juntas.
+
+CADASTROS ADMINISTRATIVOS (SOMENTE PARA SUPER ADMIN E ADMIN):
+Se o usuário é Super Admin ou Admin, você também pode cadastrar:
+
+1. "Criar tipo de chamado 'Manutenção Preventiva'" → create_ticket_type
+2. "Criar tipo de problema 'Falha elétrica'" → create_problem_type
+3. "Cadastrar sistema 'CFTV'" → create_system
+4. "Criar tipo de equipamento 'Câmera'" → create_equipment_type
+5. "Criar status de OS 'Aguardando peça'" → create_ticket_status (peça code em minúsculas sem espaços, ex: aguardando_peca)
+6. "Cadastrar o técnico João" → create_technician (gera login e senha temporária automaticamente se não informados; sempre informe o login/senha gerados ao usuário no final)
+7. "Cadastrar responsável Maria para o cliente X" → busque o cliente com search_client se precisar do ID, depois create_responsible
+8. "Criar um novo usuário [nome] com nível [nível]" → create_user_account (Admin só pode criar níveis abaixo do seu; Super Admin cria qualquer nível; sempre informe login/senha gerados)
+9. "Agendar viagem do técnico [nome] para o cliente [cliente] no dia [data]" → busque técnico/cliente pelos nomes se precisar dos IDs, depois create_travel
+
+Para qualquer cadastro que gere login/senha/token automaticamente, SEMPRE mostre esses dados na resposta final —
+o usuário precisa deles para repassar ao novo usuário.
 
 GERENCIAMENTO DE PERMISSÕES (SOMENTE PARA SUPER ADMIN E ADMIN):
 Se o usuário é Super Admin ou Admin, você pode ajudá-lo com:

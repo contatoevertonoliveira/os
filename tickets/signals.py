@@ -1,7 +1,17 @@
-from django.db.models.signals import m2m_changed
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
-from .models import Ticket, Notification
+from .models import Ticket, Notification, UserProfile
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """
+    Cria automaticamente um UserProfile quando um novo User é criado.
+    Garante que todo usuário tenha um profile com ai_chat_enabled = True por padrão.
+    """
+    if created:
+        if not hasattr(instance, 'profile') or instance.profile is None:
+            UserProfile.objects.get_or_create(user=instance)
 
 @receiver(m2m_changed, sender=Ticket.technicians.through)
 def notify_technician_assignment(sender, instance, action, reverse, model, pk_set, **kwargs):
@@ -12,14 +22,14 @@ def notify_technician_assignment(sender, instance, action, reverse, model, pk_se
         # instance é o Ticket
         # pk_set contém os IDs dos usuários adicionados
         # model é o modelo User
-        
+
         for user_id in pk_set:
             try:
                 user = model.objects.get(pk=user_id)
-                
+
                 requester_name = instance.requester.get_full_name() or instance.requester.username if instance.requester else "Sistema"
                 client_name = instance.client.name if instance.client else "N/A"
-                
+
                 Notification.objects.create(
                     recipient=user,
                     sender=instance.requester,

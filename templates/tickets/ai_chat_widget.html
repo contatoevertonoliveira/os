@@ -1,7 +1,7 @@
 {% load static %}
 {# Widget de chat IA — incluído no base.html apenas quando system_settings.ai_enabled #}
 
-{% if user.is_authenticated and user.profile.ai_chat_enabled %}
+{% if user.is_authenticated and user.profile.role == 'super_admin' or user.is_authenticated and user.profile.ai_chat_enabled %}
 <!-- Container draggável: envolve FAB + painel -->
 <div id="aiWidget" style="position:fixed;bottom:130px;right:24px;z-index:2050;
                            width:52px;height:52px;touch-action:none;">
@@ -186,40 +186,59 @@
     const RESIZE_MAX_WIDTH = window.innerWidth - 50;
     const RESIZE_MAX_HEIGHT = window.innerHeight - 100;
 
+    // Apenas o TAMANHO do painel é persistido — a posição é sempre recalculada
+    // em relação ao ícone (FAB) atual, para que o ícone nunca fique escondido
+    // atrás do painel nem o painel fique preso numa posição obsoleta.
     function loadPanelSize() {
         const saved = localStorage.getItem('aiChatPanelSize');
         if (saved) {
             try {
-                const { width, height, left, top } = JSON.parse(saved);
-                panel.style.width = width + 'px';
-                panel.style.height = height + 'px';
-                if (left !== null && left !== undefined) {
-                    panel.style.left = left + 'px';
-                    panel.style.bottom = 'auto';
-                }
-                if (top !== null && top !== undefined) {
-                    panel.style.top = top + 'px';
-                    panel.style.right = 'auto';
-                }
+                const { width, height } = JSON.parse(saved);
+                if (width)  panel.style.width  = width  + 'px';
+                if (height) panel.style.height = height + 'px';
             } catch {}
         }
     }
 
     function savePanelSize() {
-        const data = {
+        localStorage.setItem('aiChatPanelSize', JSON.stringify({
             width: panel.offsetWidth,
             height: panel.offsetHeight,
-            left: null,
-            top: null
-        };
-        // Salva posição apenas se o painel foi redimensionado (está em top/left)
-        if (panel.style.left && panel.style.left !== 'auto') {
-            data.left = parseFloat(panel.style.left);
+        }));
+    }
+
+    // Garante que o painel esteja sempre 100% visível na tela, não importa
+    // onde o ícone (FAB) esteja ou se o painel já foi redimensionado/movido antes.
+    // Usa offsetLeft/offsetTop/offsetWidth/offsetHeight (não getBoundingClientRect)
+    // porque o painel tem uma transição de "transform: scale/translateY" ao abrir/
+    // fechar, e getBoundingClientRect refletiria a caixa transformada (errada) em
+    // vez da posição/tamanho reais do layout durante a animação.
+    function clampPanelToViewport() {
+        const margin = 8;
+        const widgetRect = widget.getBoundingClientRect();
+
+        const panelWidth  = panel.offsetWidth;
+        const panelHeight = panel.offsetHeight;
+        if (!panelWidth && !panelHeight) return; // painel ainda não renderizado
+
+        const currentLeft = widgetRect.left + panel.offsetLeft;
+        const currentTop  = widgetRect.top  + panel.offsetTop;
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        const maxLeft = Math.max(margin, vw - panelWidth  - margin);
+        const maxTop  = Math.max(margin, vh - panelHeight - margin);
+
+        const clampedLeft = Math.min(Math.max(currentLeft, margin), maxLeft);
+        const clampedTop  = Math.min(Math.max(currentTop,  margin), maxTop);
+
+        if (Math.abs(clampedLeft - currentLeft) > 0.5 || Math.abs(clampedTop - currentTop) > 0.5) {
+            panel.style.left   = (clampedLeft - widgetRect.left) + 'px';
+            panel.style.top    = (clampedTop  - widgetRect.top)  + 'px';
+            panel.style.right  = 'auto';
+            panel.style.bottom = 'auto';
         }
-        if (panel.style.top && panel.style.top !== 'auto') {
-            data.top = parseFloat(panel.style.top);
-        }
-        localStorage.setItem('aiChatPanelSize', JSON.stringify(data));
     }
 
     function startResize(e, direction) {
@@ -233,18 +252,22 @@
         let startLeft = parseFloat(panel.style.left);
         let startTop = parseFloat(panel.style.top);
 
-        // Se o painel está usando bottom/right, converte para top/left
-        if (isNaN(startLeft)) {
+        // Se o painel está usando bottom/right, converte para top/left.
+        // panel.style.top/left são relativos ao #aiWidget (seu ancestral posicionado),
+        // então é preciso subtrair a posição do widget das coordenadas de viewport.
+        if (isNaN(startLeft) || isNaN(startTop)) {
+            const widgetRect = widget.getBoundingClientRect();
             const rect = panel.getBoundingClientRect();
-            startLeft = rect.left;
-            panel.style.left = startLeft + 'px';
-            panel.style.bottom = 'auto';
-        }
-        if (isNaN(startTop)) {
-            const rect = panel.getBoundingClientRect();
-            startTop = rect.top;
-            panel.style.top = startTop + 'px';
-            panel.style.right = 'auto';
+            if (isNaN(startLeft)) {
+                startLeft = rect.left - widgetRect.left;
+                panel.style.left = startLeft + 'px';
+                panel.style.bottom = 'auto';
+            }
+            if (isNaN(startTop)) {
+                startTop = rect.top - widgetRect.top;
+                panel.style.top = startTop + 'px';
+                panel.style.right = 'auto';
+            }
         }
 
         // Desabilita transição durante resize
@@ -280,6 +303,9 @@
             document.removeEventListener('mouseup', onResizeEnd);
             // Reabilita transição
             panel.style.transition = '';
+            // Realinha ao ícone usando o novo tamanho, e garante que não saia da tela
+            repositionPanel();
+            clampPanelToViewport();
             savePanelSize();
         }
 
@@ -329,11 +355,11 @@
     const GAP     = 10;  // espaço entre FAB e painel
 
     function repositionPanel() {
-        // Se o painel foi redimensionado (tem top/left com valores numéricos), não reposiciona
-        const hasCustomTop = panel.style.top && panel.style.top !== 'auto' && panel.style.top !== '';
-        const hasCustomLeft = panel.style.left && panel.style.left !== 'auto' && panel.style.left !== '';
-        if (hasCustomTop || hasCustomLeft) return;
-
+        // Sempre recalcula a posição em relação ao ícone (FAB) atual — mesmo que o
+        // painel já tenha sido redimensionado antes. Isso garante que o ícone nunca
+        // fique escondido atrás do painel e que o painel nunca fique "preso" numa
+        // posição antiga quando o ícone é movido. O tamanho (largura/altura), esse
+        // sim, é preservado — só a posição é recalculada aqui.
         const wr = widget.getBoundingClientRect();
         const vw = window.innerWidth;
         const vh = window.innerHeight;
@@ -441,8 +467,9 @@
             aiChatToggle();
         } else {
             console.log('[AI Chat] Apenas reposicionando painel...');
-            // Reposiciona o painel após o arraste
+            // Reposiciona o painel após o arraste e garante que continue visível
             repositionPanel();
+            if (_isOpen) clampPanelToViewport();
         }
         _dragging  = false;
         _dragStart = null;
@@ -456,6 +483,7 @@
         if (_isOpen) {
             console.log('[AI Chat] Abrindo painel...');
             repositionPanel();
+            clampPanelToViewport();
             panel.style.pointerEvents = 'auto';
             panel.style.opacity       = '1';
             panel.style.transform     = 'scale(1) translateY(0)';
@@ -485,6 +513,11 @@
             fabBtn.classList.remove('ai-open');
         }
     };
+
+    // Reajusta o painel se a janela for redimensionada com o chat aberto
+    window.addEventListener('resize', () => {
+        if (_isOpen) clampPanelToViewport();
+    });
 
     // ── Persistência de sessão ───────────────────────────────────────────
     function saveSessionId(id) {

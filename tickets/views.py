@@ -2787,7 +2787,9 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
         context['roles'] = roles
         context['groups'] = groups
         try:
-            users = User.objects.select_related('profile').all().order_by('first_name', 'username')
+            # Super Admin nunca aparece nesta tabela — o nível tem acesso global
+            # e não pode ser restringido por este formulário em massa.
+            users = User.objects.select_related('profile').all().exclude(profile__role='super_admin').order_by('first_name', 'username')
             pdf_user_rows = []
             for u in users:
                 # Garante que o profile existe
@@ -2883,7 +2885,8 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
 
         if action == 'save_user_pdf':
             try:
-                users = list(User.objects.select_related('profile').all())
+                # Super Admin nunca pode ser restringido por este formulário em massa
+                users = list(User.objects.select_related('profile').all().exclude(profile__role='super_admin'))
             except Exception:
                 messages.error(request, "Não foi possível carregar usuários.")
                 return redirect('permissions')
@@ -2913,11 +2916,16 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
 
         if action == 'save_user_restrictions':
             try:
-                users = list(User.objects.select_related('profile').all())
+                # Super Admin nunca pode ser restringido por este formulário em massa —
+                # o nível tem acesso global por definição em todo o sistema.
+                users = list(User.objects.select_related('profile').all().exclude(profile__role='super_admin'))
             except Exception:
                 messages.error(request, "Não foi possível carregar usuários.")
                 return redirect('permissions')
 
+            # IMPORTANTE: todo campo listado aqui precisa ter um checkbox correspondente
+            # no template (permissions.html), senão ele é sempre lido como ausente do
+            # POST e fica travado em False para todos os usuários a cada salvamento.
             restriction_fields = [
                 'can_view_tickets', 'can_create_tickets', 'can_edit_tickets', 'can_delete_tickets',
                 'can_view_checklists', 'can_create_checklists', 'can_view_reports',
