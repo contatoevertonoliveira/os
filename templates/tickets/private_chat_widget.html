@@ -12,10 +12,10 @@
 </div>
 
 <div id="pcPickerPanel"
-     style="width:260px;max-height:340px;background:#fff;border-radius:12px;
+     style="width:280px;max-height:380px;background:#fff;border-radius:12px;
             box-shadow:0 8px 28px rgba(0,0,0,.2);overflow:hidden;display:none;flex-direction:column;">
     <div style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;padding:10px 14px;font-weight:700;font-size:.85rem;">
-        Colegas online
+        Conversas
     </div>
     <div id="pcOnlineList" style="overflow-y:auto;flex:1;padding:6px 0;">
         <div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Carregando...</div>
@@ -71,6 +71,12 @@
         color: #fff;
         font-size: 1.15rem;
         transition: left 0.3s;
+    }
+    /* Ícone pisca em laranja (mesma respiração dos popups) enquanto houver
+       conversa com mensagem nova que o usuário ainda nem abriu. */
+    #pcLauncher.pc-alerting {
+        background: linear-gradient(135deg,#fd7e14,#ffa94d) !important;
+        animation: pcBreathe 1.6s ease-in-out infinite;
     }
     #pcPickerPanel {
         position: fixed;
@@ -137,6 +143,17 @@
         padding: 0 4px;
         font-weight: 700;
     }
+    /* Bolinha de status (online / ausente / offline) */
+    .pc-status-dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex-shrink:0; }
+    .pc-status-dot.online  { background:#28a745; }
+    .pc-status-dot.away    { background:#ffc107; }
+    .pc-status-dot.offline { background:#adb5bd; }
+    .pc-contact-item { padding:9px 14px; cursor:pointer; font-size:.85rem; display:flex; align-items:center; gap:8px; }
+    .pc-contact-item:hover { background:#f1f3f5; }
+    .pc-contact-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pc-contact-preview { font-size:.7rem; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pc-contact-unread { background:#dc3545; color:#fff; border-radius:50%; min-width:16px; height:16px; font-size:.62rem; line-height:16px; text-align:center; padding:0 4px; font-weight:700; }
+    .pc-picker-section-title { padding:8px 14px 4px; font-size:.68rem; font-weight:700; color:#888; text-transform:uppercase; }
     .pc-msg-row { display:flex; margin-bottom:6px; }
     .pc-msg-row.me { justify-content:flex-end; }
     .pc-msg-row.other { justify-content:flex-start; }
@@ -166,11 +183,31 @@
             .replace(/\n/g, '<br>');
     }
 
-    // ── Launcher / lista de colegas online ──────────────────────────────────
+    // ── Launcher / lista de conversas e colegas ─────────────────────────────
     const launcher = document.getElementById('pcLauncher');
     const picker   = document.getElementById('pcPickerPanel');
     const pickerList = document.getElementById('pcOnlineList');
     let pickerOpen = false;
+
+    function buildContactItem(userId, name, status, unreadCount, preview) {
+        const item = document.createElement('div');
+        item.className = 'pc-contact-item';
+        const dot = status ? `<span class="pc-status-dot ${status}"></span>` : '';
+        const unreadBadge = unreadCount ? `<span class="pc-contact-unread">${unreadCount}</span>` : '';
+        item.innerHTML = `
+            ${dot}
+            <div style="min-width:0;flex:1;">
+                <div class="pc-contact-name">${escapeHtml(name)}</div>
+                ${preview ? `<div class="pc-contact-preview">${escapeHtml(preview)}</div>` : ''}
+            </div>
+            ${unreadBadge}`;
+        item.addEventListener('click', () => {
+            picker.style.display = 'none';
+            pickerOpen = false;
+            window.openPrivateChatPopup(userId, name);
+        });
+        return item;
+    }
 
     launcher.addEventListener('click', async () => {
         pickerOpen = !pickerOpen;
@@ -178,28 +215,37 @@
         if (!pickerOpen) return;
         pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Carregando...</div>';
         try {
-            const resp = await fetch("{% url 'private_chat_online_users' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const resp = await fetch("{% url 'private_chat_contacts' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             const data = await resp.json();
-            const users = (data.ok && data.data) || [];
-            if (!users.length) {
-                pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Ninguém mais online agora.</div>';
+            const threads = (data.ok && data.data && data.data.threads) || [];
+            const others  = (data.ok && data.data && data.data.others) || [];
+
+            if (!threads.length && !others.length) {
+                pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Nenhum colega disponível ainda.</div>';
                 return;
             }
+
             pickerList.innerHTML = '';
-            users.forEach(u => {
-                const item = document.createElement('div');
-                item.textContent = u.name;
-                item.style.cssText = 'padding:9px 14px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:8px;';
-                item.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#28a745;display:inline-block;"></span>${escapeHtml(u.name)}`;
-                item.addEventListener('mouseenter', () => item.style.background = '#f1f3f5');
-                item.addEventListener('mouseleave', () => item.style.background = '');
-                item.addEventListener('click', () => {
-                    picker.style.display = 'none';
-                    pickerOpen = false;
-                    window.openPrivateChatPopup(u.id, u.name);
+
+            if (threads.length) {
+                const title = document.createElement('div');
+                title.className = 'pc-picker-section-title';
+                title.textContent = 'Conversas';
+                pickerList.appendChild(title);
+                threads.forEach(t => {
+                    pickerList.appendChild(buildContactItem(t.user_id, t.name, t.status, t.unread_count, t.preview));
                 });
-                pickerList.appendChild(item);
-            });
+            }
+
+            if (others.length) {
+                const title = document.createElement('div');
+                title.className = 'pc-picker-section-title';
+                title.textContent = 'Colegas online';
+                pickerList.appendChild(title);
+                others.forEach(u => {
+                    pickerList.appendChild(buildContactItem(u.user_id, u.name, 'online', 0, ''));
+                });
+            }
         } catch {
             pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#c00;font-size:.8rem;">Erro ao carregar.</div>';
         }
@@ -255,7 +301,7 @@
     }
 
     // ── Popups de conversa ───────────────────────────────────────────────────
-    function buildPopup(threadId, recipientId, recipientName) {
+    function buildPopup(threadId, recipientId, recipientName, status) {
         const wrap = document.createElement('div');
         wrap.className = 'pc-popup';
         wrap.style.cssText = 'width:270px;height:360px;background:#fff;border-radius:12px 12px 0 0;' +
@@ -265,7 +311,10 @@
             <div class="pc-popup-header" style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;
                         padding:8px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
                 <span class="pc-unread-badge">0</span>
-                <span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(recipientName)}</span>
+                <span style="display:flex;align-items:center;gap:6px;overflow:hidden;flex:1;min-width:0;">
+                    <span class="pc-status-dot pc-header-status ${status || 'offline'}"></span>
+                    <span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(recipientName)}</span>
+                </span>
                 <div style="display:flex;gap:4px;">
                     <button type="button" class="pc-minimize-btn" title="Minimizar"
                             style="background:rgba(255,255,255,.2);border:none;border-radius:6px;color:#fff;width:22px;height:22px;cursor:pointer;font-size:.7rem;"><i class="fas fa-minus"></i></button>
@@ -291,7 +340,13 @@
         const input       = wrap.querySelector('.pc-input');
         const sendBtn     = wrap.querySelector('.pc-send-btn');
         const unreadBadge = wrap.querySelector('.pc-unread-badge');
+        const statusDot   = wrap.querySelector('.pc-header-status');
         let minimized = false;
+
+        function setStatus(newStatus) {
+            statusDot.classList.remove('online', 'away', 'offline');
+            statusDot.classList.add(newStatus || 'offline');
+        }
 
         makeDraggable(wrap, header, toggleMinimize);
         wrap.querySelector('.pc-minimize-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleMinimize(); });
@@ -342,6 +397,7 @@
                     messages.innerHTML = '';
                     d.data.messages.forEach(m => renderMessage(m, window.__pcCurrentUserId));
                     scrollToBottom();
+                    setStatus(d.data.status);
                 }
             } catch {}
         }
@@ -391,6 +447,7 @@
         wrap._startAlerting = startAlerting;
         wrap._isAlerting = () => wrap.classList.contains('pc-alerting');
         wrap._refreshAndMarkRead = refreshAndMarkRead;
+        wrap._setStatus = setStatus;
         return wrap;
     }
 
@@ -411,18 +468,22 @@
             });
             const data = await resp.json();
             if (!data.ok) return;
-            const { thread_id, recipient_name, messages: history } = data.data;
-            openPopupWithHistory(thread_id, recipientId, recipient_name || recipientNameHint, history);
+            const { thread_id, recipient_name, status, messages: history } = data.data;
+            openPopupWithHistory(thread_id, recipientId, recipient_name || recipientNameHint, history, status);
         } catch {}
     };
 
-    function openPopupWithHistory(threadId, recipientId, recipientName, history) {
+    function openPopupWithHistory(threadId, recipientId, recipientName, history, status) {
         if (openThreadIds.has(threadId)) return;
         const container = document.getElementById('pcPopupsContainer');
-        const popup = buildPopup(threadId, recipientId, recipientName);
+        const popup = buildPopup(threadId, recipientId, recipientName, status);
         container.appendChild(popup);
         openThreadIds.set(threadId, { el: popup, recipientId, recipientName });
         openByRecipient.set(recipientId, threadId);
+        // Acabou de ser visto agora — zera a contagem de "último toast avisado" para
+        // que uma futura mensagem nova (depois desta conversa ficar em dia) volte a
+        // disparar toast normalmente, em vez de comparar com uma contagem antiga.
+        lastToastedUnread.delete(threadId);
 
         (history || []).forEach(m => popup._renderMessage(m, window.__pcCurrentUserId));
         popup._scrollToBottom();
@@ -436,7 +497,7 @@
         setTimeout(() => entry.el.classList.remove('pc-blink'), 4000);
     }
 
-    function showToast(threadId, name, preview) {
+    function showToast(threadId, otherUserId, name, preview) {
         const container = document.getElementById('pcToastContainer');
         const toast = document.createElement('div');
         toast.className = 'pc-toast';
@@ -444,8 +505,12 @@
         toast.addEventListener('click', () => {
             toast.remove();
             const entry = openThreadIds.get(threadId);
-            if (entry && entry.el._isMinimized()) {
-                entry.el.querySelector('.pc-minimize-btn').click();
+            if (entry) {
+                // Já existe popup (provavelmente minimizado) — só reabre
+                if (entry.el._isMinimized()) entry.el.querySelector('.pc-minimize-btn').click();
+            } else {
+                // Ainda não tinha sido aberto — abre agora (busca histórico e marca como lido)
+                window.openPrivateChatPopup(otherUserId, name);
             }
         });
         container.appendChild(toast);
@@ -468,18 +533,22 @@
             if (totalUnread > 0) { badge.style.display = 'block'; badge.textContent = totalUnread; }
             else badge.style.display = 'none';
 
+            // Ícone do messenger pisca em laranja enquanto existir QUALQUER conversa com
+            // mensagem nova ainda não aberta — some assim que o usuário abrir todas.
+            let hasUnopenedUnread = false;
+
             for (const item of pending) {
                 try {
                     const entry = openThreadIds.get(item.thread_id);
 
                     if (!entry) {
-                        // Conversa nova (ainda sem popup) — abre expandida e já busca/marca como lida,
-                        // pois vai aparecer visível na tela agora mesmo.
-                        const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                        const d = await r.json();
-                        if (d.ok) {
-                            openPopupWithHistory(item.thread_id, item.other_user_id, item.other_user_name, d.data.messages);
-                            blinkPopup(item.thread_id);
+                        // Conversa nova (ainda sem popup nenhum aberto) — NÃO abre sozinho.
+                        // Só avisa: toast + contador no ícone (que também fica piscando). O popup
+                        // só abre quando o usuário clicar no toast, no ícone ou na lista de colegas.
+                        hasUnopenedUnread = true;
+                        if (item.unread_count > (lastToastedUnread.get(item.thread_id) || 0)) {
+                            lastToastedUnread.set(item.thread_id, item.unread_count);
+                            showToast(item.thread_id, item.other_user_id, item.other_user_name, item.preview);
                         }
                     } else if (entry.el._isMinimized()) {
                         // Minimizado: NÃO marca como lido (era isso que fazia o contador sumir sozinho).
@@ -491,7 +560,7 @@
                         // (evita reabrir um toast a cada 4s enquanto a mesma mensagem seguir sem leitura).
                         if (item.unread_count > (lastToastedUnread.get(item.thread_id) || 0)) {
                             lastToastedUnread.set(item.thread_id, item.unread_count);
-                            showToast(item.thread_id, item.other_user_name, item.preview);
+                            showToast(item.thread_id, item.other_user_id, item.other_user_name, item.preview);
                         }
                     } else {
                         // Visível na tela — busca as mensagens novas, marca como lido e pisca em azul
@@ -504,6 +573,8 @@
                     console.error('[Private Chat] Erro processando thread', item.thread_id, itemErr);
                 }
             }
+
+            launcher.classList.toggle('pc-alerting', hasUnopenedUnread);
         } catch (err) {
             console.error('[Private Chat] Erro no poll:', err);
         } finally {

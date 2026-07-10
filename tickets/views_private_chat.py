@@ -86,18 +86,54 @@ def _generate_ai_reply(thread, summoned_by):
     return PrivateChatMessage.objects.create(thread=thread, sender=None, is_ai_message=True, content=response_text)
 
 
-class PrivateChatOnlineUsersView(LoginRequiredMixin, View):
-    """GET /chat/private/online-users/ — colegas atualmente logados, para iniciar um chat novo."""
+class PrivateChatContactsView(LoginRequiredMixin, View):
+    """
+    GET /chat/private/contacts/ — lista para o painel do ícone do messenger.
+
+    Antes só mostrava colegas ONLINE — se alguém mandasse mensagem e ficasse
+    offline antes do destinatário clicar para ver, a lista aparecia vazia e não
+    dava pra abrir a conversa pendente de jeito nenhum. Agora sempre mostra:
+    - "threads": conversas já existentes (mesmo com a outra pessoa offline),
+      com contagem de não lidas e status (online/away/offline), ordenadas com
+      as que têm mensagem pendente primeiro;
+    - "others": demais colegas online sem conversa iniciada ainda.
+    """
 
     def get(self, request):
-        online_user_ids = list(ActiveSession.online_user_ids())
-        users = DjangoUser.objects.filter(
-            pk__in=online_user_ids, is_active=True
-        ).exclude(pk=request.user.id).order_by('first_name', 'username')
-        return JsonResponse({"ok": True, "data": [
-            {"id": u.id, "name": u.get_full_name() or u.username}
-            for u in users
-        ]})
+        threads = PrivateChatThread.objects.filter(
+            Q(user_a=request.user) | Q(user_b=request.user)
+        ).select_related('user_a', 'user_b')
+
+        read_states = {
+            rs.thread_id: rs.last_read_message_id
+            for rs in PrivateChatReadState.objects.filter(thread__in=threads, user=request.user)
+        }
+
+        existing_user_ids = set()
+        thread_contacts = []
+        for thread in threads:
+            other = thread.other_user(request.user)
+            existing_user_ids.add(other.id)
+            last_read = read_states.get(thread.id, 0)
+            unread_count = thread.messages.filter(id__gt=last_read).exclude(sender=request.user).count()
+            last_msg = thread.messages.order_by('-created_at').first()
+            thread_contacts.append({
+                "user_id": other.id,
+                "name": other.get_full_name() or other.username,
+                "status": ActiveSession.get_status(other),
+                "thread_id": thread.id,
+                "unread_count": unread_count,
+                "preview": (last_msg.content or "")[:80] if last_msg else "",
+            })
+        thread_contacts.sort(key=lambda c: (-c["unread_count"], c["name"].lower()))
+
+        online_ids = set(ActiveSession.online_user_ids())
+        others_qs = DjangoUser.objects.filter(
+            pk__in=online_ids, is_active=True
+        ).exclude(pk=request.user.id).exclude(pk__in=existing_user_ids).order_by('first_name', 'username')
+        other_contacts = [{"user_id": u.id, "name": u.get_full_name() or u.username} for u in others_qs]
+
+        return JsonResponse({"ok": True, "data": {"threads": thread_contacts, "others": other_contacts}})
 
 
 class PrivateChatOpenView(LoginRequiredMixin, View):
@@ -124,13 +160,11 @@ class PrivateChatOpenView(LoginRequiredMixin, View):
             read_state.last_read_message_id = messages[-1].id
             read_state.save(update_fields=['last_read_message_id'])
 
-        is_online = ActiveSession.is_user_online(recipient)
-
         return JsonResponse({"ok": True, "data": {
             "thread_id": thread.id,
             "recipient_id": recipient.id,
             "recipient_name": recipient.get_full_name() or recipient.username,
-            "is_online": is_online,
+            "status": ActiveSession.get_status(recipient),
             "messages": [_serialize_message(m) for m in messages],
         }})
 
@@ -160,6 +194,7 @@ class PrivateChatMessagesView(LoginRequiredMixin, View):
             "thread_id": thread.id,
             "recipient_id": other.id,
             "recipient_name": other.get_full_name() or other.username,
+            "status": ActiveSession.get_status(other),
             "messages": [_serialize_message(m) for m in messages],
         }})
 
@@ -242,6 +277,7 @@ class PrivateChatPollView(LoginRequiredMixin, View):
                 "thread_id": thread.id,
                 "other_user_id": other.id,
                 "other_user_name": other.get_full_name() or other.username,
+                "status": ActiveSession.get_status(other),
                 "unread_count": unread_count,
                 "preview": (latest.content or "")[:120],
                 "is_ai_message": latest.is_ai_message,

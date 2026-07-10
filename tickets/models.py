@@ -1315,6 +1315,9 @@ class ActiveSession(models.Model):
     # (cookie expirou, navegador fechado, queda de rede etc. — sem logout explícito)
     # e são descartadas automaticamente sempre que "quem está online" é consultado.
     ONLINE_WINDOW_MINUTES = 5
+    # Entre este limite e o ONLINE_WINDOW_MINUTES, o usuário aparece como "ausente"
+    # (sessão ainda ativa, mas sem atividade recente) em vez de "online".
+    AWAY_AFTER_MINUTES = 2
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='active_sessions', verbose_name="Usuário")
     session_key = models.CharField(max_length=40, unique=True, verbose_name="Chave da Sessão")
@@ -1345,6 +1348,19 @@ class ActiveSession(models.Model):
     def is_user_online(cls, user):
         cls.cleanup_stale()
         return cls.objects.filter(user=user).exists()
+
+    @classmethod
+    def get_status(cls, user):
+        """'online' (atividade recente), 'away' (sessão viva mas parada há um
+        tempo) ou 'offline' (sem sessão ativa) — usado para a bolinha de status
+        no chat particular."""
+        cls.cleanup_stale()
+        session = cls.objects.filter(user=user).order_by('-last_activity').first()
+        if not session:
+            return 'offline'
+        if timezone.now() - session.last_activity <= timedelta(minutes=cls.AWAY_AFTER_MINUTES):
+            return 'online'
+        return 'away'
 
 class DailyChecklistItemDetail(models.Model):
     item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='details')

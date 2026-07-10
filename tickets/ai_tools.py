@@ -1537,14 +1537,13 @@ def _open_private_chat(args, user):
 
     a, b = sorted([user, recipient], key=lambda u: u.id)
     thread, _ = PrivateChatThread.objects.get_or_create(user_a=a, user_b=b)
-    is_online = ActiveSession.is_user_online(recipient)
 
     return {"ok": True, "data": {
         "action": "open_private_chat",
         "thread_id": thread.id,
         "recipient_id": recipient.id,
         "recipient_name": recipient.get_full_name() or recipient.username,
-        "is_online": is_online,
+        "status": ActiveSession.get_status(recipient),
     }}
 
 
