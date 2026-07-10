@@ -29,30 +29,29 @@
 <style>
     #pcToastContainer {
         position: fixed;
-        bottom: 24px;
-        left: calc(var(--sidebar-width, 260px) + 76px);
-        z-index: 2051;
+        top: 20px;
+        right: 20px;
+        z-index: 3000;
         display: flex;
-        flex-direction: column-reverse;
+        flex-direction: column;
         gap: 8px;
-        transition: left 0.3s;
+        pointer-events: none;
     }
-    .sidebar-collapsed #pcToastContainer { left: 156px; }
-    @media (max-width: 991px) { #pcToastContainer { left: 72px; } }
     .pc-toast {
+        pointer-events: auto;
         background: #fff;
         border-left: 4px solid #fd7e14;
         border-radius: 8px;
-        box-shadow: 0 6px 20px rgba(0,0,0,.25);
+        box-shadow: 0 6px 20px rgba(0,0,0,.3);
         padding: 10px 14px;
-        width: 260px;
+        width: 280px;
         cursor: pointer;
         font-size: .8rem;
         animation: pcToastIn 0.25s ease;
     }
     .pc-toast strong { display: block; margin-bottom: 2px; color: #212529; }
     .pc-toast span { color: #555; }
-    @keyframes pcToastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pcToastIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
     /* Botão fica perto da sidebar (lado esquerdo) para não disputar espaço com o
        FAB de "Nova OS" e o Jota4, que já ocupam o canto inferior direito. */
     #pcLauncher {
@@ -102,17 +101,26 @@
             left: 12px;
         }
     }
-    .pc-popup { pointer-events: auto; }
+    /* O popup nunca deve poder "sumir" — display/visibility sempre garantidos,
+       independente de qualquer classe de alerta aplicada. */
+    .pc-popup { pointer-events: auto; display: flex !important; }
     .pc-popup-header { cursor: move; position: relative; }
     @keyframes pcBlink { 0%,100% { box-shadow:0 8px 28px rgba(13,110,253,.25); } 50% { box-shadow:0 8px 28px rgba(13,110,253,.9); } }
     .pc-popup.pc-blink .pc-popup-header { animation: pcBlink 0.9s ease-in-out 4; }
-    /* Piscar laranja: usado quando o popup está MINIMIZADO e chega mensagem nova
-       (igual ao antigo Messenger, que piscava a janela minimizada na taskbar). */
-    @keyframes pcBlinkOrange {
-        0%,100% { background: linear-gradient(135deg,#0d6efd,#3b82f6); }
-        50%     { background: linear-gradient(135deg,#fd7e14,#ffa94d); }
+    /* Alerta laranja: popup MINIMIZADO com mensagem não lida. Fundo laranja fixo
+       (não anima cor — evita qualquer glitch de repintura) + respiração suave de
+       opacidade (esmaece/pisca/esmaece...), intermitente até o usuário reabrir —
+       igual ao antigo Messenger piscando a janela minimizada. */
+    .pc-popup.pc-alerting .pc-popup-header {
+        background: linear-gradient(135deg,#fd7e14,#ffa94d) !important;
     }
-    .pc-popup.pc-blink-orange .pc-popup-header { animation: pcBlinkOrange 0.7s ease-in-out infinite; }
+    .pc-popup.pc-alerting {
+        animation: pcBreathe 1.6s ease-in-out infinite;
+    }
+    @keyframes pcBreathe {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: .45; }
+    }
     .pc-unread-badge {
         display: none;
         position: absolute;
@@ -307,14 +315,23 @@
             }
         }
 
+        // Contagem exibida no badge — atualizada a cada ciclo do poll, sem mexer
+        // na animação de alerta (que só liga/desliga uma vez, ver startAlerting).
         function setUnread(count) {
             if (count > 0) { unreadBadge.style.display = 'block'; unreadBadge.textContent = count; }
-            else clearUnread();
+            else unreadBadge.style.display = 'none';
+        }
+
+        // Liga o modo de alerta (fundo laranja + respiração) uma única vez —
+        // fica ligado continuamente até o usuário reabrir o popup, sem depender
+        // de reaplicar a classe a cada poll (mais robusto contra qualquer glitch).
+        function startAlerting() {
+            wrap.classList.add('pc-alerting');
         }
 
         function clearUnread() {
             unreadBadge.style.display = 'none';
-            wrap.classList.remove('pc-blink-orange');
+            wrap.classList.remove('pc-alerting');
         }
 
         async function refreshAndMarkRead() {
@@ -371,6 +388,8 @@
         wrap._isMinimized = () => minimized;
         wrap._setUnread = setUnread;
         wrap._clearUnread = clearUnread;
+        wrap._startAlerting = startAlerting;
+        wrap._isAlerting = () => wrap.classList.contains('pc-alerting');
         wrap._refreshAndMarkRead = refreshAndMarkRead;
         return wrap;
     }
@@ -410,14 +429,11 @@
         repositionPopups();
     }
 
-    function blinkPopup(threadId, color) {
+    function blinkPopup(threadId) {
         const entry = openThreadIds.get(threadId);
         if (!entry) return;
-        const cls = color === 'orange' ? 'pc-blink-orange' : 'pc-blink';
-        entry.el.classList.add(cls);
-        if (cls === 'pc-blink') setTimeout(() => entry.el.classList.remove(cls), 4000);
-        // pc-blink-orange fica piscando continuamente até o usuário reabrir o popup
-        // (removido em toggleMinimize -> clearUnread), igual ao antigo Messenger.
+        entry.el.classList.add('pc-blink');
+        setTimeout(() => entry.el.classList.remove('pc-blink'), 4000);
     }
 
     function showToast(threadId, name, preview) {
@@ -453,34 +469,39 @@
             else badge.style.display = 'none';
 
             for (const item of pending) {
-                const entry = openThreadIds.get(item.thread_id);
+                try {
+                    const entry = openThreadIds.get(item.thread_id);
 
-                if (!entry) {
-                    // Conversa nova (ainda sem popup) — abre expandida e já busca/marca como lida,
-                    // pois vai aparecer visível na tela agora mesmo.
-                    try {
+                    if (!entry) {
+                        // Conversa nova (ainda sem popup) — abre expandida e já busca/marca como lida,
+                        // pois vai aparecer visível na tela agora mesmo.
                         const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                         const d = await r.json();
                         if (d.ok) {
                             openPopupWithHistory(item.thread_id, item.other_user_id, item.other_user_name, d.data.messages);
-                            blinkPopup(item.thread_id, 'blue');
+                            blinkPopup(item.thread_id);
                         }
-                    } catch {}
-                } else if (entry.el._isMinimized()) {
-                    // Minimizado: NÃO marca como lido (isso é o que fazia o contador sumir sozinho).
-                    // Só sinaliza — contador, piscar laranja contínuo e toast — até o usuário reabrir.
-                    entry.el._setUnread(item.unread_count);
-                    blinkPopup(item.thread_id, 'orange');
-                    // Só mostra um toast novo se a contagem realmente aumentou desde o último aviso
-                    // (evita reabrir um toast a cada 4s enquanto a mesma mensagem seguir sem leitura).
-                    if (item.unread_count > (lastToastedUnread.get(item.thread_id) || 0)) {
-                        lastToastedUnread.set(item.thread_id, item.unread_count);
-                        showToast(item.thread_id, item.other_user_name, item.preview);
+                    } else if (entry.el._isMinimized()) {
+                        // Minimizado: NÃO marca como lido (era isso que fazia o contador sumir sozinho).
+                        // Liga o alerta (fundo laranja + respiração) uma única vez — fica ligado até o
+                        // usuário reabrir — e mantém a contagem do badge sempre atualizada.
+                        entry.el._setUnread(item.unread_count);
+                        if (!entry.el._isAlerting()) entry.el._startAlerting();
+                        // Só mostra um toast novo se a contagem realmente aumentou desde o último aviso
+                        // (evita reabrir um toast a cada 4s enquanto a mesma mensagem seguir sem leitura).
+                        if (item.unread_count > (lastToastedUnread.get(item.thread_id) || 0)) {
+                            lastToastedUnread.set(item.thread_id, item.unread_count);
+                            showToast(item.thread_id, item.other_user_name, item.preview);
+                        }
+                    } else {
+                        // Visível na tela — busca as mensagens novas, marca como lido e pisca em azul
+                        await entry.el._refreshAndMarkRead();
+                        blinkPopup(item.thread_id);
                     }
-                } else {
-                    // Visível na tela — busca as mensagens novas, marca como lido e pisca em azul
-                    await entry.el._refreshAndMarkRead();
-                    blinkPopup(item.thread_id, 'blue');
+                } catch (itemErr) {
+                    // Isola falhas por conversa — um erro num item não pode impedir os demais
+                    // de continuarem sendo processados neste ciclo nem nos próximos.
+                    console.error('[Private Chat] Erro processando thread', item.thread_id, itemErr);
                 }
             }
         } catch (err) {
