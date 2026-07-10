@@ -432,7 +432,14 @@
                 });
                 const data = await resp.json();
                 if (data.ok) {
-                    (data.data.messages || []).slice(1).forEach(m => renderMessage(m, window.__pcCurrentUserId));
+                    if (data.data.clear_private_chat) {
+                        // Jota4 limpou o histórico só para este usuário — a mensagem que pediu
+                        // isso também some da visão dele, então recomeça a conversa do zero.
+                        messages.innerHTML = '';
+                        (data.data.messages || []).forEach(m => renderMessage(m, window.__pcCurrentUserId));
+                    } else {
+                        (data.data.messages || []).slice(1).forEach(m => renderMessage(m, window.__pcCurrentUserId));
+                    }
                     scrollToBottom();
                 }
             } catch {}

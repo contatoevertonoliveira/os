@@ -453,6 +453,35 @@ class AIUserMemory(models.Model):
         verbose_name_plural = "Memórias do Chat IA"
 
 
+class AITicketBatchDraft(models.Model):
+    """
+    Rascunho de criação de OS em lote pelo Chat IA (Jota4) — o usuário pede para
+    criar várias OS de uma vez, o Jota4 vai coletando os dados de cada uma aqui
+    (permitindo ajuste/cancelamento) e só cria de fato após confirmação final.
+    Um por usuário por vez (não vinculado a uma sessão/janela de chat específica,
+    já que o mesmo usuário pode continuar pelo chat principal ou pelo particular).
+    """
+    STATUS_CHOICES = (
+        ('draft', 'Rascunho'),
+        ('confirmed', 'Confirmado'),
+        ('cancelled', 'Cancelado'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_ticket_batch_drafts')
+    total_count = models.PositiveIntegerField(verbose_name="Quantidade total de OS no lote")
+    shared_defaults = models.JSONField(default=dict, blank=True, verbose_name="Campos padrão compartilhados")
+    items = models.JSONField(default=list, blank=True, verbose_name="Rascunhos de cada OS (um por posição)")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Lote de {self.total_count} OS de {self.user.username} ({self.get_status_display()})"
+
+    class Meta:
+        verbose_name = "Lote de OS (Chat IA)"
+        verbose_name_plural = "Lotes de OS (Chat IA)"
+
+
 class PrivateChatThread(models.Model):
     """Conversa particular (1:1) entre dois usuários logados, no estilo Messenger.
     user_a sempre tem o menor ID — garante uma linha única por par de usuários."""
@@ -497,6 +526,10 @@ class PrivateChatReadState(models.Model):
     thread = models.ForeignKey(PrivateChatThread, on_delete=models.CASCADE, related_name='read_states')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='private_chat_read_states')
     last_read_message_id = models.PositiveIntegerField(default=0)
+    # "Limpar" o chat particular só esconde o histórico ANTERIOR para quem pediu
+    # (como um "limpar conversa" de app de mensagens) — a outra pessoa continua
+    # vendo tudo normalmente, nada é apagado do banco de dados.
+    cleared_at = models.DateTimeField(null=True, blank=True, verbose_name="Limpou o histórico até (somente para este usuário)")
 
     class Meta:
         unique_together = ('thread', 'user')

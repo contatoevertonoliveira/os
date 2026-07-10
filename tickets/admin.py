@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage, AIUserMemory, PrivateChatThread, PrivateChatMessage
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage, AIUserMemory, PrivateChatThread, PrivateChatMessage, AITicketBatchDraft
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -130,4 +130,12 @@ class PrivateChatThreadAdmin(admin.ModelAdmin):
     list_display = ('user_a', 'user_b', 'created_at', 'updated_at')
     search_fields = ('user_a__username', 'user_b__username')
     inlines = [PrivateChatMessageInline]
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AITicketBatchDraft)
+class AITicketBatchDraftAdmin(admin.ModelAdmin):
+    list_display = ('user', 'total_count', 'status', 'created_at', 'updated_at')
+    list_filter = ('status',)
+    search_fields = ('user__username',)
     readonly_fields = ('created_at', 'updated_at')

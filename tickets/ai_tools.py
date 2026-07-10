@@ -203,6 +203,93 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "start_ticket_batch",
+        "description": (
+            "Inicia a criação de OS em LOTE — use quando o usuário pedir para criar várias OS de uma vez "
+            "(ex: 'preciso abrir 10 OS para o cliente X'). Informe total_count (quantas OS) e, se já souber, "
+            "os campos que serão IGUAIS em todas (ex: mesmo cliente, mesmo responsável) em shared_defaults, "
+            "usando as mesmas chaves de create_ticket — isso evita perguntar a mesma coisa de novo para cada "
+            "uma. Depois de iniciar, colete os dados de cada OS uma por vez com add_or_update_batch_item."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "total_count": {"type": "integer", "description": "Quantas OS serão criadas neste lote"},
+                "shared_defaults": {
+                    "type": "object",
+                    "description": "Campos padrão compartilhados por todas as OS do lote (mesmas chaves de create_ticket). Opcional."
+                }
+            },
+            "required": ["total_count"]
+        }
+    },
+    {
+        "name": "add_or_update_batch_item",
+        "description": (
+            "Registra (ou corrige) os dados de UMA OS dentro de um lote em andamento, na posição 'index' "
+            "(1 = primeira OS do lote, 2 = segunda, etc). Aceita os mesmos campos de create_ticket — campos "
+            "não informados usam o valor de shared_defaults do lote, se houver. Use para preencher cada OS "
+            "do lote uma de cada vez, ou para corrigir uma já preenchida se o usuário pedir ajuste."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "batch_id": {"type": "integer", "description": "ID do lote"},
+                "index": {"type": "integer", "description": "Posição da OS dentro do lote (1-based)"},
+                "client_id": {"type": "integer", "description": "ID do cliente"},
+                "hub_id": {"type": "integer", "description": "ID do hub/loja (opcional)"},
+                "status": {"type": "string", "description": "Código do status (ex: open, in_progress)"},
+                "description": {"type": "string", "description": "Descrição inicial da OS"},
+                "start_date": {"type": "string", "description": "Data/hora de início no formato YYYY-MM-DDTHH:MM"},
+                "deadline": {"type": "string", "description": "Prazo no formato YYYY-MM-DDTHH:MM"},
+                "contact_client_requester_id": {"type": "integer", "description": "ID do solicitante (ContactClient)"},
+                "contact_jumper_responsible_id": {"type": "integer", "description": "ID do responsável JumperFour (ContactJumper)"},
+                "ticket_type_id": {"type": "integer", "description": "ID do tipo de chamado (opcional)"},
+                "system_id": {"type": "integer", "description": "ID do sistema (opcional)"},
+                "problem_type_id": {"type": "integer", "description": "ID do tipo de problema (opcional)"},
+                "equipment_ids": {"type": "array", "items": {"type": "integer"}, "description": "IDs dos equipamentos a vincular (opcional)"},
+                "leankeep_id": {"type": "string", "description": "ID no Leankeep (opcional)"},
+                "final_description": {"type": "string", "description": "Descrição final/resolução (opcional)"}
+            },
+            "required": ["batch_id", "index"]
+        }
+    },
+    {
+        "name": "list_batch_status",
+        "description": (
+            "Mostra o progresso do lote de OS em andamento: quantas posições já foram preenchidas, quais "
+            "faltam, e um resumo de cada uma para o usuário revisar, pedir ajuste ou confirmar. Use sempre "
+            "que o usuário perguntar o andamento do lote, antes de confirmar, ou para montar o resumo final."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"batch_id": {"type": "integer", "description": "ID do lote"}},
+            "required": ["batch_id"]
+        }
+    },
+    {
+        "name": "cancel_ticket_batch",
+        "description": "Cancela um lote de criação de OS em andamento — nada é criado, os rascunhos são descartados. Use quando o usuário pedir para cancelar/desistir do lote.",
+        "parameters": {
+            "type": "object",
+            "properties": {"batch_id": {"type": "integer", "description": "ID do lote"}},
+            "required": ["batch_id"]
+        }
+    },
+    {
+        "name": "confirm_ticket_batch",
+        "description": (
+            "Confirma e cria de fato TODAS as OS do lote — só chame depois que list_batch_status mostrar "
+            "todas as posições preenchidas E o usuário confirmar explicitamente que pode criar. Cria uma OS "
+            "por posição; se alguma falhar, avisa quais e mantém as demais já criadas."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"batch_id": {"type": "integer", "description": "ID do lote"}},
+            "required": ["batch_id"]
+        }
+    },
+    {
         "name": "update_ticket",
         "description": "Edita campos de uma OS existente após confirmação do usuário.",
         "parameters": {
@@ -1131,6 +1218,223 @@ def _create_ticket(args, user):
         ticket.equipments.set(equipments)
 
     return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id, "url": f"/tickets/?open={ticket.id}"}}
+
+
+def _validate_ticket_fields(fields):
+    """Valida os campos de uma OS sem criar nada — usado para conferir cada item
+    de um lote (create_ticket_batch) antes da confirmação final. Espelha as
+    mesmas checagens de _create_ticket. Retorna (ok, error, preview)."""
+    from .models import Client, ContactClient, ContactJumper, ClientHub, TicketType, ProblemType
+
+    missing = []
+    if not fields.get("client_id"): missing.append("cliente")
+    if not fields.get("contact_client_requester_id"): missing.append("solicitante")
+    if not fields.get("contact_jumper_responsible_id"): missing.append("responsável JumperFour")
+    if not fields.get("status"): missing.append("status")
+    if not fields.get("start_date"): missing.append("data de início")
+    if not fields.get("deadline"): missing.append("prazo")
+    if not (fields.get("description") or "").strip(): missing.append("descrição")
+    if missing:
+        return False, f"Campos obrigatórios não preenchidos: {', '.join(missing)}.", None
+
+    preview = {"description": fields.get("description"), "status": fields.get("status")}
+
+    try:
+        preview["client"] = Client.objects.get(pk=fields["client_id"]).name
+    except Client.DoesNotExist:
+        return False, f"Cliente ID {fields['client_id']} não encontrado.", None
+    try:
+        preview["requester"] = ContactClient.objects.get(pk=fields["contact_client_requester_id"]).name
+    except ContactClient.DoesNotExist:
+        return False, f"Solicitante ID {fields['contact_client_requester_id']} não encontrado.", None
+    try:
+        preview["responsible"] = ContactJumper.objects.get(pk=fields["contact_jumper_responsible_id"]).name
+    except ContactJumper.DoesNotExist:
+        return False, f"Responsável JumperFour ID {fields['contact_jumper_responsible_id']} não encontrado.", None
+
+    start_date = _parse_dt(fields.get("start_date", ""))
+    deadline = _parse_dt(fields.get("deadline", ""))
+    if not start_date:
+        return False, f"Data de início inválida: '{fields.get('start_date')}'.", None
+    if not deadline:
+        return False, f"Prazo inválido: '{fields.get('deadline')}'.", None
+    preview["start_date"] = fields.get("start_date")
+    preview["deadline"] = fields.get("deadline")
+
+    if fields.get("hub_id"):
+        try:
+            preview["hub"] = ClientHub.objects.get(pk=fields["hub_id"]).name
+        except ClientHub.DoesNotExist:
+            return False, f"Hub/loja ID {fields['hub_id']} não encontrado.", None
+    if fields.get("ticket_type_id"):
+        try:
+            preview["ticket_type"] = TicketType.objects.get(pk=fields["ticket_type_id"]).name
+        except TicketType.DoesNotExist:
+            return False, f"Tipo de chamado ID {fields['ticket_type_id']} não encontrado.", None
+    if fields.get("problem_type_id"):
+        try:
+            preview["problem_type"] = ProblemType.objects.get(pk=fields["problem_type_id"]).name
+        except ProblemType.DoesNotExist:
+            return False, f"Tipo de problema ID {fields['problem_type_id']} não encontrado.", None
+
+    return True, None, preview
+
+
+_BATCH_ITEM_FIELDS = (
+    "client_id", "hub_id", "status", "description", "start_date", "deadline",
+    "contact_client_requester_id", "contact_jumper_responsible_id", "ticket_type_id",
+    "system_id", "problem_type_id", "equipment_ids", "leankeep_id", "final_description",
+)
+
+
+def _start_ticket_batch(args, user):
+    from .models import AITicketBatchDraft
+
+    total_count = args.get("total_count")
+    if not total_count or total_count < 1:
+        return {"ok": False, "error": "Informe total_count (quantidade de OS a criar) maior que zero."}
+    if total_count > 50:
+        return {"ok": False, "error": "Lotes acima de 50 OS não são suportados de uma vez — sugira dividir em lotes menores."}
+
+    existing = AITicketBatchDraft.objects.filter(user=user, status='draft').first()
+    if existing:
+        collected = sum(1 for it in existing.items if it)
+        return {"ok": False, "error": (
+            f"Já existe um lote em andamento (ID {existing.id}, {collected}/{existing.total_count} "
+            "preenchidas). Confirme (confirm_ticket_batch) ou cancele (cancel_ticket_batch) esse lote antes de iniciar outro."
+        )}
+
+    shared_defaults = args.get("shared_defaults") or {}
+    batch = AITicketBatchDraft.objects.create(
+        user=user,
+        total_count=total_count,
+        shared_defaults=shared_defaults,
+        items=[None] * total_count,
+    )
+    return {"ok": True, "data": {
+        "batch_id": batch.id,
+        "total_count": total_count,
+        "collected": 0,
+        "pending": total_count,
+    }}
+
+
+def _add_or_update_batch_item(args, user):
+    from .models import AITicketBatchDraft
+
+    batch_id = args.get("batch_id")
+    index = args.get("index")
+    if not batch_id or not index:
+        return {"ok": False, "error": "batch_id e index são obrigatórios."}
+
+    try:
+        batch = AITicketBatchDraft.objects.get(pk=batch_id, user=user, status='draft')
+    except AITicketBatchDraft.DoesNotExist:
+        return {"ok": False, "error": "Lote não encontrado ou já finalizado."}
+
+    if index < 1 or index > batch.total_count:
+        return {"ok": False, "error": f"index deve ser entre 1 e {batch.total_count}."}
+
+    # Mescla: padrão do lote < item já preenchido antes < campos novos informados agora
+    merged = dict(batch.shared_defaults or {})
+    existing_item = batch.items[index - 1] or {}
+    merged.update(existing_item)
+    for key in _BATCH_ITEM_FIELDS:
+        if key in args:
+            merged[key] = args[key]
+
+    ok, error, preview = _validate_ticket_fields(merged)
+    if not ok:
+        return {"ok": False, "error": error}
+
+    items = list(batch.items)
+    items[index - 1] = merged
+    batch.items = items
+    batch.save(update_fields=['items', 'updated_at'])
+
+    collected = sum(1 for it in batch.items if it)
+    return {"ok": True, "data": {
+        "batch_id": batch.id,
+        "index": index,
+        "preview": preview,
+        "collected": collected,
+        "pending": batch.total_count - collected,
+        "total_count": batch.total_count,
+    }}
+
+
+def _list_batch_status(args, user):
+    from .models import AITicketBatchDraft
+
+    batch_id = args.get("batch_id")
+    try:
+        batch = AITicketBatchDraft.objects.get(pk=batch_id, user=user)
+    except AITicketBatchDraft.DoesNotExist:
+        return {"ok": False, "error": "Lote não encontrado."}
+
+    items_preview = []
+    for i, item in enumerate(batch.items, start=1):
+        if not item:
+            items_preview.append({"index": i, "filled": False})
+            continue
+        ok, error, preview = _validate_ticket_fields(item)
+        items_preview.append({"index": i, "filled": True, "valid": ok, "error": error, "preview": preview})
+
+    collected = sum(1 for it in batch.items if it)
+    return {"ok": True, "data": {
+        "batch_id": batch.id,
+        "status": batch.status,
+        "total_count": batch.total_count,
+        "collected": collected,
+        "pending": batch.total_count - collected,
+        "items": items_preview,
+    }}
+
+
+def _cancel_ticket_batch(args, user):
+    from .models import AITicketBatchDraft
+
+    batch_id = args.get("batch_id")
+    try:
+        batch = AITicketBatchDraft.objects.get(pk=batch_id, user=user, status='draft')
+    except AITicketBatchDraft.DoesNotExist:
+        return {"ok": False, "error": "Lote não encontrado ou já finalizado."}
+
+    batch.delete()
+    return {"ok": True, "data": {"message": "Lote cancelado. Nenhuma OS foi criada."}}
+
+
+def _confirm_ticket_batch(args, user):
+    from .models import AITicketBatchDraft
+
+    batch_id = args.get("batch_id")
+    try:
+        batch = AITicketBatchDraft.objects.get(pk=batch_id, user=user, status='draft')
+    except AITicketBatchDraft.DoesNotExist:
+        return {"ok": False, "error": "Lote não encontrado ou já finalizado."}
+
+    missing = [i + 1 for i, it in enumerate(batch.items) if not it]
+    if missing:
+        return {"ok": False, "error": f"Ainda faltam preencher as OS de posição {', '.join(map(str, missing))} antes de confirmar."}
+
+    created, failed = [], []
+    for i, item in enumerate(batch.items, start=1):
+        result = _create_ticket(item, user)
+        if result.get("ok"):
+            created.append({"index": i, **result["data"]})
+        else:
+            failed.append({"index": i, "error": result.get("error")})
+
+    batch.status = 'confirmed'
+    batch.save(update_fields=['status', 'updated_at'])
+
+    return {"ok": True, "data": {
+        "batch_id": batch.id,
+        "created_count": len(created),
+        "failed_count": len(failed),
+        "created": created,
+        "failed": failed,
+    }}
 
 
 def _update_ticket(args, user):
@@ -2489,6 +2793,11 @@ _TOOL_REGISTRY = {
     "list_problem_types": _list_problem_types,
     "get_ticket": _get_ticket,
     "create_ticket": _create_ticket,
+    "start_ticket_batch": _start_ticket_batch,
+    "add_or_update_batch_item": _add_or_update_batch_item,
+    "list_batch_status": _list_batch_status,
+    "cancel_ticket_batch": _cancel_ticket_batch,
+    "confirm_ticket_batch": _confirm_ticket_batch,
     "update_ticket": _update_ticket,
     "add_ticket_evolution": _add_ticket_evolution,
     "delete_ticket": _delete_ticket,
@@ -2629,6 +2938,28 @@ página e viagem técnica). Se o usuário pedir para cadastrar algo que existe n
 correspondente — nunca diga que não é capaz de cadastrar algo que tenha uma tool disponível.
 Cada tool já valida a permissão do usuário logado e retorna erro claro caso ele não tenha permissão —
 nesse caso, apenas repasse a mensagem de erro, não insista nem tente contornar.
+
+CRIAÇÃO DE OS EM LOTE — MUITO IMPORTANTE:
+Quando o usuário pedir para criar VÁRIAS OS de uma vez (ex: "preciso abrir 10 OS para o cliente X", "cria 5
+chamados pra mim"), NÃO tente chamar create_ticket várias vezes seguidas sem parar para confirmar cada uma
+— use o fluxo de lote:
+1. Chame "start_ticket_batch" com o total_count e, se o usuário já disse o que é igual em todas (mesmo
+   cliente, mesmo responsável, mesmo tipo de chamado, etc), passe isso em shared_defaults.
+2. Vá coletando os dados de CADA OS, uma de cada vez, perguntando o que for pertinente e ainda não coberto
+   pelos padrões do lote (ex: descrição, equipamento, hub/loja de cada uma). Depois de reunir os dados de
+   uma posição, chame "add_or_update_batch_item" com o index dela (1, 2, 3...). Sempre informe ao usuário
+   em que posição do lote vocês estão (ex: "Show, essa é a OS 3 de 10. Vamos para a próxima?").
+3. A qualquer momento o usuário pode pedir para AJUSTAR uma OS já preenchida do lote (ex: "muda a descrição
+   da OS 2") — chame add_or_update_batch_item de novo na mesma posição, só com os campos que mudaram. Ele
+   também pode pedir para CANCELAR o lote inteiro a qualquer momento — nesse caso use
+   "cancel_ticket_batch" e confirme que nada foi criado.
+4. Use "list_batch_status" sempre que o usuário quiser revisar o andamento, perguntar o que falta, ou antes
+   de confirmar — apresente um resumo claro de cada posição (cliente, descrição, datas, etc).
+5. Só chame "confirm_ticket_batch" depois que TODAS as posições estiverem preenchidas E o usuário confirmar
+   explicitamente que pode criar tudo. Depois de confirmar, apresente um resumo final claro de tudo que foi
+   criado (números das OS geradas) e avise se alguma falhou.
+Nunca crie as OS do lote uma a uma silenciosamente sem esse fluxo — o usuário precisa poder acompanhar,
+ajustar e cancelar a qualquer momento antes da confirmação final.
 
 BUSCA NA INTERNET E PRÉ-PREENCHIMENTO DE DADOS:
 
