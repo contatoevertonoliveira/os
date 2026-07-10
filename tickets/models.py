@@ -423,6 +423,10 @@ class AIChatMessage(models.Model):
     session = models.ForeignKey(AIChatSession, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
     content = models.TextField()
+    # Mensagem de voz: guarda o áudio gravado para tocar no chat (estilo WhatsApp);
+    # 'content' continua com a transcrição, usada só internamente para a IA responder
+    # — o texto falado não é mostrado na bolha quando há áudio.
+    audio = models.FileField(upload_to='ai_chat_audio/%Y/%m/', null=True, blank=True, verbose_name="Áudio (mensagem de voz)")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

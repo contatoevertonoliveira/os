@@ -51,14 +51,23 @@ class AIChatView(LoginRequiredMixin, View):
         if user_profile and not user_profile.ai_chat_enabled and not is_super_admin:
             return JsonResponse({"ok": False, "error": "Você não tem permissão para usar o Chat IA."}, status=403)
 
-        try:
-            body = json.loads(request.body)
-        except json.JSONDecodeError:
-            return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
+        # Mensagem de voz chega como multipart/form-data (texto transcrito + arquivo de
+        # áudio); mensagem de texto normal continua vindo como JSON.
+        audio_file = None
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            user_message = (request.POST.get("message") or "").strip()
+            session_id = request.POST.get("session_id") or None
+            is_proactive_check = False
+            audio_file = request.FILES.get("audio")
+        else:
+            try:
+                body = json.loads(request.body)
+            except json.JSONDecodeError:
+                return JsonResponse({"ok": False, "error": "JSON inválido."}, status=400)
 
-        user_message = (body.get("message") or "").strip()
-        session_id = body.get("session_id")
-        is_proactive_check = bool(body.get("proactive_check"))
+            user_message = (body.get("message") or "").strip()
+            session_id = body.get("session_id")
+            is_proactive_check = bool(body.get("proactive_check"))
 
         if not user_message and not is_proactive_check:
             return JsonResponse({"ok": False, "error": "Mensagem vazia."}, status=400)
@@ -93,7 +102,7 @@ class AIChatView(LoginRequiredMixin, View):
         # Salva mensagem do usuário — a verificação proativa (login) é disparada pelo
         # sistema, não pelo usuário, então não vira uma mensagem no histórico visível.
         if not is_proactive_check:
-            AIChatMessage.objects.create(session=session, role='user', content=user_message)
+            AIChatMessage.objects.create(session=session, role='user', content=user_message, audio=audio_file)
 
         # Monta histórico para enviar ao modelo (últimas 20 mensagens para não estourar contexto)
         history = list(
@@ -357,7 +366,12 @@ class AIChatHistoryView(LoginRequiredMixin, View):
             "session_id": session.id,
             "title": session.title,
             "messages": [
-                {"role": m.role, "content": m.content, "created_at": m.created_at.strftime("%H:%M")}
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "created_at": m.created_at.strftime("%H:%M"),
+                    "audio_url": m.audio.url if m.audio else None,
+                }
                 for m in messages
             ]
         })
