@@ -24,7 +24,35 @@
 
 <div id="pcPopupsContainer"></div>
 
+<div id="pcToastContainer"></div>
+
 <style>
+    #pcToastContainer {
+        position: fixed;
+        bottom: 24px;
+        left: calc(var(--sidebar-width, 260px) + 76px);
+        z-index: 2051;
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+        transition: left 0.3s;
+    }
+    .sidebar-collapsed #pcToastContainer { left: 156px; }
+    @media (max-width: 991px) { #pcToastContainer { left: 72px; } }
+    .pc-toast {
+        background: #fff;
+        border-left: 4px solid #fd7e14;
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(0,0,0,.25);
+        padding: 10px 14px;
+        width: 260px;
+        cursor: pointer;
+        font-size: .8rem;
+        animation: pcToastIn 0.25s ease;
+    }
+    .pc-toast strong { display: block; margin-bottom: 2px; color: #212529; }
+    .pc-toast span { color: #555; }
+    @keyframes pcToastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
     /* Botão fica perto da sidebar (lado esquerdo) para não disputar espaço com o
        FAB de "Nova OS" e o Jota4, que já ocupam o canto inferior direito. */
     #pcLauncher {
@@ -75,9 +103,32 @@
         }
     }
     .pc-popup { pointer-events: auto; }
-    .pc-popup-header { cursor: move; }
+    .pc-popup-header { cursor: move; position: relative; }
     @keyframes pcBlink { 0%,100% { box-shadow:0 8px 28px rgba(13,110,253,.25); } 50% { box-shadow:0 8px 28px rgba(13,110,253,.9); } }
     .pc-popup.pc-blink .pc-popup-header { animation: pcBlink 0.9s ease-in-out 4; }
+    /* Piscar laranja: usado quando o popup está MINIMIZADO e chega mensagem nova
+       (igual ao antigo Messenger, que piscava a janela minimizada na taskbar). */
+    @keyframes pcBlinkOrange {
+        0%,100% { background: linear-gradient(135deg,#0d6efd,#3b82f6); }
+        50%     { background: linear-gradient(135deg,#fd7e14,#ffa94d); }
+    }
+    .pc-popup.pc-blink-orange .pc-popup-header { animation: pcBlinkOrange 0.7s ease-in-out infinite; }
+    .pc-unread-badge {
+        display: none;
+        position: absolute;
+        top: -6px;
+        left: -6px;
+        background: #dc3545;
+        color: #fff;
+        border-radius: 50%;
+        min-width: 18px;
+        height: 18px;
+        font-size: .65rem;
+        line-height: 18px;
+        text-align: center;
+        padding: 0 4px;
+        font-weight: 700;
+    }
     .pc-msg-row { display:flex; margin-bottom:6px; }
     .pc-msg-row.me { justify-content:flex-end; }
     .pc-msg-row.other { justify-content:flex-start; }
@@ -93,6 +144,7 @@
 (function () {
     const openThreadIds   = new Map(); // thread_id -> {el, recipientId, recipientName}
     const openByRecipient = new Map(); // recipient_id -> thread_id
+    const lastToastedUnread = new Map(); // thread_id -> unread_count já avisado por toast
 
     function getCookie(name) {
         const v = `; ${document.cookie}`.split(`; ${name}=`);
@@ -204,6 +256,7 @@
         wrap.innerHTML = `
             <div class="pc-popup-header" style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;
                         padding:8px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                <span class="pc-unread-badge">0</span>
                 <span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(recipientName)}</span>
                 <div style="display:flex;gap:4px;">
                     <button type="button" class="pc-minimize-btn" title="Minimizar"
@@ -224,11 +277,12 @@
                 </div>
             </div>`;
 
-        const header   = wrap.querySelector('.pc-popup-header');
-        const body     = wrap.querySelector('.pc-body');
-        const messages = wrap.querySelector('.pc-messages');
-        const input    = wrap.querySelector('.pc-input');
-        const sendBtn  = wrap.querySelector('.pc-send-btn');
+        const header      = wrap.querySelector('.pc-popup-header');
+        const body        = wrap.querySelector('.pc-body');
+        const messages    = wrap.querySelector('.pc-messages');
+        const input       = wrap.querySelector('.pc-input');
+        const sendBtn     = wrap.querySelector('.pc-send-btn');
+        const unreadBadge = wrap.querySelector('.pc-unread-badge');
         let minimized = false;
 
         makeDraggable(wrap, header, toggleMinimize);
@@ -237,6 +291,7 @@
             e.stopPropagation();
             openThreadIds.delete(threadId);
             openByRecipient.delete(recipientId);
+            lastToastedUnread.delete(threadId);
             wrap.remove();
         });
 
@@ -244,6 +299,34 @@
             minimized = !minimized;
             body.style.display = minimized ? 'none' : 'flex';
             wrap.style.height = minimized ? 'auto' : '360px';
+            if (!minimized) {
+                // Reabriu (deixou de estar minimizado) — busca o que chegou e já marca como lido
+                clearUnread();
+                lastToastedUnread.delete(threadId);
+                refreshAndMarkRead();
+            }
+        }
+
+        function setUnread(count) {
+            if (count > 0) { unreadBadge.style.display = 'block'; unreadBadge.textContent = count; }
+            else clearUnread();
+        }
+
+        function clearUnread() {
+            unreadBadge.style.display = 'none';
+            wrap.classList.remove('pc-blink-orange');
+        }
+
+        async function refreshAndMarkRead() {
+            try {
+                const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${threadId}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const d = await r.json();
+                if (d.ok) {
+                    messages.innerHTML = '';
+                    d.data.messages.forEach(m => renderMessage(m, window.__pcCurrentUserId));
+                    scrollToBottom();
+                }
+            } catch {}
         }
 
         function scrollToBottom() { setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 30); }
@@ -285,6 +368,10 @@
         wrap._renderMessage = renderMessage;
         wrap._messagesEl = messages;
         wrap._scrollToBottom = scrollToBottom;
+        wrap._isMinimized = () => minimized;
+        wrap._setUnread = setUnread;
+        wrap._clearUnread = clearUnread;
+        wrap._refreshAndMarkRead = refreshAndMarkRead;
         return wrap;
     }
 
@@ -323,11 +410,30 @@
         repositionPopups();
     }
 
-    function blinkPopup(threadId) {
+    function blinkPopup(threadId, color) {
         const entry = openThreadIds.get(threadId);
         if (!entry) return;
-        entry.el.classList.add('pc-blink');
-        setTimeout(() => entry.el.classList.remove('pc-blink'), 4000);
+        const cls = color === 'orange' ? 'pc-blink-orange' : 'pc-blink';
+        entry.el.classList.add(cls);
+        if (cls === 'pc-blink') setTimeout(() => entry.el.classList.remove(cls), 4000);
+        // pc-blink-orange fica piscando continuamente até o usuário reabrir o popup
+        // (removido em toggleMinimize -> clearUnread), igual ao antigo Messenger.
+    }
+
+    function showToast(threadId, name, preview) {
+        const container = document.getElementById('pcToastContainer');
+        const toast = document.createElement('div');
+        toast.className = 'pc-toast';
+        toast.innerHTML = `<strong>💬 ${escapeHtml(name)}</strong><span>${escapeHtml((preview || '').slice(0, 80))}</span>`;
+        toast.addEventListener('click', () => {
+            toast.remove();
+            const entry = openThreadIds.get(threadId);
+            if (entry && entry.el._isMinimized()) {
+                entry.el.querySelector('.pc-minimize-btn').click();
+            }
+        });
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 6000);
     }
 
     // ── Poll leve (sem LLM): detecta mensagens novas em qualquer conversa ────
@@ -347,29 +453,34 @@
             else badge.style.display = 'none';
 
             for (const item of pending) {
-                if (!openThreadIds.has(item.thread_id)) {
-                    // Conversa nova (ou reaberta) chegando — abre o popup sozinho
+                const entry = openThreadIds.get(item.thread_id);
+
+                if (!entry) {
+                    // Conversa nova (ainda sem popup) — abre expandida e já busca/marca como lida,
+                    // pois vai aparecer visível na tela agora mesmo.
                     try {
                         const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                         const d = await r.json();
                         if (d.ok) {
                             openPopupWithHistory(item.thread_id, item.other_user_id, item.other_user_name, d.data.messages);
-                            blinkPopup(item.thread_id);
+                            blinkPopup(item.thread_id, 'blue');
                         }
                     } catch {}
+                } else if (entry.el._isMinimized()) {
+                    // Minimizado: NÃO marca como lido (isso é o que fazia o contador sumir sozinho).
+                    // Só sinaliza — contador, piscar laranja contínuo e toast — até o usuário reabrir.
+                    entry.el._setUnread(item.unread_count);
+                    blinkPopup(item.thread_id, 'orange');
+                    // Só mostra um toast novo se a contagem realmente aumentou desde o último aviso
+                    // (evita reabrir um toast a cada 4s enquanto a mesma mensagem seguir sem leitura).
+                    if (item.unread_count > (lastToastedUnread.get(item.thread_id) || 0)) {
+                        lastToastedUnread.set(item.thread_id, item.unread_count);
+                        showToast(item.thread_id, item.other_user_name, item.preview);
+                    }
                 } else {
-                    // Já está aberto — só busca as mensagens novas e pisca
-                    try {
-                        const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                        const d = await r.json();
-                        if (d.ok) {
-                            const entry = openThreadIds.get(item.thread_id);
-                            entry.el._messagesEl.innerHTML = '';
-                            d.data.messages.forEach(m => entry.el._renderMessage(m, window.__pcCurrentUserId));
-                            entry.el._scrollToBottom();
-                            blinkPopup(item.thread_id);
-                        }
-                    } catch {}
+                    // Visível na tela — busca as mensagens novas, marca como lido e pisca em azul
+                    await entry.el._refreshAndMarkRead();
+                    blinkPopup(item.thread_id, 'blue');
                 }
             }
         } catch (err) {
