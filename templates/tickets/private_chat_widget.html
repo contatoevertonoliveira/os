@@ -3,13 +3,7 @@
    O Jota4 pode ser chamado (por nome) dentro de qualquer conversa para ajudar. #}
 
 {% if user.is_authenticated %}
-<div id="pcLauncher" title="Conversas particulares"
-     style="position:fixed;bottom:24px;right:90px;z-index:2049;
-            width:48px;height:48px;border-radius:50%;
-            background:linear-gradient(135deg,#0d6efd,#3b82f6);
-            box-shadow:0 4px 14px rgba(0,0,0,.25);
-            display:flex;align-items:center;justify-content:center;
-            cursor:pointer;color:#fff;font-size:1.15rem;">
+<div id="pcLauncher" title="Conversas particulares">
     <i class="fas fa-comments"></i>
     <span id="pcLauncherBadge"
           style="display:none;position:absolute;top:-4px;right:-4px;background:#dc3545;color:#fff;
@@ -18,9 +12,8 @@
 </div>
 
 <div id="pcPickerPanel"
-     style="position:fixed;bottom:80px;right:90px;z-index:2049;width:260px;max-height:340px;
-            background:#fff;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.2);
-            overflow:hidden;display:none;flex-direction:column;">
+     style="width:260px;max-height:340px;background:#fff;border-radius:12px;
+            box-shadow:0 8px 28px rgba(0,0,0,.2);overflow:hidden;display:none;flex-direction:column;">
     <div style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;padding:10px 14px;font-weight:700;font-size:.85rem;">
         Colegas online
     </div>
@@ -29,12 +22,60 @@
     </div>
 </div>
 
-<div id="pcPopupsContainer"
-     style="position:fixed;bottom:0;right:100px;z-index:2048;display:flex;flex-direction:row-reverse;
-            gap:10px;align-items:flex-end;pointer-events:none;"></div>
+<div id="pcPopupsContainer"></div>
 
 <style>
+    /* Botão fica perto da sidebar (lado esquerdo) para não disputar espaço com o
+       FAB de "Nova OS" e o Jota4, que já ocupam o canto inferior direito. */
+    #pcLauncher {
+        position: fixed;
+        bottom: 24px;
+        left: calc(var(--sidebar-width, 260px) + 16px);
+        z-index: 2049;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg,#0d6efd,#3b82f6);
+        box-shadow: 0 4px 14px rgba(0,0,0,.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #fff;
+        font-size: 1.15rem;
+        transition: left 0.3s;
+    }
+    #pcPickerPanel {
+        position: fixed;
+        bottom: 80px;
+        left: calc(var(--sidebar-width, 260px) + 16px);
+        z-index: 2049;
+        transition: left 0.3s;
+    }
+    #pcPopupsContainer {
+        position: fixed;
+        bottom: 0;
+        left: calc(var(--sidebar-width, 260px) + 16px);
+        z-index: 2048;
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        align-items: flex-end;
+        pointer-events: none;
+        transition: left 0.3s;
+    }
+    .sidebar-collapsed #pcLauncher,
+    .sidebar-collapsed #pcPickerPanel,
+    .sidebar-collapsed #pcPopupsContainer {
+        left: 96px;
+    }
+    @media (max-width: 991px) {
+        #pcLauncher, #pcPickerPanel, #pcPopupsContainer {
+            left: 12px;
+        }
+    }
     .pc-popup { pointer-events: auto; }
+    .pc-popup-header { cursor: move; }
     @keyframes pcBlink { 0%,100% { box-shadow:0 8px 28px rgba(13,110,253,.25); } 50% { box-shadow:0 8px 28px rgba(13,110,253,.9); } }
     .pc-popup.pc-blink .pc-popup-header { animation: pcBlink 0.9s ease-in-out 4; }
     .pc-msg-row { display:flex; margin-bottom:6px; }
@@ -104,6 +145,55 @@
         }
     });
 
+    // ── Arraste dos popups (mover livremente pela tela) ─────────────────────
+    // No primeiro drag real (não um clique simples), o popup sai do fluxo do
+    // container (flex, ancorado perto da sidebar) e vira posicionamento livre
+    // (position:fixed com left/top), podendo ser movido para qualquer lugar.
+    function makeDraggable(popupEl, headerEl, onClick) {
+        let dragStart = null;
+        let moved = false;
+
+        headerEl.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.pc-minimize-btn') || e.target.closest('.pc-close-btn')) return;
+            const rect = popupEl.getBoundingClientRect();
+            dragStart = { x: e.clientX, y: e.clientY, left: rect.left, top: rect.top };
+            moved = false;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!dragStart) return;
+            const dx = e.clientX - dragStart.x;
+            const dy = e.clientY - dragStart.y;
+            if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+                moved = true;
+                popupEl.style.position = 'fixed';
+                popupEl.style.left = dragStart.left + 'px';
+                popupEl.style.top = dragStart.top + 'px';
+                popupEl.style.bottom = 'auto';
+                popupEl.style.margin = '0';
+            }
+            if (moved) {
+                popupEl.style.left = (dragStart.left + dx) + 'px';
+                popupEl.style.top = (dragStart.top + dy) + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!dragStart) return;
+            if (moved) {
+                const rect = popupEl.getBoundingClientRect();
+                const maxLeft = Math.max(8, window.innerWidth - rect.width - 8);
+                const maxTop = Math.max(8, window.innerHeight - rect.height - 8);
+                popupEl.style.left = Math.min(Math.max(parseFloat(popupEl.style.left), 8), maxLeft) + 'px';
+                popupEl.style.top = Math.min(Math.max(parseFloat(popupEl.style.top), 8), maxTop) + 'px';
+            } else {
+                onClick();
+            }
+            dragStart = null;
+        });
+    }
+
     // ── Popups de conversa ───────────────────────────────────────────────────
     function buildPopup(threadId, recipientId, recipientName) {
         const wrap = document.createElement('div');
@@ -141,10 +231,7 @@
         const sendBtn  = wrap.querySelector('.pc-send-btn');
         let minimized = false;
 
-        header.addEventListener('click', (e) => {
-            if (e.target.closest('.pc-minimize-btn') || e.target.closest('.pc-close-btn')) return;
-            toggleMinimize();
-        });
+        makeDraggable(wrap, header, toggleMinimize);
         wrap.querySelector('.pc-minimize-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleMinimize(); });
         wrap.querySelector('.pc-close-btn').addEventListener('click', (e) => {
             e.stopPropagation();
