@@ -1,6 +1,8 @@
 {% load static %}
-{# Widget de Chat Particular — conversas 1:1 entre usuários logados (estilo Messenger).
-   O Jota4 pode ser chamado (por nome) dentro de qualquer conversa para ajudar. #}
+{% comment %}
+Widget de Chat Particular — conversas 1:1 entre usuários logados (estilo Messenger).
+O Jota4 pode ser chamado (por nome) dentro de qualquer conversa para ajudar.
+{% endcomment %}
 
 {% if user.is_authenticated %}
 <div id="pcLauncher" title="Conversas particulares">
