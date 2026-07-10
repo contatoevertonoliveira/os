@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from datetime import time
+from datetime import time, timedelta
 from django.db.utils import OperationalError, ProgrammingError
 import uuid
 
@@ -50,6 +50,7 @@ class UserProfile(models.Model):
 
     # Chat IA
     ai_chat_enabled = models.BooleanField(default=True, verbose_name="Ativar Chat IA")
+    ai_proactive_alert_count = models.PositiveIntegerField(default=0, verbose_name="Tentativas de aviso do Jota4 sobre pendências não resolvidas")
 
     # Restrições de Funcionalidades
     can_view_tickets = models.BooleanField(default=True, verbose_name="Visualizar Ordens de Serviço")
@@ -431,6 +432,76 @@ class AIChatMessage(models.Model):
         verbose_name = "Mensagem de Chat IA"
         verbose_name_plural = "Mensagens de Chat IA"
         ordering = ['created_at']
+
+
+class AIUserMemory(models.Model):
+    """
+    Memória persistente do Chat IA (Jota4) para um usuário específico: trejeitos,
+    forma de tratamento preferida, gírias/termos, atalhos de criação e padrões de
+    trabalho aprendidos ao longo das conversas — para personalizar o atendimento
+    já na primeira mensagem de cada nova sessão.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='ai_memory')
+    notes = models.TextField(blank=True, default="", verbose_name="Notas aprendidas")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Memória IA de {self.user.get_full_name() or self.user.username}"
+
+    class Meta:
+        verbose_name = "Memória do Chat IA"
+        verbose_name_plural = "Memórias do Chat IA"
+
+
+class PrivateChatThread(models.Model):
+    """Conversa particular (1:1) entre dois usuários logados, no estilo Messenger.
+    user_a sempre tem o menor ID — garante uma linha única por par de usuários."""
+    user_a = models.ForeignKey(User, on_delete=models.CASCADE, related_name='private_threads_as_a')
+    user_b = models.ForeignKey(User, on_delete=models.CASCADE, related_name='private_threads_as_b')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user_a', 'user_b')
+        verbose_name = "Conversa Particular"
+        verbose_name_plural = "Conversas Particulares"
+        ordering = ['-updated_at']
+
+    def other_user(self, current_user):
+        return self.user_b if self.user_a_id == current_user.id else self.user_a
+
+    def __str__(self):
+        return f"{self.user_a.username} <-> {self.user_b.username}"
+
+
+class PrivateChatMessage(models.Model):
+    thread = models.ForeignKey(PrivateChatThread, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_private_chat_messages', verbose_name="Remetente (vazio = Jota4)")
+    content = models.TextField()
+    is_ai_message = models.BooleanField(default=False, verbose_name="Mensagem do Jota4")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = "Mensagem de Chat Particular"
+        verbose_name_plural = "Mensagens de Chat Particular"
+
+    def __str__(self):
+        who = "Jota4" if self.is_ai_message else (self.sender.username if self.sender else "?")
+        return f"[{who}] {self.content[:60]}"
+
+
+class PrivateChatReadState(models.Model):
+    """Até qual mensagem (id) cada usuário já viu, por conversa — usado pelo poll
+    leve do front-end para saber quando abrir/piscar um popup novo."""
+    thread = models.ForeignKey(PrivateChatThread, on_delete=models.CASCADE, related_name='read_states')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='private_chat_read_states')
+    last_read_message_id = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('thread', 'user')
+        verbose_name = "Estado de Leitura (Chat Particular)"
+        verbose_name_plural = "Estados de Leitura (Chat Particular)"
 
 
 class ShiftHandover(models.Model):
@@ -1017,6 +1088,14 @@ class TicketUpdate(models.Model):
         verbose_name = "Evolução do Chamado"
         verbose_name_plural = "Evoluções do Chamado"
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Garante que a OS suba para o topo do seu grupo de status na lista,
+        # já que a listagem ordena por status e por 'updated_at' — sem isso,
+        # evoluções feitas pelo botão rápido da lista ou pelo Chat IA (que não
+        # salvam os campos da OS) deixavam a data de atualização desatualizada.
+        Ticket.objects.filter(pk=self.ticket_id).update(updated_at=timezone.now())
+
 class TicketUpdateImage(models.Model):
     update = models.ForeignKey(TicketUpdate, related_name='images', on_delete=models.CASCADE)
     image = models.ImageField(upload_to='ticket_updates/')
@@ -1232,6 +1311,11 @@ class DailyChecklistItemImage(models.Model):
         return f"Imagem do item {self.item.id}"
 
 class ActiveSession(models.Model):
+    # Sessões sem nenhuma atividade dentro desta janela são consideradas abandonadas
+    # (cookie expirou, navegador fechado, queda de rede etc. — sem logout explícito)
+    # e são descartadas automaticamente sempre que "quem está online" é consultado.
+    ONLINE_WINDOW_MINUTES = 5
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='active_sessions', verbose_name="Usuário")
     session_key = models.CharField(max_length=40, unique=True, verbose_name="Chave da Sessão")
     ip_address = models.CharField(max_length=45, verbose_name="Endereço IP")
@@ -1246,6 +1330,21 @@ class ActiveSession(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.ip_address}"
+
+    @classmethod
+    def cleanup_stale(cls):
+        threshold = timezone.now() - timedelta(minutes=cls.ONLINE_WINDOW_MINUTES)
+        cls.objects.filter(last_activity__lt=threshold).delete()
+
+    @classmethod
+    def online_user_ids(cls):
+        cls.cleanup_stale()
+        return cls.objects.values_list('user_id', flat=True).distinct()
+
+    @classmethod
+    def is_user_online(cls, user):
+        cls.cleanup_stale()
+        return cls.objects.filter(user=user).exists()
 
 class DailyChecklistItemDetail(models.Model):
     item = models.ForeignKey(DailyChecklistItem, on_delete=models.CASCADE, related_name='details')

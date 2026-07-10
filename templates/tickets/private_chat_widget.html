@@ -1,0 +1,300 @@
+{% load static %}
+{# Widget de Chat Particular — conversas 1:1 entre usuários logados (estilo Messenger).
+   O Jota4 pode ser chamado (por nome) dentro de qualquer conversa para ajudar. #}
+
+{% if user.is_authenticated %}
+<div id="pcLauncher" title="Conversas particulares"
+     style="position:fixed;bottom:24px;right:90px;z-index:2049;
+            width:48px;height:48px;border-radius:50%;
+            background:linear-gradient(135deg,#0d6efd,#3b82f6);
+            box-shadow:0 4px 14px rgba(0,0,0,.25);
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;color:#fff;font-size:1.15rem;">
+    <i class="fas fa-comments"></i>
+    <span id="pcLauncherBadge"
+          style="display:none;position:absolute;top:-4px;right:-4px;background:#dc3545;color:#fff;
+                 border-radius:50%;min-width:18px;height:18px;font-size:.65rem;line-height:18px;
+                 text-align:center;padding:0 4px;font-weight:700;"></span>
+</div>
+
+<div id="pcPickerPanel"
+     style="position:fixed;bottom:80px;right:90px;z-index:2049;width:260px;max-height:340px;
+            background:#fff;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.2);
+            overflow:hidden;display:none;flex-direction:column;">
+    <div style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;padding:10px 14px;font-weight:700;font-size:.85rem;">
+        Colegas online
+    </div>
+    <div id="pcOnlineList" style="overflow-y:auto;flex:1;padding:6px 0;">
+        <div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Carregando...</div>
+    </div>
+</div>
+
+<div id="pcPopupsContainer"
+     style="position:fixed;bottom:0;right:100px;z-index:2048;display:flex;flex-direction:row-reverse;
+            gap:10px;align-items:flex-end;pointer-events:none;"></div>
+
+<style>
+    .pc-popup { pointer-events: auto; }
+    @keyframes pcBlink { 0%,100% { box-shadow:0 8px 28px rgba(13,110,253,.25); } 50% { box-shadow:0 8px 28px rgba(13,110,253,.9); } }
+    .pc-popup.pc-blink .pc-popup-header { animation: pcBlink 0.9s ease-in-out 4; }
+    .pc-msg-row { display:flex; margin-bottom:6px; }
+    .pc-msg-row.me { justify-content:flex-end; }
+    .pc-msg-row.other { justify-content:flex-start; }
+    .pc-msg-row.ai { justify-content:center; }
+    .pc-bubble { max-width:80%; padding:7px 11px; border-radius:12px; font-size:.82rem; line-height:1.35; word-wrap:break-word; }
+    .pc-msg-row.me .pc-bubble { background:#0d6efd; color:#fff; border-bottom-right-radius:3px; }
+    .pc-msg-row.other .pc-bubble { background:#e9ecef; color:#212529; border-bottom-left-radius:3px; }
+    .pc-msg-row.ai .pc-bubble { background:#eafaf1; color:#0a6b3d; border:1px solid #b6ecd0; max-width:90%; }
+    .pc-ai-label { font-size:.68rem; font-weight:700; color:#0a6b3d; margin-bottom:2px; display:block; }
+</style>
+
+<script>
+(function () {
+    const openThreadIds   = new Map(); // thread_id -> {el, recipientId, recipientName}
+    const openByRecipient = new Map(); // recipient_id -> thread_id
+
+    function getCookie(name) {
+        const v = `; ${document.cookie}`.split(`; ${name}=`);
+        if (v.length === 2) return v.pop().split(';').shift();
+        return '';
+    }
+
+    function escapeHtml(text) {
+        return (text || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>');
+    }
+
+    // ── Launcher / lista de colegas online ──────────────────────────────────
+    const launcher = document.getElementById('pcLauncher');
+    const picker   = document.getElementById('pcPickerPanel');
+    const pickerList = document.getElementById('pcOnlineList');
+    let pickerOpen = false;
+
+    launcher.addEventListener('click', async () => {
+        pickerOpen = !pickerOpen;
+        picker.style.display = pickerOpen ? 'flex' : 'none';
+        if (!pickerOpen) return;
+        pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Carregando...</div>';
+        try {
+            const resp = await fetch("{% url 'private_chat_online_users' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await resp.json();
+            const users = (data.ok && data.data) || [];
+            if (!users.length) {
+                pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#888;font-size:.8rem;">Ninguém mais online agora.</div>';
+                return;
+            }
+            pickerList.innerHTML = '';
+            users.forEach(u => {
+                const item = document.createElement('div');
+                item.textContent = u.name;
+                item.style.cssText = 'padding:9px 14px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:8px;';
+                item.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:#28a745;display:inline-block;"></span>${escapeHtml(u.name)}`;
+                item.addEventListener('mouseenter', () => item.style.background = '#f1f3f5');
+                item.addEventListener('mouseleave', () => item.style.background = '');
+                item.addEventListener('click', () => {
+                    picker.style.display = 'none';
+                    pickerOpen = false;
+                    window.openPrivateChatPopup(u.id, u.name);
+                });
+                pickerList.appendChild(item);
+            });
+        } catch {
+            pickerList.innerHTML = '<div style="padding:14px;text-align:center;color:#c00;font-size:.8rem;">Erro ao carregar.</div>';
+        }
+    });
+
+    // ── Popups de conversa ───────────────────────────────────────────────────
+    function buildPopup(threadId, recipientId, recipientName) {
+        const wrap = document.createElement('div');
+        wrap.className = 'pc-popup';
+        wrap.style.cssText = 'width:270px;height:360px;background:#fff;border-radius:12px 12px 0 0;' +
+            'box-shadow:0 8px 28px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden;';
+
+        wrap.innerHTML = `
+            <div class="pc-popup-header" style="background:linear-gradient(135deg,#0d6efd,#3b82f6);color:#fff;
+                        padding:8px 10px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+                <span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(recipientName)}</span>
+                <div style="display:flex;gap:4px;">
+                    <button type="button" class="pc-minimize-btn" title="Minimizar"
+                            style="background:rgba(255,255,255,.2);border:none;border-radius:6px;color:#fff;width:22px;height:22px;cursor:pointer;font-size:.7rem;"><i class="fas fa-minus"></i></button>
+                    <button type="button" class="pc-close-btn" title="Fechar"
+                            style="background:rgba(255,255,255,.2);border:none;border-radius:6px;color:#fff;width:22px;height:22px;cursor:pointer;font-size:.7rem;"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="pc-body" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+                <div class="pc-messages" style="flex:1;overflow-y:auto;padding:8px;"></div>
+                <div style="padding:6px;border-top:1px solid #eee;display:flex;gap:6px;flex-shrink:0;">
+                    <input type="text" class="pc-input" placeholder="Escreva uma mensagem..."
+                           style="flex:1;border:1px solid #dee2e6;border-radius:16px;padding:5px 12px;font-size:.8rem;outline:none;">
+                    <button type="button" class="pc-send-btn"
+                            style="background:#0d6efd;border:none;border-radius:50%;width:30px;height:30px;color:#fff;cursor:pointer;">
+                        <i class="fas fa-paper-plane" style="font-size:.75rem;"></i>
+                    </button>
+                </div>
+            </div>`;
+
+        const header   = wrap.querySelector('.pc-popup-header');
+        const body     = wrap.querySelector('.pc-body');
+        const messages = wrap.querySelector('.pc-messages');
+        const input    = wrap.querySelector('.pc-input');
+        const sendBtn  = wrap.querySelector('.pc-send-btn');
+        let minimized = false;
+
+        header.addEventListener('click', (e) => {
+            if (e.target.closest('.pc-minimize-btn') || e.target.closest('.pc-close-btn')) return;
+            toggleMinimize();
+        });
+        wrap.querySelector('.pc-minimize-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleMinimize(); });
+        wrap.querySelector('.pc-close-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openThreadIds.delete(threadId);
+            openByRecipient.delete(recipientId);
+            wrap.remove();
+        });
+
+        function toggleMinimize() {
+            minimized = !minimized;
+            body.style.display = minimized ? 'none' : 'flex';
+            wrap.style.height = minimized ? 'auto' : '360px';
+        }
+
+        function scrollToBottom() { setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 30); }
+
+        function renderMessage(m, currentUserId) {
+            const row = document.createElement('div');
+            const isMe = m.sender_id === currentUserId && !m.is_ai_message;
+            row.className = 'pc-msg-row ' + (m.is_ai_message ? 'ai' : (isMe ? 'me' : 'other'));
+            const bubble = document.createElement('div');
+            bubble.className = 'pc-bubble';
+            bubble.innerHTML = (m.is_ai_message ? '<span class="pc-ai-label">🤖 Jota4</span>' : '') + escapeHtml(m.content);
+            row.appendChild(bubble);
+            messages.appendChild(row);
+        }
+
+        sendBtn.addEventListener('click', sendMsg);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMsg(); });
+
+        async function sendMsg() {
+            const text = (input.value || '').trim();
+            if (!text) return;
+            input.value = '';
+            renderMessage({ content: text, sender_id: window.__pcCurrentUserId, is_ai_message: false }, window.__pcCurrentUserId);
+            scrollToBottom();
+            try {
+                const resp = await fetch("{% url 'private_chat_send' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ thread_id: threadId, content: text }),
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    (data.data.messages || []).slice(1).forEach(m => renderMessage(m, window.__pcCurrentUserId));
+                    scrollToBottom();
+                }
+            } catch {}
+        }
+
+        wrap._renderMessage = renderMessage;
+        wrap._messagesEl = messages;
+        wrap._scrollToBottom = scrollToBottom;
+        return wrap;
+    }
+
+    function repositionPopups() {
+        // A pilha (row-reverse) já cuida do posicionamento horizontal automaticamente
+    }
+
+    window.openPrivateChatPopup = async function (recipientId, recipientNameHint) {
+        if (openByRecipient.has(recipientId)) {
+            const existing = openThreadIds.get(openByRecipient.get(recipientId));
+            if (existing) { existing.el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); return; }
+        }
+        try {
+            const resp = await fetch("{% url 'private_chat_open' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ recipient_id: recipientId }),
+            });
+            const data = await resp.json();
+            if (!data.ok) return;
+            const { thread_id, recipient_name, messages: history } = data.data;
+            openPopupWithHistory(thread_id, recipientId, recipient_name || recipientNameHint, history);
+        } catch {}
+    };
+
+    function openPopupWithHistory(threadId, recipientId, recipientName, history) {
+        if (openThreadIds.has(threadId)) return;
+        const container = document.getElementById('pcPopupsContainer');
+        const popup = buildPopup(threadId, recipientId, recipientName);
+        container.appendChild(popup);
+        openThreadIds.set(threadId, { el: popup, recipientId, recipientName });
+        openByRecipient.set(recipientId, threadId);
+
+        (history || []).forEach(m => popup._renderMessage(m, window.__pcCurrentUserId));
+        popup._scrollToBottom();
+        repositionPopups();
+    }
+
+    function blinkPopup(threadId) {
+        const entry = openThreadIds.get(threadId);
+        if (!entry) return;
+        entry.el.classList.add('pc-blink');
+        setTimeout(() => entry.el.classList.remove('pc-blink'), 4000);
+    }
+
+    // ── Poll leve (sem LLM): detecta mensagens novas em qualquer conversa ────
+    let _pcPollRunning = false;
+    async function pollPrivateChat() {
+        if (_pcPollRunning) return;
+        _pcPollRunning = true;
+        try {
+            const resp = await fetch("{% url 'private_chat_poll' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await resp.json();
+            if (!data.ok) return;
+            const pending = data.data || [];
+
+            const badge = document.getElementById('pcLauncherBadge');
+            const totalUnread = pending.reduce((sum, p) => sum + p.unread_count, 0);
+            if (totalUnread > 0) { badge.style.display = 'block'; badge.textContent = totalUnread; }
+            else badge.style.display = 'none';
+
+            for (const item of pending) {
+                if (!openThreadIds.has(item.thread_id)) {
+                    // Conversa nova (ou reaberta) chegando — abre o popup sozinho
+                    try {
+                        const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        const d = await r.json();
+                        if (d.ok) {
+                            openPopupWithHistory(item.thread_id, item.other_user_id, item.other_user_name, d.data.messages);
+                            blinkPopup(item.thread_id);
+                        }
+                    } catch {}
+                } else {
+                    // Já está aberto — só busca as mensagens novas e pisca
+                    try {
+                        const r = await fetch(`{% url 'private_chat_messages' %}?thread_id=${item.thread_id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        const d = await r.json();
+                        if (d.ok) {
+                            const entry = openThreadIds.get(item.thread_id);
+                            entry.el._messagesEl.innerHTML = '';
+                            d.data.messages.forEach(m => entry.el._renderMessage(m, window.__pcCurrentUserId));
+                            entry.el._scrollToBottom();
+                            blinkPopup(item.thread_id);
+                        }
+                    } catch {}
+                }
+            }
+        } catch (err) {
+            console.error('[Private Chat] Erro no poll:', err);
+        } finally {
+            _pcPollRunning = false;
+        }
+    }
+
+    window.__pcCurrentUserId = {{ user.id }};
+    setTimeout(pollPrivateChat, 2000);
+    setInterval(pollPrivateChat, 4000);
+})();
+</script>
+{% endif %}

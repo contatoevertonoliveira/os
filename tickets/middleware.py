@@ -4,6 +4,7 @@ from django.urls import resolve
 from django.db.utils import OperationalError, ProgrammingError
 from django.utils import timezone
 from django.contrib.auth import logout
+from datetime import timedelta
 
 class EnsureUserProfileMiddleware:
     """
@@ -63,6 +64,14 @@ class SingleSessionPerIpMiddleware:
                         if active.user != request.user:
                             active.user = request.user
                             active.save()
+                        else:
+                            # Mantém last_activity "vivo" enquanto o usuário navega — sem isso,
+                            # o campo (auto_now) só era gravado no primeiro request da sessão,
+                            # fazendo qualquer verificação de "usuário online" parecer desatualizada
+                            # mesmo com o usuário navegando ativamente. Grava no máximo 1x/min.
+                            now = timezone.now()
+                            if (now - active.last_activity) > timedelta(minutes=1):
+                                active.save(update_fields=['last_activity'])
                 except Exception:
                     # Se der erro (ex: tabela não existe), ignora
                     pass

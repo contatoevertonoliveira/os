@@ -297,6 +297,114 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "remember_user_preference",
+        "description": (
+            "Salva permanentemente uma preferência, trejeito, forma de tratamento, gíria/termo, atalho de "
+            "criação ou padrão de trabalho do usuário ATUAL da conversa, para lembrar automaticamente em "
+            "conversas futuras (mesmo em uma sessão nova). Use sempre que perceber ou o usuário ensinar algo "
+            "sobre: como prefere ser chamado/tratado; um jeito específico de falar ou abreviar; um atalho "
+            "(ex: 'quando eu disser XPTO, é para criar OS para o cliente Y no hub Z'); um padrão recorrente "
+            "do jeito dele trabalhar (cliente que mais atende, tipo de chamado comum, equipe, etc). "
+            "Não precisa pedir permissão nem avisar toda vez que salvar — apenas salve e continue a conversa "
+            "naturalmente."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string",
+                    "description": "A preferência/aprendizado, escrito de forma clara e reutilizável em terceira pessoa (ex: 'Prefere ser chamado de Chefe', 'Quando pede OS para a Bain sem especificar hub, o hub padrão é a Loja Centro')."
+                }
+            },
+            "required": ["note"]
+        }
+    },
+    {
+        "name": "forget_user_preference",
+        "description": "Remove uma preferência/aprendizado salvo anteriormente sobre o usuário atual (via note_contains), ou apaga toda a memória dele se clear_all=true. Use quando o usuário pedir para esquecer, corrigir ou apagar algo que você aprendeu sobre ele.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "note_contains": {"type": "string", "description": "Trecho de texto para localizar e remover a(s) nota(s) correspondente(s)"},
+                "clear_all": {"type": "boolean", "description": "Se true, apaga toda a memória salva sobre o usuário atual"}
+            }
+        }
+    },
+    {
+        "name": "check_pending_alerts",
+        "description": "Verifica mensagens diretas não lidas e alertas de passagem de turno pendentes para o usuário ATUAL da conversa. Use sempre no início de uma conversa nova (e sempre que o usuário perguntar se tem mensagens/pendências) para avisar proativamente, antes de tratar do resto do pedido.",
+        "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "get_message_content",
+        "description": "Retorna o conteúdo completo de uma mensagem direta (Notification) do usuário atual, dado o notification_id retornado por check_pending_alerts. Use quando o usuário pedir para ler/ver a mensagem inteira.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "notification_id": {"type": "integer", "description": "ID da notificação/mensagem"}
+            },
+            "required": ["notification_id"]
+        }
+    },
+    {
+        "name": "mark_message_read",
+        "description": "Marca uma mensagem direta (Notification) como lida/baixa dada, para o usuário atual. Use somente depois de mostrar o conteúdo e o usuário confirmar que quer dar baixa.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "notification_id": {"type": "integer", "description": "ID da notificação/mensagem"}
+            },
+            "required": ["notification_id"]
+        }
+    },
+    {
+        "name": "acknowledge_handover_alert",
+        "description": "Dá baixa (acknowledge) em um alerta de anotação da passagem de turno para o usuário atual, dado o entry_id retornado por check_pending_alerts. Use somente depois de mostrar o conteúdo e o usuário confirmar que quer dar baixa.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entry_id": {"type": "integer", "description": "ID da anotação da passagem de turno (entry_id)"}
+            },
+            "required": ["entry_id"]
+        }
+    },
+    {
+        "name": "send_message_to_user",
+        "description": (
+            "Envia uma mensagem direta do usuário ATUAL para outro usuário do sistema (cria uma notificação "
+            "para ele). Use quando o usuário pedir para responder, avisar ou mandar recado para alguém — por "
+            "exemplo, para responder a quem acabou de mandar uma mensagem pendente (use o sender_id retornado "
+            "por check_pending_alerts/get_message_content como recipient_id). Também serve para mandar uma "
+            "mensagem nova para qualquer colaborador, mesmo sem pendência anterior."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "recipient_id": {"type": "integer", "description": "ID do usuário destinatário (preferencial quando já conhecido, ex: vindo de check_pending_alerts)"},
+                "recipient_name": {"type": "string", "description": "Nome do destinatário, caso o ID não seja conhecido (busca por nome/username)"},
+                "message": {"type": "string", "description": "Conteúdo da mensagem a enviar"},
+                "title": {"type": "string", "description": "Título da mensagem (opcional)"}
+            },
+            "required": ["message"]
+        }
+    },
+    {
+        "name": "open_private_chat",
+        "description": (
+            "Abre um chat particular instantâneo (estilo Messenger) do usuário atual com outro usuário do "
+            "sistema, para conversarem em tempo real. Use quando o usuário pedir algo como 'abre um chat "
+            "particular com o Fulano' ou 'quero falar com a Beltrana agora'. Não é para mensagens assíncronas "
+            "(isso é o send_message_to_user) — é para abrir a janela de conversa direta."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "recipient_id": {"type": "integer", "description": "ID do usuário para conversar (preferencial quando já conhecido)"},
+                "recipient_name": {"type": "string", "description": "Nome do usuário, caso o ID não seja conhecido (busca por nome/username)"}
+            }
+        }
+    },
+    {
         "name": "create_contact_client",
         "description": "Cadastra um novo contato/solicitante vinculado a um cliente (e opcionalmente a um hub/loja). Use quando o solicitante não existir na lista do cliente.",
         "parameters": {
@@ -525,6 +633,16 @@ TOOL_DEFINITIONS = [
                 "allowed": {"type": "boolean", "description": "true para permitir, false para bloquear"}
             },
             "required": ["page_id", "role_id", "allowed"]
+        }
+    },
+    {
+        "name": "get_role_page_permissions",
+        "description": "Mostra, para um nível de acesso (ou para todos os níveis se role_id não for informado), quais páginas/telas do sistema estão liberadas ou bloqueadas. Use para responder perguntas sobre o que um nível pode ou não acessar. Requer permissão de super_admin ou admin.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "role_id": {"type": "integer", "description": "ID do nível de acesso (opcional — se omitido, retorna todos os níveis)"}
+            }
         }
     },
     {
@@ -1178,6 +1296,258 @@ def _clear_chat(args, user):
     return {"ok": True, "clear_chat": True, "data": {"message": "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"}}
 
 
+AI_MEMORY_MAX_CHARS = 4000
+
+
+def _remember_user_preference(args, user):
+    from .models import AIUserMemory
+    note = (args.get("note") or "").strip()
+    if not note:
+        return {"ok": False, "error": "note é obrigatório."}
+
+    memory, _ = AIUserMemory.objects.get_or_create(user=user)
+    lines = [l.strip() for l in memory.notes.split("\n") if l.strip()]
+    lines.append(f"- {note}")
+
+    # Remove duplicatas (mantém a mais recente) sem alterar a ordem das demais
+    seen = set()
+    deduped = []
+    for line in reversed(lines):
+        key = line.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(line)
+    deduped.reverse()
+
+    # Se estourar o limite, descarta as notas mais antigas primeiro
+    while len("\n".join(deduped)) > AI_MEMORY_MAX_CHARS and len(deduped) > 1:
+        deduped.pop(0)
+
+    memory.notes = "\n".join(deduped)
+    memory.save(update_fields=['notes', 'updated_at'])
+    return {"ok": True, "data": {"saved": note}}
+
+
+def _forget_user_preference(args, user):
+    from .models import AIUserMemory
+    clear_all = bool(args.get("clear_all"))
+    note_contains = (args.get("note_contains") or "").strip().lower()
+
+    try:
+        memory = AIUserMemory.objects.get(user=user)
+    except AIUserMemory.DoesNotExist:
+        return {"ok": True, "data": {"message": "Não havia nada memorizado ainda."}}
+
+    if clear_all:
+        memory.notes = ""
+        memory.save(update_fields=['notes', 'updated_at'])
+        return {"ok": True, "data": {"message": "Toda a memória sobre você foi apagada."}}
+
+    if not note_contains:
+        return {"ok": False, "error": "Informe note_contains ou clear_all=true."}
+
+    lines = [l for l in memory.notes.split("\n") if l.strip()]
+    kept = [l for l in lines if note_contains not in l.lower()]
+    removed_count = len(lines) - len(kept)
+    memory.notes = "\n".join(kept)
+    memory.save(update_fields=['notes', 'updated_at'])
+    return {"ok": True, "data": {"removed_count": removed_count}}
+
+
+def _check_pending_alerts(args, user):
+    """Verifica mensagens diretas não lidas e alertas de passagem de turno
+    pendentes para o usuário ATUAL — usado para o Jota4 avisar proativamente
+    ao logar/abrir o chat."""
+    from .models import Notification, ShiftHandoverEntryAlert
+
+    messages_qs = (
+        Notification.objects.filter(recipient=user, notification_type='message', is_read=False)
+        .select_related('sender')
+        .order_by('-created_at')
+    )
+    unread_messages = [
+        {
+            "notification_id": n.id,
+            "sender_id": n.sender_id,
+            "sender_name": n.sender.get_full_name() or n.sender.username if n.sender else "Sistema",
+            "title": n.title,
+            "preview": (n.message or "")[:120],
+            "created_at": n.created_at.strftime("%d/%m/%Y %H:%M"),
+        }
+        for n in messages_qs
+    ]
+
+    alerts_qs = (
+        ShiftHandoverEntryAlert.objects.filter(target_user=user, acknowledged_at__isnull=True)
+        .select_related('entry', 'entry__created_by', 'entry__handover')
+        .order_by('-created_at')
+    )
+    pending_handover_alerts = [
+        {
+            "alert_id": a.id,
+            "entry_id": a.entry_id,
+            "author_name": (a.entry.created_by.get_full_name() or a.entry.created_by.username) if a.entry.created_by else "Sistema",
+            "priority": a.get_priority_display(),
+            "preview": (a.entry.text or "")[:120],
+            "shift_date": a.entry.handover.shift_date.strftime("%d/%m/%Y") if a.entry.handover else "",
+            "created_at": a.created_at.strftime("%d/%m/%Y %H:%M"),
+        }
+        for a in alerts_qs
+    ]
+
+    return {"ok": True, "data": {
+        "unread_messages": unread_messages,
+        "pending_handover_alerts": pending_handover_alerts,
+        "has_pending": bool(unread_messages or pending_handover_alerts),
+    }}
+
+
+def _get_message_content(args, user):
+    from .models import Notification
+    notification_id = args.get("notification_id")
+    if not notification_id:
+        return {"ok": False, "error": "notification_id é obrigatório."}
+    try:
+        n = Notification.objects.select_related('sender').get(pk=notification_id, recipient=user)
+    except Notification.DoesNotExist:
+        return {"ok": False, "error": "Mensagem não encontrada."}
+    return {"ok": True, "data": {
+        "notification_id": n.id,
+        "sender_id": n.sender_id,
+        "sender_name": (n.sender.get_full_name() or n.sender.username) if n.sender else "Sistema",
+        "title": n.title,
+        "message": n.message,
+        "is_read": n.is_read,
+        "created_at": n.created_at.strftime("%d/%m/%Y %H:%M"),
+    }}
+
+
+def _mark_message_read(args, user):
+    from .models import Notification
+    notification_id = args.get("notification_id")
+    if not notification_id:
+        return {"ok": False, "error": "notification_id é obrigatório."}
+    try:
+        n = Notification.objects.get(pk=notification_id, recipient=user)
+    except Notification.DoesNotExist:
+        return {"ok": False, "error": "Mensagem não encontrada."}
+    if not n.is_read:
+        n.is_read = True
+        n.read_at = timezone.now()
+        n.save(update_fields=['is_read', 'read_at'])
+    return {"ok": True, "data": {"notification_id": n.id, "message": "Mensagem marcada como lida."}}
+
+
+def _acknowledge_handover_alert(args, user):
+    from .models import ShiftHandoverEntryAlert
+    entry_id = args.get("entry_id")
+    if not entry_id:
+        return {"ok": False, "error": "entry_id é obrigatório."}
+    qs = ShiftHandoverEntryAlert.objects.filter(entry_id=entry_id, target_user=user, acknowledged_at__isnull=True)
+    updated = qs.update(acknowledged_at=timezone.now())
+    if not updated:
+        return {"ok": False, "error": "Não havia alerta pendente para dar baixa nessa anotação."}
+    return {"ok": True, "data": {"entry_id": entry_id, "message": "Baixa dada no alerta da passagem de turno."}}
+
+
+def _send_message_to_user(args, user):
+    """Envia uma mensagem direta (Notification) do usuário ATUAL para outro usuário
+    do sistema — permite o Jota4 atuar como intermediário (ex: responder, em nome
+    do usuário, a quem acabou de mandar uma mensagem pendente)."""
+    from django.contrib.auth.models import User as DjangoUser
+    from .models import Notification
+
+    message = (args.get("message") or "").strip()
+    if not message:
+        return {"ok": False, "error": "message é obrigatório."}
+
+    recipient_id = args.get("recipient_id")
+    recipient_name = (args.get("recipient_name") or "").strip()
+
+    recipient = None
+    if recipient_id:
+        recipient = DjangoUser.objects.filter(pk=recipient_id, is_active=True).first()
+        if not recipient:
+            return {"ok": False, "error": f"Destinatário ID {recipient_id} não encontrado ou inativo."}
+    elif recipient_name:
+        matches = list(DjangoUser.objects.filter(
+            Q(first_name__icontains=recipient_name) | Q(username__icontains=recipient_name),
+            is_active=True
+        )[:2])
+        if not matches:
+            return {"ok": False, "error": f"Nenhum usuário ativo encontrado com o nome '{recipient_name}'."}
+        if len(matches) > 1:
+            return {"ok": False, "error": f"Mais de um usuário encontrado com o nome '{recipient_name}'. Peça para o usuário confirmar o nome completo ou use recipient_id."}
+        recipient = matches[0]
+    else:
+        return {"ok": False, "error": "Informe recipient_id ou recipient_name."}
+
+    if recipient.id == user.id:
+        return {"ok": False, "error": "Não é possível enviar uma mensagem para si mesmo."}
+
+    title = (args.get("title") or f"Mensagem de {user.get_full_name() or user.username} (via Jota4)").strip()
+
+    Notification.objects.create(
+        recipient=recipient,
+        sender=user,
+        title=title,
+        message=message,
+        notification_type='message',
+    )
+    return {"ok": True, "data": {
+        "recipient_name": recipient.get_full_name() or recipient.username,
+        "message": "Mensagem enviada com sucesso.",
+    }}
+
+
+def _resolve_user(recipient_id, recipient_name, exclude_user):
+    """Resolve um usuário ativo por ID ou nome/username, excluindo exclude_user.
+    Retorna (user, error_message)."""
+    from django.contrib.auth.models import User as DjangoUser
+    if recipient_id:
+        u = DjangoUser.objects.filter(pk=recipient_id, is_active=True).first()
+        if not u:
+            return None, f"Destinatário ID {recipient_id} não encontrado ou inativo."
+        return u, None
+    if recipient_name:
+        matches = list(DjangoUser.objects.filter(
+            Q(first_name__icontains=recipient_name) | Q(username__icontains=recipient_name),
+            is_active=True
+        ).exclude(pk=exclude_user.id)[:2])
+        if not matches:
+            return None, f"Nenhum usuário ativo encontrado com o nome '{recipient_name}'."
+        if len(matches) > 1:
+            return None, f"Mais de um usuário encontrado com o nome '{recipient_name}'. Peça para confirmar o nome completo ou use recipient_id."
+        return matches[0], None
+    return None, "Informe recipient_id ou recipient_name."
+
+
+def _open_private_chat(args, user):
+    """Sinaliza para o front-end abrir um popup de chat particular (estilo
+    Messenger) com outro usuário — a ação de fato abrir a janela é feita pelo
+    JS ao ver 'action': 'open_private_chat' na resposta desta tool."""
+    from .models import PrivateChatThread, ActiveSession
+
+    recipient, error = _resolve_user(args.get("recipient_id"), (args.get("recipient_name") or "").strip(), user)
+    if error:
+        return {"ok": False, "error": error}
+    if recipient.id == user.id:
+        return {"ok": False, "error": "Não é possível abrir um chat particular consigo mesmo."}
+
+    a, b = sorted([user, recipient], key=lambda u: u.id)
+    thread, _ = PrivateChatThread.objects.get_or_create(user_a=a, user_b=b)
+    is_online = ActiveSession.is_user_online(recipient)
+
+    return {"ok": True, "data": {
+        "action": "open_private_chat",
+        "thread_id": thread.id,
+        "recipient_id": recipient.id,
+        "recipient_name": recipient.get_full_name() or recipient.username,
+        "is_online": is_online,
+    }}
+
+
 def _create_contact_client(args, user):
     from .models import ContactClient, Client, ClientHub
     name = args.get("name", "").strip().upper()
@@ -1714,6 +2084,56 @@ def _update_page_permission(args, user):
     }}
 
 
+def _get_role_page_permissions(args, user):
+    """Visão ampla de permissões: para um nível específico (ou todos, se role_id
+    não informado), lista cada página do sistema e se está permitida ou bloqueada
+    para aquele nível — combinando RolePagePermission com o status global (is_enabled)
+    da página."""
+    from .models import AppPage, RoleLevel, RolePagePermission
+
+    admin_role = getattr(getattr(user, 'profile', None), 'role', None)
+    if admin_role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar."}
+
+    role_id = args.get("role_id")
+    roles = RoleLevel.objects.filter(is_active=True).order_by('name')
+    if role_id is not None:
+        roles = roles.filter(pk=role_id)
+        if not roles.exists():
+            return {"ok": False, "error": f"Nível ID {role_id} não encontrado."}
+
+    pages = list(AppPage.objects.all().order_by('group', 'order', 'name'))
+    perms = {
+        (p.role_id, p.page_id): p.allowed
+        for p in RolePagePermission.objects.all()
+    }
+
+    result = []
+    for r in roles:
+        page_status = []
+        for page in pages:
+            if not page.is_enabled:
+                allowed = False
+                reason = "página desabilitada globalmente"
+            else:
+                allowed = perms.get((r.id, page.id), True)
+                reason = "" if allowed else "bloqueada para este nível"
+            page_status.append({
+                "page": page.name,
+                "url_name": page.url_name,
+                "allowed": allowed,
+                "motivo_bloqueio": reason,
+            })
+        result.append({
+            "role_id": r.id,
+            "role": r.name,
+            "code": r.code,
+            "paginas": page_status,
+        })
+
+    return {"ok": True, "data": result}
+
+
 def _can_manage_user(admin_user, target_user):
     """
     Verifica se admin_user pode gerenciar target_user.
@@ -1808,7 +2228,16 @@ def _list_all_users_admin(args, user):
                 "email": u.email or "N/A",
                 "role": user_role,
                 "active": u.is_active,
-                "last_login": u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "Nunca"
+                "last_login": u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "Nunca",
+                "ai_chat_enabled": getattr(profile, 'ai_chat_enabled', True) if profile else True,
+                "can_view_tickets": getattr(profile, 'can_view_tickets', True) if profile else True,
+                "can_create_tickets": getattr(profile, 'can_create_tickets', True) if profile else True,
+                "can_edit_tickets": getattr(profile, 'can_edit_tickets', True) if profile else True,
+                "can_delete_tickets": getattr(profile, 'can_delete_tickets', True) if profile else True,
+                "can_view_checklists": getattr(profile, 'can_view_checklists', True) if profile else True,
+                "can_create_checklists": getattr(profile, 'can_create_checklists', True) if profile else True,
+                "can_view_reports": getattr(profile, 'can_view_reports', True) if profile else True,
+                "allow_pdf_reports": getattr(profile, 'allow_pdf_reports', True) if profile else True,
             })
 
         return {"ok": True, "data": result}
@@ -1818,6 +2247,7 @@ def _list_all_users_admin(args, user):
 
 def _get_user_details_admin(args, user):
     from django.contrib.auth.models import User as DjangoUser
+    from .models import RoleLevel, RolePagePermission
 
     role = getattr(getattr(user, 'profile', None), 'role', None)
     if role not in ('admin', 'super_admin'):
@@ -1855,7 +2285,31 @@ def _get_user_details_admin(args, user):
         "token": getattr(profile, 'token', 'N/A'),
         "last_login": target_user.last_login.strftime("%d/%m/%Y %H:%M") if target_user.last_login else "Nunca",
         "date_joined": target_user.date_joined.strftime("%d/%m/%Y %H:%M"),
+        "restricoes_individuais": {
+            "ai_chat_enabled": getattr(profile, 'ai_chat_enabled', True),
+            "can_view_tickets": getattr(profile, 'can_view_tickets', True),
+            "can_create_tickets": getattr(profile, 'can_create_tickets', True),
+            "can_edit_tickets": getattr(profile, 'can_edit_tickets', True),
+            "can_delete_tickets": getattr(profile, 'can_delete_tickets', True),
+            "can_view_checklists": getattr(profile, 'can_view_checklists', True),
+            "can_create_checklists": getattr(profile, 'can_create_checklists', True),
+            "can_view_reports": getattr(profile, 'can_view_reports', True),
+            "allow_pdf_reports": getattr(profile, 'allow_pdf_reports', True),
+        },
     }
+
+    # Páginas bloqueadas para o nível de acesso deste usuário (herdadas do RoleLevel)
+    try:
+        role_code = getattr(profile, 'role', None)
+        role_obj = RoleLevel.objects.filter(code=role_code).first()
+        if role_obj:
+            blocked_pages = list(
+                RolePagePermission.objects.filter(role=role_obj, allowed=False)
+                .select_related('page').values_list('page__name', flat=True)
+            )
+            data["paginas_bloqueadas_pelo_nivel"] = blocked_pages or "Nenhuma — todas as páginas habilitadas para este nível estão liberadas"
+    except Exception:
+        pass
 
     if include_password and role == 'super_admin':
         # Apenas super_admin vê senhas
@@ -1997,6 +2451,7 @@ def _list_online_users_admin(args, user):
         return {"ok": False, "error": "Informações privilegiadas. Somente administradores podem acessar. Solicite ao gestor."}
 
     try:
+        ActiveSession.cleanup_stale()
         sessions = ActiveSession.objects.select_related('user').all().order_by('-last_activity')
 
         online_users = []
@@ -2042,6 +2497,14 @@ _TOOL_REGISTRY = {
     "update_client": _update_client,
     "create_equipment": _create_equipment,
     "clear_chat": _clear_chat,
+    "remember_user_preference": _remember_user_preference,
+    "forget_user_preference": _forget_user_preference,
+    "check_pending_alerts": _check_pending_alerts,
+    "get_message_content": _get_message_content,
+    "mark_message_read": _mark_message_read,
+    "acknowledge_handover_alert": _acknowledge_handover_alert,
+    "send_message_to_user": _send_message_to_user,
+    "open_private_chat": _open_private_chat,
     "create_contact_client": _create_contact_client,
     "create_contact_jumper": _create_contact_jumper,
     "create_hub": _create_hub,
@@ -2061,6 +2524,7 @@ _TOOL_REGISTRY = {
     "list_users": _list_users,
     "toggle_page_enabled": _toggle_page_enabled,
     "update_page_permission": _update_page_permission,
+    "get_role_page_permissions": _get_role_page_permissions,
     "update_user_restriction": _update_user_restriction,
     "list_all_users_admin": _list_all_users_admin,
     "get_user_details_admin": _get_user_details_admin,
@@ -2075,6 +2539,64 @@ _TOOL_REGISTRY = {
 SYSTEM_PROMPT = """Você é o assistente de IA do sistema JumperFour OS — um sistema de gestão de Ordens de Serviço.
 Você fala português brasileiro de forma clara e objetiva.
 
+IDENTIDADE:
+Seu nome é Jota4. Ao iniciar uma nova conversa (histórico vazio) ou quando o usuário perguntar quem você é,
+apresente-se com uma saudação de acordo com o horário atual informado (Bom dia / Boa tarde / Boa noite),
+o primeiro nome do usuário e diga que é o Jota4, assistente IA da JumperFour OS/Tickets. Exemplo:
+"Boa tarde, Everton! Eu sou o Jota4, assistente IA da JumperFour OS/Tickets. O que posso fazer por você hoje?"
+Nas demais respostas não repita essa apresentação — apenas responda normalmente, podendo se referir a si
+mesmo como Jota4 quando fizer sentido (ex: "Deixa que o Jota4 resolve isso pra você").
+
+MEMÓRIA PERSONALIZADA POR USUÁRIO — MUITO IMPORTANTE:
+Cada usuário tem sua própria memória persistente com o Jota4, que sobrevive entre conversas e sessões.
+Se a mensagem de sistema contiver um bloco "MEMÓRIA SOBRE ESTE USUÁRIO", trate essas informações como
+contexto real e já conhecido sobre ele — aja de acordo com elas desde a primeira resposta, sem precisar
+perguntar de novo ou citar que está "consultando uma memória" (é natural, como se você já conhecesse a
+pessoa do trabalho).
+Ao longo da conversa, chame a ferramenta "remember_user_preference" (sem pedir permissão, sem avisar)
+sempre que perceber ou o usuário ensinar:
+- Como prefere ser chamado/tratado (apelido, "me chama de...", forma de tratamento);
+- Um jeito específico de falar, gírias, abreviações ou termos próprios que ele usa;
+- Atalhos de criação (ex: "quando eu disser XPTO, é para abrir OS para o cliente Y no hub Z");
+- Padrões de trabalho recorrentes (cliente/hub que mais atende, tipo de chamado comum, equipe, turno,
+  equipamentos que mexe com frequência, etc).
+Se o usuário pedir para esquecer, corrigir ou apagar algo que você aprendeu sobre ele, use
+"forget_user_preference". Não invente nem salve suposições — só registre o que for dito ou observado
+claramente na conversa.
+
+MENSAGENS E ALERTAS DE PASSAGEM DE TURNO PENDENTES — MUITO IMPORTANTE:
+Se a mensagem de sistema contiver "VERIFICAÇÃO AUTOMÁTICA DE PENDÊNCIAS" (disparada quando o usuário loga
+ou abre o chat), chame IMEDIATAMENTE "check_pending_alerts" antes de qualquer outra coisa. Se houver
+mensagens diretas não lidas e/ou alertas de passagem de turno pendentes, cumprimente o usuário (saudação
+pelo horário + nome) e avise sobre o que encontrou, de forma resumida e natural — sem citar nomes de
+ferramentas. Pergunte se ele quer que você mostre o conteúdo. Exemplo:
+"Bom dia, Everton! Verifiquei aqui e o Guilherme te enviou uma mensagem. Quer que eu leia e coloque aqui
+pra você ver?"
+Depois que mostrar o conteúdo (via "get_message_content" ou o texto do alerta), pergunte se ele quer que
+você dê baixa (marque como lida/reconhecida) — e só chame "mark_message_read" ou
+"acknowledge_handover_alert" se ele confirmar. Nunca dê baixa em algo sem o usuário ter visto o conteúdo
+e confirmado.
+Fora desse gatilho automático, também use "check_pending_alerts" sempre que o usuário perguntar se tem
+mensagens, recados ou pendências de turno.
+Enquanto o usuário não der baixa, o alerta automático volta a disparar a cada novo login (a mensagem de
+sistema informará o número da tentativa) — nunca repita a mesma frase; varie o texto ficando gradualmente
+mais insistente (porém sempre educado) a cada nova tentativa, como um colega que está de olho no assunto.
+O alerta também pode disparar no meio de uma sessão já aberta, assim que uma mensagem nova chegar — não é
+só no login.
+
+VOCÊ COMO INTERLOCUTOR (RELAY DE MENSAGENS):
+Depois de mostrar uma mensagem pendente, se o usuário quiser responder (ex: "responde pra ele que já vou
+ver isso", "manda um recado pro Guilherme dizendo X"), use "send_message_to_user" para enviar a resposta
+em nome dele — use o "sender_id" retornado por check_pending_alerts/get_message_content como
+"recipient_id" quando for uma resposta direta a alguém que mandou mensagem. Você também pode mandar
+mensagens novas para qualquer colaborador quando o usuário pedir, mesmo sem pendência anterior. Sempre
+confirme o envio de forma natural (ex: "Prontinho, mandei sua resposta para o Guilherme!").
+Se o usuário quiser conversar em tempo real (não só mandar um recado avulso) — ex: "abre um chat particular
+com o Guilherme", "quero falar com a Ana agora" — use "open_private_chat" em vez de "send_message_to_user".
+Isso abre uma janela de chat instantâneo (estilo Messenger) entre os dois; dentro dessa janela, você
+(Jota4) só participa se qualquer um dos dois te chamar pelo nome na própria conversa — não é você quem
+troca as mensagens ali, é uma conversa direta entre as pessoas.
+
 Você tem acesso a ferramentas para consultar e gerenciar dados do sistema.
 
 ESCOPO DE ATUAÇÃO — MUITO IMPORTANTE:
@@ -2085,6 +2607,21 @@ Você só pode ajudar com assuntos relacionados ao sistema JumperFour OS:
 - ADMIN ONLY: Cadastrar tipos de chamado, tipos de problema, sistemas, tipos de equipamento, status de OS, técnicos, responsáveis, usuários (qualquer nível) e viagens técnicas
 - ADMIN ONLY: Gerenciar níveis de acesso, páginas, permissões e restrições de usuário (somente para Super Admin e Admin)
 - Dúvidas sobre o funcionamento do sistema
+
+VISÃO DE PERMISSÕES E RESTRIÇÕES (ADMIN/SUPER ADMIN) — MUITO IMPORTANTE:
+Você TEM visibilidade completa sobre o que está liberado ou bloqueado no sistema, tanto por nível de acesso
+quanto por usuário individual. Nunca diga que não tem como verificar isso — use as ferramentas corretas:
+- "list_all_users_admin" retorna, para TODOS os usuários de uma vez, o Chat IA e cada restrição individual
+  (can_view_tickets, can_create_tickets, can_edit_tickets, can_delete_tickets, can_view_checklists,
+  can_create_checklists, can_view_reports, allow_pdf_reports) — use quando o usuário perguntar sobre o
+  estado de vários usuários ao mesmo tempo (ex: "os demais continuam bloqueados?").
+- "get_user_details_admin" retorna o mesmo detalhamento para UM usuário específico, incluindo também as
+  páginas bloqueadas herdadas do nível de acesso dele (campo "paginas_bloqueadas_pelo_nivel").
+- "get_role_page_permissions" retorna, para um nível de acesso (ou todos, se role_id não for informado),
+  quais páginas/telas estão liberadas ou bloqueadas para aquele nível.
+Combine essas ferramentas para responder com precisão perguntas sobre "quem tem acesso a quê", "o que está
+bloqueado para o nível X" ou "esse usuário pode fazer Y". Restrição individual (por usuário) sempre se
+soma às permissões de página do nível — ambas podem bloquear algo independentemente uma da outra.
 
 REGRA GERAL DE CADASTROS: você tem uma ferramenta "create_*" para TODO cadastro disponível no sistema
 (cliente, equipamento, tipo de equipamento, contato de cliente, profissional JumperFour, hub/loja,

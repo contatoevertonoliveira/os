@@ -8,8 +8,9 @@ from django.http import JsonResponse
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.utils import timezone
 
-from .models import SystemSettings, AIChatSession, AIChatMessage
+from .models import SystemSettings, AIChatSession, AIChatMessage, AIUserMemory
 from .ai_service import run_agent
 from .ai_tools import TOOL_DEFINITIONS, SYSTEM_PROMPT, execute_tool
 
@@ -57,11 +58,12 @@ class AIChatView(LoginRequiredMixin, View):
 
         user_message = (body.get("message") or "").strip()
         session_id = body.get("session_id")
+        is_proactive_check = bool(body.get("proactive_check"))
 
-        if not user_message:
+        if not user_message and not is_proactive_check:
             return JsonResponse({"ok": False, "error": "Mensagem vazia."}, status=400)
 
-        if _is_clear_chat_request(user_message):
+        if not is_proactive_check and _is_clear_chat_request(user_message):
             AIChatSession.objects.filter(user=request.user).delete()
             new_session = AIChatSession.objects.create(user=request.user, title="Nova conversa")
             AIChatMessage.objects.create(session=new_session, role='assistant', content=CLEAR_CHAT_CONFIRMATION)
@@ -85,11 +87,13 @@ class AIChatView(LoginRequiredMixin, View):
         if not session:
             session = AIChatSession.objects.create(
                 user=request.user,
-                title=user_message[:80],
+                title=user_message[:80] if user_message else "Nova conversa",
             )
 
-        # Salva mensagem do usuário
-        AIChatMessage.objects.create(session=session, role='user', content=user_message)
+        # Salva mensagem do usuário — a verificação proativa (login) é disparada pelo
+        # sistema, não pelo usuário, então não vira uma mensagem no histórico visível.
+        if not is_proactive_check:
+            AIChatMessage.objects.create(session=session, role='user', content=user_message)
 
         # Monta histórico para enviar ao modelo (últimas 20 mensagens para não estourar contexto)
         history = list(
@@ -99,20 +103,57 @@ class AIChatView(LoginRequiredMixin, View):
         visible_history = [m for m in history if m['role'] in ('user', 'assistant')]
 
         first_name = (request.user.first_name or request.user.username).split()[0]
-        system_with_user = SYSTEM_PROMPT + f"\n\nUSUÁRIO ATUAL: {first_name}. Use o primeiro nome dele ocasionalmente para tornar a conversa mais natural — não em todas as mensagens, apenas em perguntas, confirmações ou quando fizer sentido humanizar."
+        is_new_conversation = len(visible_history) <= 1
+        current_hour = timezone.localtime(timezone.now()).hour
+
+        memory = AIUserMemory.objects.filter(user=request.user).first()
+        memory_notes = (memory.notes.strip() if memory else "")
+
+        system_with_user = (
+            SYSTEM_PROMPT
+            + f"\n\nUSUÁRIO ATUAL: {first_name}. Use o primeiro nome dele ocasionalmente para tornar a conversa mais natural — não em todas as mensagens, apenas em perguntas, confirmações ou quando fizer sentido humanizar."
+            + (f"\n\nMEMÓRIA SOBRE ESTE USUÁRIO (aprendida em conversas anteriores):\n{memory_notes}" if memory_notes else "")
+            + f"\n\nHORÁRIO ATUAL: {current_hour}h (use para escolher Bom dia/Boa tarde/Boa noite quando for se apresentar)."
+            + (
+                "\n\nESTA É A PRIMEIRA MENSAGEM DESTA CONVERSA — apresente-se como instruído em IDENTIDADE antes de responder ao pedido do usuário."
+                if is_new_conversation
+                else "\n\nEsta conversa já está em andamento — NÃO se apresente novamente, apenas responda normalmente."
+            )
+        )
 
         messages = [{"role": "system", "content": system_with_user}] + [
             {"role": m["role"], "content": m["content"]}
             for m in visible_history[-20:]
         ]
 
+        if is_proactive_check:
+            attempt_number = 1
+            if user_profile:
+                user_profile.ai_proactive_alert_count = (user_profile.ai_proactive_alert_count or 0) + 1
+                user_profile.save(update_fields=['ai_proactive_alert_count'])
+                attempt_number = user_profile.ai_proactive_alert_count
+
+            messages.append({
+                "role": "user",
+                "content": (
+                    "[VERIFICAÇÃO AUTOMÁTICA DE PENDÊNCIAS — disparada pelo sistema porque acabei de logar/abrir "
+                    f"o chat, não é uma mensagem digitada por mim. Esta é a {attempt_number}ª vez que você me "
+                    "aborda sobre essas pendências sem eu ter dado baixa ainda (conte a partir de 1). Chame "
+                    "check_pending_alerts e me avise — varie a frase e o tom conforme o número da tentativa: "
+                    "na 1ª seja normal e direto; da 2ª em diante, reconheça com leveza/humor que já tinha "
+                    "avisado antes (ex: 'de novo, rs'); da 3ª em diante, seja mais insistente mas educado, "
+                    "peça desculpas pela insistência e pergunte se já se inteirou do assunto e se pode dar baixa.]"
+                ),
+            })
+
         # Executor de tools que injeta o usuário atual; rastreia se clear_chat foi chamado
         # e se alguma tool alterou uma OS (para o front-end saber que precisa
         # atualizar a lista sem esperar um F5 do usuário).
-        _clear_requested   = {"value": False}
-        _new_ticket        = {"id": None, "formatted_id": None}
-        _updated_ticket_id = {"value": None}
-        _list_changed      = {"value": False}
+        _clear_requested    = {"value": False}
+        _new_ticket         = {"id": None, "formatted_id": None}
+        _updated_ticket_id  = {"value": None}
+        _list_changed       = {"value": False}
+        _open_private_chat  = {"value": None}
 
         def tool_executor(tool_name, args):
             result = execute_tool(tool_name, args, request.user)
@@ -128,6 +169,12 @@ class AIChatView(LoginRequiredMixin, View):
                 _list_changed["value"] = True
             elif tool_name == "delete_ticket" and result.get("ok"):
                 _list_changed["value"] = True
+            elif tool_name == "open_private_chat" and result.get("ok"):
+                _open_private_chat["value"] = {
+                    "thread_id": data.get("thread_id"),
+                    "recipient_id": data.get("recipient_id"),
+                    "recipient_name": data.get("recipient_name"),
+                }
             return result
 
         # Chama o agente
@@ -145,7 +192,7 @@ class AIChatView(LoginRequiredMixin, View):
             AIChatMessage.objects.create(session=session, role='assistant', content=response_text)
 
             # Atualiza título da sessão se for a primeira resposta
-            if session.messages.count() <= 2:
+            if user_message and session.messages.count() <= 2:
                 session.title = user_message[:80]
                 session.save(update_fields=['title', 'updated_at'])
             else:
@@ -160,7 +207,67 @@ class AIChatView(LoginRequiredMixin, View):
             "new_ticket_formatted_id": _new_ticket["formatted_id"],
             "updated_ticket_id": _updated_ticket_id["value"],
             "ticket_list_changed": _list_changed["value"],
+            "open_private_chat": _open_private_chat["value"],
         })
+
+
+class AIChatProactiveCheckView(LoginRequiredMixin, View):
+    """
+    GET /ai/chat/proactive-check/ — chamada pelo widget periodicamente (poll leve,
+    sem LLM) para decidir se o Jota4 deve abrir sozinho e avisar sobre mensagens
+    diretas ou alertas de passagem de turno pendentes.
+
+    Só dispara quando há algo NOVO desde a última vez que avisou nesta sessão
+    (comparando os IDs pendentes com os já avisados, guardados na sessão) — assim
+    o poll pode rodar a cada ~30s sem custo de tokens, e só aciona o agente (que
+    aí sim consome tokens) quando realmente chegou algo novo. Isso cobre tanto o
+    caso "acabou de logar" quanto "já estava logado e alguém mandou mensagem agora".
+
+    Quando não há mais nada pendente, o contador de insistência (usado para variar
+    o tom do aviso a cada nova tentativa) é zerado, e a sessão esquece os IDs já
+    avisados — então uma pendência futura começa do zero.
+    """
+
+    def get(self, request):
+        settings_obj = _get_settings()
+        profile = getattr(request.user, 'profile', None)
+        is_super_admin = profile and profile.role == 'super_admin'
+
+        if not settings_obj.ai_enabled or (profile and not profile.ai_chat_enabled and not is_super_admin):
+            return JsonResponse({"ok": True, "should_alert": False})
+
+        from .models import Notification, ShiftHandoverEntryAlert
+
+        current_notification_ids = set(
+            Notification.objects.filter(
+                recipient=request.user, notification_type='message', is_read=False
+            ).values_list('id', flat=True)
+        )
+        current_alert_ids = set(
+            ShiftHandoverEntryAlert.objects.filter(
+                target_user=request.user, acknowledged_at__isnull=True
+            ).values_list('id', flat=True)
+        )
+
+        if not current_notification_ids and not current_alert_ids:
+            request.session['ai_alerted_notification_ids'] = []
+            request.session['ai_alerted_handover_alert_ids'] = []
+            if profile and profile.ai_proactive_alert_count:
+                profile.ai_proactive_alert_count = 0
+                profile.save(update_fields=['ai_proactive_alert_count'])
+            return JsonResponse({"ok": True, "should_alert": False})
+
+        already_notification_ids = set(request.session.get('ai_alerted_notification_ids') or [])
+        already_alert_ids = set(request.session.get('ai_alerted_handover_alert_ids') or [])
+
+        has_new = bool(current_notification_ids - already_notification_ids) or bool(current_alert_ids - already_alert_ids)
+        if not has_new:
+            return JsonResponse({"ok": True, "should_alert": False})
+
+        request.session['ai_alerted_notification_ids'] = list(current_notification_ids)
+        request.session['ai_alerted_handover_alert_ids'] = list(current_alert_ids)
+
+        return JsonResponse({"ok": True, "should_alert": True})
 
 
 class AIChatTestView(LoginRequiredMixin, View):

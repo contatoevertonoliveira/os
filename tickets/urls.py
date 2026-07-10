@@ -1,6 +1,10 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
-from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView
+from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView, AIChatProactiveCheckView
+from .views_private_chat import (
+    PrivateChatOnlineUsersView, PrivateChatOpenView, PrivateChatMessagesView,
+    PrivateChatSendView, PrivateChatPollView,
+)
 from .views import (
     DashboardView, HubDashboardView, TicketListView, TicketCreateView, TicketCreateModalView, TicketAccordionItemView, TicketMiniPreviewView, TicketUpdateView, TicketDeleteView, TicketDetailView, TicketModalView, TicketInlineView, TokenLoginView,
     ticket_status_html,
@@ -211,4 +215,12 @@ urlpatterns = [
     path('ai/chat/new/', AIChatNewSessionView.as_view(), name='ai_chat_new'),
     path('ai/chat/history/', AIChatHistoryView.as_view(), name='ai_chat_history'),
     path('ai/chat/test/', AIChatTestView.as_view(), name='ai_chat_test'),
+    path('ai/chat/proactive-check/', AIChatProactiveCheckView.as_view(), name='ai_chat_proactive_check'),
+
+    # Chat Particular (1:1 entre usuários, estilo Messenger)
+    path('chat/private/online-users/', PrivateChatOnlineUsersView.as_view(), name='private_chat_online_users'),
+    path('chat/private/open/', PrivateChatOpenView.as_view(), name='private_chat_open'),
+    path('chat/private/messages/', PrivateChatMessagesView.as_view(), name='private_chat_messages'),
+    path('chat/private/send/', PrivateChatSendView.as_view(), name='private_chat_send'),
+    path('chat/private/poll/', PrivateChatPollView.as_view(), name='private_chat_poll'),
 ]

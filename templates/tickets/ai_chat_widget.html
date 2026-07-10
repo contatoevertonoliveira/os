@@ -24,7 +24,7 @@
                 <i class="fas fa-robot" style="font-size:1.15rem;"></i>
                 <div>
                     <div style="font-weight:700;font-size:.9rem;line-height:1.15;">JumperFour IA</div>
-                    <div style="font-size:.7rem;opacity:.85;" id="aiProviderLabel">Assistente inteligente</div>
+                    <div style="font-size:.7rem;opacity:.85;" id="aiProviderLabel">JotaQuatro · Assistente IA</div>
                 </div>
             </div>
             <div style="display:flex;gap:5px;">
@@ -595,8 +595,11 @@
 
     function showWelcome() {
         messages.innerHTML = '';
+        const hour = new Date().getHours();
+        const saudacao = hour < 12 ? 'Bom dia' : (hour < 18 ? 'Boa tarde' : 'Boa noite');
+        const firstName = "{{ user.first_name|default:user.username|escapejs }}".split(' ')[0];
         appendMessage('assistant',
-            '👋 Olá! Sou o assistente JumperFour IA.\n' +
+            '👋 ' + saudacao + ', ' + firstName + '! Eu sou o Jota4, assistente IA da JumperFour OS/Tickets.\n' +
             'Posso criar, editar, evoluir ou excluir OS, cadastrar clientes e equipamentos.\n\n' +
             '**Exemplos:**\n' +
             '• "Quero abrir um chamado para a Bain"\n' +
@@ -650,6 +653,10 @@
                     } else if (data.ticket_list_changed && typeof window.reorderTicketsList === 'function') {
                         // Ex.: exclusão de OS — não há ticket específico para destacar, só recarrega a lista
                         window.reorderTicketsList();
+                    }
+                    // Pediu para abrir um chat particular com outro usuário
+                    if (data.open_private_chat && typeof window.openPrivateChatPopup === 'function') {
+                        window.openPrivateChatPopup(data.open_private_chat.recipient_id, data.open_private_chat.recipient_name);
                     }
                 }
             } else {
@@ -724,6 +731,59 @@
         if (v.length === 2) return v.pop().split(';').shift();
         return '';
     }
+
+    // ── Alerta proativo (mensagens diretas / passagem de turno pendentes) ──
+    // Roda uma vez por página carregada; o backend só devolve should_alert=true
+    // no máximo 1x por dia por usuário (ver AIChatProactiveCheckView).
+    function waitHistoryLoaded() {
+        return new Promise((resolve) => {
+            (function check() {
+                if (_historyLoaded) resolve(); else setTimeout(check, 100);
+            })();
+        });
+    }
+
+    let _proactiveCheckRunning = false;
+
+    async function runProactiveCheck() {
+        if (_proactiveCheckRunning) return;
+        _proactiveCheckRunning = true;
+        try {
+            const resp = await fetch("{% url 'ai_chat_proactive_check' %}", {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await resp.json();
+            if (!data.ok || !data.should_alert) return;
+
+            if (!_isOpen) aiChatToggle();
+            await waitHistoryLoaded();
+
+            typing.style.display = 'block';
+            scrollToBottom();
+            const chatResp = await fetch("{% url 'ai_chat' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ proactive_check: true, session_id: _sessionId }),
+            });
+            const chatData = await chatResp.json();
+            typing.style.display = 'none';
+            if (chatData.ok) {
+                saveSessionId(chatData.session_id);
+                appendMessage('assistant', chatData.response);
+                scrollToBottom();
+            }
+        } catch (err) {
+            console.error('[AI Chat] Erro na verificação proativa:', err);
+        } finally {
+            _proactiveCheckRunning = false;
+        }
+    }
+
+    // Primeira checagem logo após carregar a página, depois um poll leve (sem
+    // custo de LLM — só consulta se há algo novo) enquanto a página ficar aberta,
+    // pra captar mensagens/alertas que chegarem no meio da sessão, não só no login.
+    setTimeout(runProactiveCheck, 1500);
+    setInterval(runProactiveCheck, 30000);
 })();
 </script>
 {% endif %}

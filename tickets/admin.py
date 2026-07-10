@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage, AIUserMemory, PrivateChatThread, PrivateChatMessage
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -108,4 +108,26 @@ class AIChatSessionAdmin(admin.ModelAdmin):
     list_filter = ('user',)
     search_fields = ('user__username', 'title')
     inlines = [AIChatMessageInline]
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AIUserMemory)
+class AIUserMemoryAdmin(admin.ModelAdmin):
+    list_display = ('user', 'updated_at')
+    search_fields = ('user__username', 'user__first_name', 'notes')
+    readonly_fields = ('updated_at',)
+
+
+class PrivateChatMessageInline(admin.TabularInline):
+    model = PrivateChatMessage
+    extra = 0
+    readonly_fields = ('sender', 'content', 'is_ai_message', 'created_at')
+    can_delete = False
+
+
+@admin.register(PrivateChatThread)
+class PrivateChatThreadAdmin(admin.ModelAdmin):
+    list_display = ('user_a', 'user_b', 'created_at', 'updated_at')
+    search_fields = ('user_a__username', 'user_b__username')
+    inlines = [PrivateChatMessageInline]
     readonly_fields = ('created_at', 'updated_at')
