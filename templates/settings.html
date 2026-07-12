@@ -24,7 +24,7 @@
             <a class="list-group-item list-group-item-action disabled" href="#" tabindex="-1" aria-disabled="true">
                 <i class="fas fa-users-cog me-2"></i> Permissões
             </a>
-            <a class="list-group-item list-group-item-action disabled" href="#" tabindex="-1" aria-disabled="true">
+            <a class="list-group-item list-group-item-action" id="list-integrations" data-bs-toggle="list" href="#tab-integrations" role="tab" aria-controls="tab-integrations">
                 <i class="fas fa-plug me-2"></i> Integrações
             </a>
             <a class="list-group-item list-group-item-action disabled" href="#" tabindex="-1" aria-disabled="true">
@@ -267,6 +267,165 @@
                             Anthropic → <code>claude-haiku-4-5-20251001</code> &nbsp;|&nbsp;
                             Gemini → <code>gemini-2.0-flash</code>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrações -->
+            <div class="tab-pane fade" id="tab-integrations" role="tabpanel" aria-labelledby="list-integrations">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-plug me-2 text-success"></i>Busca na Internet</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-4">
+                            Usado pelo Jota4 para pesquisar informações reais na web quando você pedir — endereços,
+                            telefones, contatos, e-mails, razão social de empresas ou especificações de equipamento.
+                            Sem isso configurado, o Jota4 avisa que a busca não está disponível em vez de inventar uma resposta.
+                        </p>
+                        <form method="post" id="searchIntegrationForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="_tab" value="integrations">
+
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Provedor de Busca</label>
+                                <select name="search_provider" id="id_search_provider" class="form-select" style="max-width: 300px;">
+                                    <option value="google" {% if system_settings.search_provider == 'google' %}selected{% endif %}>Google Custom Search</option>
+                                    <option value="tavily" {% if system_settings.search_provider == 'tavily' %}selected{% endif %}>Tavily</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">Só o provedor selecionado aqui é usado pelo Jota4 — as chaves dos dois ficam salvas, então dá pra trocar sem perder a configuração.</small>
+                            </div>
+
+                            <!-- Google Custom Search -->
+                            <div id="searchProviderGoogle" class="border rounded-3 p-3 mb-3">
+                                <div class="fw-semibold small text-uppercase text-muted mb-3">Google Custom Search</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">ID do Mecanismo de Busca (cx)</label>
+                                        <input type="text" name="google_search_engine_id" id="id_google_search_engine_id"
+                                               class="form-control" placeholder="Ex: a1b2c3d4e5f6g7h8i"
+                                               value="{{ system_settings.google_search_engine_id|default:'' }}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Chave de API</label>
+                                        <div class="input-group">
+                                            <input type="password" name="google_search_api_key" id="id_google_search_api_key"
+                                                   class="form-control" autocomplete="off"
+                                                   placeholder="{% if system_settings.google_search_api_key %}Deixe em branco para manter a chave atual{% else %}Cole sua chave aqui...{% endif %}">
+                                            <button type="button" class="btn btn-outline-secondary" id="toggleGoogleApiKey" title="Mostrar/Ocultar">
+                                                <i class="fas fa-eye" id="toggleGoogleApiKeyIcon"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Chave em <a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com</a>
+                                    (habilite a API "Custom Search API") e o mecanismo em
+                                    <a href="https://programmablesearchengine.google.com/controlpanel/create" target="_blank">programmablesearchengine.google.com</a>
+                                    (ative "Pesquisar em toda a Web" nas configurações básicas). Exige faturamento ativo no projeto do Google Cloud.
+                                </small>
+                            </div>
+
+                            <!-- Tavily -->
+                            <div id="searchProviderTavily" class="border rounded-3 p-3 mb-3">
+                                <div class="fw-semibold small text-uppercase text-muted mb-3">Tavily</div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Chave de API</label>
+                                        <div class="input-group">
+                                            <input type="password" name="tavily_api_key" id="id_tavily_api_key"
+                                                   class="form-control" autocomplete="off"
+                                                   placeholder="{% if system_settings.tavily_api_key %}Deixe em branco para manter a chave atual{% else %}tvly-...{% endif %}">
+                                            <button type="button" class="btn btn-outline-secondary" id="toggleTavilyApiKey" title="Mostrar/Ocultar">
+                                                <i class="fas fa-eye" id="toggleTavilyApiKeyIcon"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Chave em <a href="https://app.tavily.com" target="_blank">app.tavily.com</a> — não pede cartão de crédito, 1.000 buscas/mês grátis.
+                                </small>
+                            </div>
+
+                            <div class="mt-3 p-3 border rounded-3 bg-light">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div>
+                                        <div class="fw-semibold mb-1"><i class="fas fa-plug me-1 text-success"></i>Testar Busca</div>
+                                        <small class="text-muted">Testa o provedor selecionado acima, com os valores informados (sem precisar salvar primeiro).</small>
+                                    </div>
+                                    <button type="button" id="btnTestSearch" class="btn btn-outline-success">
+                                        <i class="fas fa-vial me-1"></i> Testar agora
+                                    </button>
+                                </div>
+                                <div id="searchTestResult" class="mt-3 d-none">
+                                    <div id="searchTestResultInner" class="alert mb-0 py-2 small"></div>
+                                </div>
+                            </div>
+
+                            <hr class="my-4">
+
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Provedor de Voz (Text-to-Speech)</label>
+                                <select name="tts_provider" id="id_tts_provider" class="form-select" style="max-width: 300px;">
+                                    <option value="browser" {% if system_settings.tts_provider == 'browser' %}selected{% endif %}>Navegador (gratuito)</option>
+                                    <option value="google" {% if system_settings.tts_provider == 'google' %}selected{% endif %}>Google Cloud Text-to-Speech</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">
+                                    Decide como o Jota4 fala as respostas quando o usuário ativa "Respostas em voz alta" em Meu Perfil.
+                                    "Navegador" é grátis mas soa robotizada; "Google Cloud" tem voz natural, mas exige chave própria e cobra por caractere.
+                                </small>
+                            </div>
+
+                            <div id="ttsProviderGoogle" class="border rounded-3 p-3 mb-3">
+                                <div class="fw-semibold small text-uppercase text-muted mb-3">Google Cloud Text-to-Speech</div>
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label fw-semibold">Chave de API</label>
+                                        <div class="input-group">
+                                            <input type="password" name="google_tts_api_key" id="id_google_tts_api_key"
+                                                   class="form-control" autocomplete="off"
+                                                   placeholder="{% if system_settings.google_tts_api_key %}Deixe em branco para manter a chave atual{% else %}Cole sua chave aqui...{% endif %}">
+                                            <button type="button" class="btn btn-outline-secondary" id="toggleTtsApiKey" title="Mostrar/Ocultar">
+                                                <i class="fas fa-eye" id="toggleTtsApiKeyIcon"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Voz de teste</label>
+                                        <select id="id_tts_test_voice" class="form-select">
+                                            <option value="female">Feminina</option>
+                                            <option value="male">Masculina</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Chave em <a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com</a>
+                                    (habilite a API "Cloud Text-to-Speech API" — é uma API diferente da "Custom Search API").
+                                    Exige faturamento ativo no projeto do Google Cloud, igual à busca.
+                                </small>
+                            </div>
+
+                            <div class="mt-3 p-3 border rounded-3 bg-light">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div>
+                                        <div class="fw-semibold mb-1"><i class="fas fa-volume-high me-1 text-success"></i>Testar Voz</div>
+                                        <small class="text-muted">Sintetiza uma frase de teste com a chave acima e já toca o áudio, pra você ouvir a qualidade na hora.</small>
+                                    </div>
+                                    <button type="button" id="btnTestTts" class="btn btn-outline-success">
+                                        <i class="fas fa-vial me-1"></i> Testar agora
+                                    </button>
+                                </div>
+                                <div id="ttsTestResult" class="mt-3 d-none">
+                                    <div id="ttsTestResultInner" class="alert mb-0 py-2 small"></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-primary-custom">
+                                    <i class="fas fa-save me-1"></i> Salvar Integrações
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -538,12 +697,159 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Reabrir o tab correto após salvar (baseado em ?tab=ai na URL)
+    // Mostra só o bloco do provedor selecionado (as chaves dos dois continuam
+    // salvas nos bastidores — só o select decide qual o Jota4 usa de fato).
+    const providerSelectEl = document.getElementById('id_search_provider');
+    const googleBlock = document.getElementById('searchProviderGoogle');
+    const tavilyBlock = document.getElementById('searchProviderTavily');
+    function updateSearchProviderVisibility() {
+        const isGoogle = providerSelectEl.value === 'google';
+        googleBlock.classList.toggle('d-none', !isGoogle);
+        tavilyBlock.classList.toggle('d-none', isGoogle);
+    }
+    if (providerSelectEl) {
+        providerSelectEl.addEventListener('change', updateSearchProviderVisibility);
+        updateSearchProviderVisibility();
+    }
+
+    // Mostrar/ocultar chave de API (Google e Tavily)
+    function wireToggleKey(btnId, inputId, iconId) {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        if (!btn || !input) return;
+        btn.addEventListener('click', function () {
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    }
+    wireToggleKey('toggleGoogleApiKey', 'id_google_search_api_key', 'toggleGoogleApiKeyIcon');
+    wireToggleKey('toggleTavilyApiKey', 'id_tavily_api_key', 'toggleTavilyApiKeyIcon');
+
+    // Botão Testar Busca — testa o provedor atualmente selecionado no <select>
+    const btnTestSearch = document.getElementById('btnTestSearch');
+    const searchTestResult = document.getElementById('searchTestResult');
+    const searchTestResultInner = document.getElementById('searchTestResultInner');
+    if (btnTestSearch) {
+        btnTestSearch.addEventListener('click', async function () {
+            const provider = providerSelectEl?.value || 'google';
+            const engineId = document.getElementById('id_google_search_engine_id')?.value || '';
+            const googleApiKey = document.getElementById('id_google_search_api_key')?.value || '';
+            const tavilyApiKey = document.getElementById('id_tavily_api_key')?.value || '';
+
+            btnTestSearch.disabled = true;
+            btnTestSearch.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
+            searchTestResult.classList.add('d-none');
+
+            try {
+                const resp = await fetch("{% url 'search_integration_test' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('#searchIntegrationForm [name=csrfmiddlewaretoken]')?.value || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        provider: provider,
+                        google_api_key: googleApiKey,
+                        engine_id: engineId,
+                        tavily_api_key: tavilyApiKey,
+                    }),
+                });
+                const data = await resp.json();
+                searchTestResult.classList.remove('d-none');
+                if (data.ok) {
+                    searchTestResultInner.className = 'alert alert-success mb-0 py-2 small';
+                    searchTestResultInner.innerHTML = `<i class="fas fa-check-circle me-1"></i> <strong>Conexão bem-sucedida!</strong> ${data.message}`;
+                } else {
+                    searchTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                    searchTestResultInner.innerHTML = `<i class="fas fa-times-circle me-1"></i> <strong>Falha na conexão:</strong> ${data.error}`;
+                }
+            } catch (err) {
+                searchTestResult.classList.remove('d-none');
+                searchTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                searchTestResultInner.innerHTML = '<i class="fas fa-times-circle me-1"></i> Erro inesperado ao testar. Verifique o console.';
+            } finally {
+                btnTestSearch.disabled = false;
+                btnTestSearch.innerHTML = '<i class="fas fa-vial me-1"></i> Testar agora';
+            }
+        });
+    }
+
+    // Mostra o bloco de configuração do Google TTS só quando ele é o provedor selecionado
+    const ttsProviderSelectEl = document.getElementById('id_tts_provider');
+    const ttsGoogleBlock = document.getElementById('ttsProviderGoogle');
+    function updateTtsProviderVisibility() {
+        ttsGoogleBlock.classList.toggle('d-none', ttsProviderSelectEl.value !== 'google');
+    }
+    if (ttsProviderSelectEl) {
+        ttsProviderSelectEl.addEventListener('change', updateTtsProviderVisibility);
+        updateTtsProviderVisibility();
+    }
+    wireToggleKey('toggleTtsApiKey', 'id_google_tts_api_key', 'toggleTtsApiKeyIcon');
+
+    // Botão Testar Voz — sintetiza e já toca o áudio de teste
+    const btnTestTts = document.getElementById('btnTestTts');
+    const ttsTestResult = document.getElementById('ttsTestResult');
+    const ttsTestResultInner = document.getElementById('ttsTestResultInner');
+    let _ttsTestAudio = null;
+    if (btnTestTts) {
+        btnTestTts.addEventListener('click', async function () {
+            const apiKey = document.getElementById('id_google_tts_api_key')?.value || '';
+            const voiceGender = document.getElementById('id_tts_test_voice')?.value || 'female';
+
+            btnTestTts.disabled = true;
+            btnTestTts.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
+            ttsTestResult.classList.add('d-none');
+
+            try {
+                const resp = await fetch("{% url 'tts_integration_test' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('#searchIntegrationForm [name=csrfmiddlewaretoken]')?.value || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ api_key: apiKey, voice_gender: voiceGender }),
+                });
+
+                ttsTestResult.classList.remove('d-none');
+                const contentType = resp.headers.get('Content-Type') || '';
+
+                if (resp.ok && contentType.includes('audio')) {
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    if (_ttsTestAudio) { _ttsTestAudio.pause(); }
+                    _ttsTestAudio = new Audio(url);
+                    _ttsTestAudio.play();
+                    ttsTestResultInner.className = 'alert alert-success mb-0 py-2 small';
+                    ttsTestResultInner.innerHTML = '<i class="fas fa-check-circle me-1"></i> <strong>Conexão bem-sucedida!</strong> Tocando o áudio de teste...';
+                } else {
+                    const data = await resp.json();
+                    ttsTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                    ttsTestResultInner.innerHTML = `<i class="fas fa-times-circle me-1"></i> <strong>Falha na conexão:</strong> ${data.error}`;
+                }
+            } catch (err) {
+                ttsTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                ttsTestResultInner.innerHTML = '<i class="fas fa-times-circle me-1"></i> Erro inesperado ao testar. Verifique o console.';
+            } finally {
+                btnTestTts.disabled = false;
+                btnTestTts.innerHTML = '<i class="fas fa-vial me-1"></i> Testar agora';
+            }
+        });
+    }
+
+    // Reabrir o tab correto após salvar (baseado em ?tab=X na URL)
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
-    if (tabParam === 'ai') {
-        const aiTab = document.getElementById('list-ai');
-        if (aiTab) bootstrap.Tab.getOrCreateInstance(aiTab).show();
+    if (tabParam === 'ai' || tabParam === 'integrations') {
+        const tabLink = document.getElementById(tabParam === 'ai' ? 'list-ai' : 'list-integrations');
+        if (tabLink) bootstrap.Tab.getOrCreateInstance(tabLink).show();
     }
 });
 </script>

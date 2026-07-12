@@ -701,10 +701,11 @@ class UserProfileForm(forms.ModelForm):
         # não renderiza o checkbox, o ModelForm gravava False a cada salvamento (checkbox
         # ausente = não enviado = False), fazendo o Chat IA sumir. É uma permissão
         # gerenciada apenas pela tela de Permissões.
-        # 'voice_wakeword_enabled' é preferência do próprio usuário (diferente de
-        # ai_chat_enabled) — o checkbox É renderizado sempre em profile.html, então
-        # não sofre o mesmo problema.
-        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role', 'voice_wakeword_enabled']
+        # 'voice_wakeword_enabled', 'tts_enabled' e 'tts_voice_gender' são preferências do
+        # próprio usuário (diferente de ai_chat_enabled) — os campos SÃO sempre renderizados
+        # em profile.html, então não sofrem o mesmo problema.
+        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role',
+                  'voice_wakeword_enabled', 'tts_enabled', 'tts_voice_gender']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
@@ -712,6 +713,8 @@ class UserProfileForm(forms.ModelForm):
             'personal_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 00000-0000'}),
             'company_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
             'voice_wakeword_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'tts_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'tts_voice_gender': forms.Select(attrs={'class': 'form-select form-select-sm'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -733,10 +736,11 @@ class UserProfileForm(forms.ModelForm):
             self.fields['station'].disabled = True # Assuming station is assigned by admin
             self.fields['job_title'].disabled = True
 
-        # Escuta por voz só faz sentido se o Chat IA estiver ativo pra este usuário
-        # (ai_chat_enabled é gerenciado só pela tela de Permissões, não por este form).
+        # Escuta/resposta por voz só fazem sentido se o Chat IA estiver ativo pra este
+        # usuário (ai_chat_enabled é gerenciado só pela tela de Permissões, não por este form).
         if self.instance and not getattr(self.instance, 'ai_chat_enabled', True):
             self.fields['voice_wakeword_enabled'].disabled = True
+            self.fields['tts_enabled'].disabled = True
 
     def save(self, commit=True):
         profile = super().save(commit=False)

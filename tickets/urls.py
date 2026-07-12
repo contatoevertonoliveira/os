@@ -1,6 +1,6 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
-from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView, AIChatProactiveCheckView
+from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView, AIChatProactiveCheckView, AITTSView
 from .views_private_chat import (
     PrivateChatContactsView, PrivateChatOpenView, PrivateChatMessagesView,
     PrivateChatSendView, PrivateChatPollView,
@@ -23,6 +23,7 @@ from .views import (
     UserAccessUpdateView,
     ProfileView, SettingsView,
     AIProviderConfigCreateView, AIProviderConfigUpdateView, AIProviderConfigDeleteView, AIProviderConfigActivateView, AIProviderConfigRevealView,
+    SearchIntegrationTestView, TTSIntegrationTestView,
     TaskListView, TaskFavoriteView,
     ShiftHandoverEntryCreateView, ShiftHandoverEntryDeleteView, ShiftHandoverEntryEditView,
     ShiftHandoverUsersView, ShiftHandoverEntryNotifyView, ShiftHandoverEntryAcknowledgeView, ShiftHandoverPendingAlertsView,
@@ -103,6 +104,8 @@ urlpatterns = [
     path('settings/ai-config/<int:pk>/delete/', AIProviderConfigDeleteView.as_view(), name='ai_provider_config_delete'),
     path('settings/ai-config/<int:pk>/activate/', AIProviderConfigActivateView.as_view(), name='ai_provider_config_activate'),
     path('settings/ai-config/<int:pk>/reveal/', AIProviderConfigRevealView.as_view(), name='ai_provider_config_reveal'),
+    path('settings/search-integration/test/', SearchIntegrationTestView.as_view(), name='search_integration_test'),
+    path('settings/tts-integration/test/', TTSIntegrationTestView.as_view(), name='tts_integration_test'),
     path('permissions/', PermissionsView.as_view(), name='permissions'),
     path('login/', TokenLoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(next_page='home'), name='logout'),
@@ -222,6 +225,7 @@ urlpatterns = [
     path('ai/chat/history/', AIChatHistoryView.as_view(), name='ai_chat_history'),
     path('ai/chat/test/', AIChatTestView.as_view(), name='ai_chat_test'),
     path('ai/chat/proactive-check/', AIChatProactiveCheckView.as_view(), name='ai_chat_proactive_check'),
+    path('ai/chat/tts/', AITTSView.as_view(), name='ai_chat_tts'),
 
     # Chat Particular (1:1 entre usuários, estilo Messenger)
     path('chat/private/contacts/', PrivateChatContactsView.as_view(), name='private_chat_contacts'),

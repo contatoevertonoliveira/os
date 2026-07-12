@@ -178,6 +178,27 @@
                                     <i class="fas fa-exclamation-triangle me-1"></i> Permissão de microfone negada — ative manualmente nas configurações do navegador pra essa função funcionar.
                                 </small>
                             </div>
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    {% render_field form.tts_enabled class="form-check-input" role="switch" id="ttsEnabledSwitch" %}
+                                    <label class="form-check-label fw-bold" for="ttsEnabledSwitch">
+                                        Respostas do Jota4 em voz alta
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block mt-1">
+                                    Quando ativado, o Jota4 lê as respostas em voz alta automaticamente. A qualidade da
+                                    voz depende do provedor configurado pelo administrador em Configurações → Integrações
+                                    (navegador, gratuita porém mais robotizada; ou Google Cloud, mais natural).
+                                </small>
+                                {% if form.tts_enabled.field.disabled %}
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> O Chat IA está desativado para o seu usuário — fale com o administrador.</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Voz preferida</label>
+                                {% render_field form.tts_voice_gender class="form-select form-select-sm" %}
+                                <small class="text-muted d-block mt-1">Vale ao usar o provedor Google Cloud. No provedor gratuito (navegador), a voz é escolhida direto no Chat IA.</small>
+                            </div>
                         </div>
 
                         <div class="d-flex justify-content-end pt-3 border-top">

@@ -1951,6 +1951,28 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
             messages.success(request, "Configurações de IA atualizadas com sucesso!")
             return redirect(reverse_lazy('settings') + '?tab=ai')
 
+        if tab == 'integrations':
+            obj = self.object
+            obj.search_provider = request.POST.get('search_provider', obj.search_provider)
+            obj.google_search_engine_id = request.POST.get('google_search_engine_id', '').strip()
+            obj.tts_provider = request.POST.get('tts_provider', obj.tts_provider)
+            # Só atualiza as chaves se o usuário digitou algo (evita limpar por acidente)
+            new_google_key = request.POST.get('google_search_api_key', '').strip()
+            if new_google_key:
+                obj.google_search_api_key = new_google_key
+            new_tavily_key = request.POST.get('tavily_api_key', '').strip()
+            if new_tavily_key:
+                obj.tavily_api_key = new_tavily_key
+            new_google_tts_key = request.POST.get('google_tts_api_key', '').strip()
+            if new_google_tts_key:
+                obj.google_tts_api_key = new_google_tts_key
+            obj.save(update_fields=[
+                'search_provider', 'google_search_api_key', 'google_search_engine_id', 'tavily_api_key',
+                'tts_provider', 'google_tts_api_key',
+            ])
+            messages.success(request, "Configurações de Integrações atualizadas com sucesso!")
+            return redirect(reverse_lazy('settings') + '?tab=integrations')
+
         return super().post(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -2053,6 +2075,70 @@ class AIProviderConfigRevealView(LoginRequiredMixin, View):
         resp = JsonResponse({"ok": True, "api_key": config.api_key})
         resp['Cache-Control'] = 'no-store'
         return resp
+
+
+class SearchIntegrationTestView(LoginRequiredMixin, View):
+    """POST /settings/search-integration/test/ — testa a busca (Google ou Tavily,
+    conforme o provedor informado) com a chave/engine informados (permite testar
+    antes de salvar)."""
+
+    def post(self, request):
+        _require_settings_admin(request)
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            body = {}
+
+        provider = (body.get('provider') or 'google').strip()
+        google_api_key = (body.get('google_api_key') or '').strip() or None
+        engine_id = (body.get('engine_id') or '').strip() or None
+        tavily_api_key = (body.get('tavily_api_key') or '').strip() or None
+
+        from .ai_tools import _web_search
+        try:
+            items = _web_search(
+                "JumperFour OS teste de busca", num=1, provider=provider,
+                google_api_key=google_api_key, google_engine_id=engine_id, tavily_api_key=tavily_api_key,
+            )
+            if items:
+                return JsonResponse({"ok": True, "message": f"Encontrado: {items[0].get('title', '')}"})
+            return JsonResponse({"ok": True, "message": "Conexão estabelecida, mas sem resultados para essa consulta de teste."})
+        except ValueError as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+
+
+class TTSIntegrationTestView(LoginRequiredMixin, View):
+    """POST /settings/tts-integration/test/ — sintetiza uma frase de teste com a chave
+    do Google Cloud Text-to-Speech informada (permite testar antes de salvar, e ouvir
+    a qualidade da voz na hora). Retorna o áudio (MP3) direto em caso de sucesso, ou
+    JSON de erro em caso de falha."""
+
+    def post(self, request):
+        _require_settings_admin(request)
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            body = {}
+
+        api_key = (body.get('api_key') or '').strip() or None
+        voice_gender = (body.get('voice_gender') or 'female').strip()
+
+        from .ai_tools import google_tts_synthesize
+        try:
+            audio_bytes = google_tts_synthesize(
+                "Olá! Esta é a voz profissional do Jota4, o assistente de IA da JumperFour OS.",
+                voice_gender=voice_gender, api_key=api_key,
+            )
+            resp = HttpResponse(audio_bytes, content_type="audio/mpeg")
+            resp['Cache-Control'] = 'no-store'
+            return resp
+        except ValueError as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+
 
 # Tasks (refatorado: Passagem de Turno)
 @method_decorator(ensure_csrf_cookie, name='dispatch')

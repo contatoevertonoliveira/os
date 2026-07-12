@@ -28,6 +28,11 @@
                 </div>
             </div>
             <div style="display:flex;gap:5px;">
+                <button type="button" onclick="aiChatToggleTts()" id="aiTtsToggleBtn" title="Ativar leitura em voz alta"
+                    style="background:rgba(255,255,255,.2);border:none;border-radius:7px;color:#fff;
+                           width:28px;height:28px;cursor:pointer;font-size:.78rem;">
+                    <i class="fas fa-volume-mute"></i>
+                </button>
                 <button type="button" onclick="aiChatNewSession()" title="Nova conversa"
                     style="background:rgba(255,255,255,.2);border:none;border-radius:7px;color:#fff;
                            width:28px;height:28px;cursor:pointer;font-size:.78rem;">
@@ -39,6 +44,17 @@
                     <i class="fas fa-minus"></i>
                 </button>
             </div>
+        </div>
+
+        <!-- Barra de seleção de voz — só aparece quando a leitura em voz alta está ativa -->
+        <div id="aiVoiceBar" style="display:none;padding:6px 12px;background:#f1f8f4;
+                    border-bottom:1px solid #e0ede4;align-items:center;gap:8px;flex-shrink:0;">
+            <span style="font-size:.72rem;color:#009542;font-weight:600;white-space:nowrap;">
+                <i class="fas fa-headphones me-1"></i>Voz:
+            </span>
+            <select id="aiVoiceSelect" style="flex:1;font-size:.72rem;border:1px solid #dee2e6;
+                    border-radius:6px;padding:3px 6px;background:#fff;color:#333;min-width:0;">
+            </select>
         </div>
 
         <!-- Área de mensagens -->
@@ -238,6 +254,12 @@
     // Preferência do usuário (Meu Perfil): escuta contínua por voz do "Jota4"
     const WAKE_WORD_ENABLED = {{ user.profile.voice_wakeword_enabled|yesno:"true,false" }};
     const CURRENT_USER_FIRST_NAME = "{{ user.first_name|default:user.username|escapejs }}".split(' ')[0];
+
+    // Resposta por voz (Text-to-Speech): provedor decidido pelo admin (Configurações →
+    // Integrações); ativação e voz preferida são preferência de cada usuário (Meu Perfil).
+    const TTS_PROVIDER = "{{ system_settings.tts_provider|default:'browser' }}";
+    const TTS_ENABLED_DEFAULT = {{ user.profile.tts_enabled|yesno:"true,false" }};
+    const TTS_VOICE_GENDER = "{{ user.profile.tts_voice_gender|default:'female' }}";
 
     // ── Redimensionamento do painel ───────────────────────────────────────
     const RESIZE_MIN_WIDTH = 280;
@@ -571,6 +593,7 @@
             panel.style.pointerEvents = 'none';
             fabBtn.classList.remove('ai-open');
             if (_isListening) stopListening();
+            _cancelSpeech();
         }
     };
 
@@ -763,7 +786,7 @@
                 setTimeout(() => {
                     const transcript = (_finalTranscript + _interimTranscript).trim();
                     if (!transcript) {
-                        appendMessage('assistant', '⚠️ Não consegui entender o áudio. Tente falar mais perto do microfone e verifique a permissão de voz do navegador.');
+                        appendMessage('assistant', '⚠️ Não consegui entender o áudio. Tente falar mais perto do microfone e verifique a permissão de voz do navegador.', null, null, true);
                         scrollToBottom();
                         _resumeWakeListening();
                         return;
@@ -778,7 +801,7 @@
             _mediaRecorder.start();
         } catch (err) {
             console.error('[AI Chat] Erro ao acessar microfone:', err);
-            appendMessage('assistant', '⚠️ Não foi possível acessar o microfone. Verifique a permissão do navegador.');
+            appendMessage('assistant', '⚠️ Não foi possível acessar o microfone. Verifique a permissão do navegador.', null, null, true);
             scrollToBottom();
             _resumeWakeListening();
             return;
@@ -933,7 +956,7 @@
         _pauseWakeListening();
         aiChatToggle();
         setTimeout(() => {
-            appendMessage('assistant', _pickWakeGreeting());
+            appendMessage('assistant', _pickWakeGreeting(), null, null, true);
             scrollToBottom();
             _resumeWakeListening();
         }, 300);
@@ -1001,7 +1024,7 @@
                 if (data.clear_chat) {
                     await clearChat(data.response);
                 } else {
-                    appendMessage('assistant', data.response);
+                    appendMessage('assistant', data.response, null, null, true);
                     // Nova OS criada ou existente editada — atualiza lista e destaca
                     if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.new_ticket_id);
@@ -1019,11 +1042,11 @@
                     }
                 }
             } else {
-                appendMessage('assistant', '⚠️ ' + (data.error || 'Erro desconhecido.'));
+                appendMessage('assistant', '⚠️ ' + (data.error || 'Erro desconhecido.'), null, null, true);
             }
         } catch {
             typing.style.display = 'none';
-            appendMessage('assistant', '⚠️ Falha de conexão. Tente novamente.');
+            appendMessage('assistant', '⚠️ Falha de conexão. Tente novamente.', null, null, true);
         }
     }
 
@@ -1062,7 +1085,11 @@
     }
 
     // ── Renderização ──────────────────────────────────────────────────────
-    function appendMessage(role, content, time, audioUrl) {
+    // "speak" (opcional, default false): se true e a leitura em voz alta estiver
+    // ativa, lê a mensagem em voz alta assim que ela aparece. Usado só nas
+    // respostas NOVAS/ao vivo do assistente — nunca ao recarregar o histórico
+    // (senão reabrir o chat leria tudo de novo em voz alta).
+    function appendMessage(role, content, time, audioUrl, speak) {
         console.log('[AI Chat] appendMessage() chamado:', role, 'content length:', content?.length, 'audio:', !!audioUrl);
         const wrap = document.createElement('div');
         wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
@@ -1085,7 +1112,172 @@
         }
         messages.appendChild(wrap);
         console.log('[AI Chat] Mensagem adicionada, messages.children.length agora é:', messages.children.length);
+        if (speak && role === 'assistant' && !audioUrl) _speak(content);
     }
+
+    // ── Resposta por voz (Text-to-Speech) ────────────────────────────────
+    // Provedor decidido pelo admin (TTS_PROVIDER, Configurações → Integrações):
+    // 'browser' usa a Web Speech API do navegador (grátis, mas robotizada);
+    // 'google' manda o texto pro servidor sintetizar com o Google Cloud TTS
+    // (voz natural, precisa de chave configurada pelo admin).
+    const SpeechSynthesisAPI = (TTS_PROVIDER === 'browser') ? (window.speechSynthesis || null) : null;
+    // Ativação vem do "Meu Perfil" por padrão; o botão no cabeçalho pode
+    // ligar/desligar por sessão/navegador (guardado em localStorage) sem mexer
+    // na preferência salva no servidor. Se o usuário desativou em Meu Perfil,
+    // o botão fica desabilitado — não dá pra ligar por sessão sem antes ativar lá.
+    let _ttsEnabled  = TTS_ENABLED_DEFAULT && (localStorage.getItem('aiChatTtsEnabled') !== null
+        ? localStorage.getItem('aiChatTtsEnabled') === '1'
+        : true);
+    let _ttsVoiceURI = localStorage.getItem('aiChatTtsVoiceURI') || '';
+    let _ttsVoices   = [];
+    let _ttsAudioEl  = null; // <audio> tocando a resposta sintetizada (modo google)
+
+    function _loadTtsVoices() {
+        if (!SpeechSynthesisAPI) return;
+        _ttsVoices = SpeechSynthesisAPI.getVoices() || [];
+        if (!_ttsVoices.length) return;
+
+        const select = document.getElementById('aiVoiceSelect');
+        if (!select) return;
+
+        const ptVoices = _ttsVoices.filter(v => v.lang && v.lang.toLowerCase().startsWith('pt'));
+        const listed = ptVoices.length ? ptVoices : _ttsVoices;
+
+        select.innerHTML = '';
+        listed.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.voiceURI;
+            opt.textContent = v.name + (v.lang ? ` (${v.lang})` : '');
+            select.appendChild(opt);
+        });
+
+        if (_ttsVoiceURI && listed.some(v => v.voiceURI === _ttsVoiceURI)) {
+            select.value = _ttsVoiceURI;
+        } else if (listed.length) {
+            _ttsVoiceURI = listed[0].voiceURI;
+            select.value = _ttsVoiceURI;
+            localStorage.setItem('aiChatTtsVoiceURI', _ttsVoiceURI);
+        }
+    }
+
+    if (TTS_PROVIDER === 'browser') {
+        if (SpeechSynthesisAPI) {
+            // Em vários navegadores a lista de vozes só fica pronta de forma assíncrona
+            SpeechSynthesisAPI.onvoiceschanged = _loadTtsVoices;
+            _loadTtsVoices();
+        } else {
+            const ttsBtn = document.getElementById('aiTtsToggleBtn');
+            if (ttsBtn) ttsBtn.style.display = 'none';
+        }
+    } else {
+        // Provedor Google: a voz é escolhida em Meu Perfil (masculina/feminina), não
+        // por uma lista de vozes do navegador — remove a barra de seleção local.
+        const voiceBar = document.getElementById('aiVoiceBar');
+        if (voiceBar) voiceBar.remove();
+    }
+
+    // Remove marcação/markdown e emojis comuns antes de mandar pro sintetizador
+    // de voz, senão ele fica lendo "asterisco asterisco", "sustenido" etc.
+    function _stripForSpeech(text) {
+        return String(text || '')
+            .replace(/\*\*(.*?)\*\*/g, '$1')
+            .replace(/\*(.*?)\*/g, '$1')
+            .replace(/`([^`]*)`/g, '$1')
+            .replace(/#{1,6}\s*/g, '')
+            .replace(/^[•\-]\s*/gm, '')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/[⚠️👋📋✅❌🎙️🧹]/gu, '')
+            .trim();
+    }
+
+    async function _speakGoogle(clean) {
+        if (_ttsAudioEl) { _ttsAudioEl.pause(); _ttsAudioEl = null; }
+        try {
+            const resp = await fetch("{% url 'ai_chat_tts' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ text: clean }),
+            });
+            const contentType = resp.headers.get('Content-Type') || '';
+            if (resp.ok && contentType.includes('audio')) {
+                const blob = await resp.blob();
+                _ttsAudioEl = new Audio(URL.createObjectURL(blob));
+                _ttsAudioEl.play();
+            } else {
+                const data = await resp.json().catch(() => null);
+                console.warn('[AI Chat] Falha ao sintetizar voz (Google TTS):', data && data.error);
+            }
+        } catch (err) {
+            console.warn('[AI Chat] Erro ao chamar TTS:', err);
+        }
+    }
+
+    function _speak(text) {
+        if (!_ttsEnabled) return;
+        const clean = _stripForSpeech(text);
+        if (!clean) return;
+
+        if (TTS_PROVIDER === 'google') {
+            _speakGoogle(clean);
+            return;
+        }
+        if (!SpeechSynthesisAPI) return;
+        SpeechSynthesisAPI.cancel(); // corta qualquer fala anterior ainda em andamento
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.lang = 'pt-BR';
+        const voice = _ttsVoices.find(v => v.voiceURI === _ttsVoiceURI);
+        if (voice) utterance.voice = voice;
+        SpeechSynthesisAPI.speak(utterance);
+    }
+
+    function _cancelSpeech() {
+        if (SpeechSynthesisAPI) SpeechSynthesisAPI.cancel();
+        if (_ttsAudioEl) { _ttsAudioEl.pause(); _ttsAudioEl = null; }
+    }
+
+    function _updateTtsUI() {
+        const btn = document.getElementById('aiTtsToggleBtn');
+        const bar = document.getElementById('aiVoiceBar');
+        if (btn) {
+            if (!TTS_ENABLED_DEFAULT) {
+                // Desativado em Meu Perfil — ícone fica visível, porém desabilitado
+                btn.disabled = true;
+                btn.style.opacity = '.4';
+                btn.style.cursor = 'not-allowed';
+                btn.innerHTML = '<i class="fas fa-volume-xmark"></i>';
+                btn.title = 'Ative "Respostas do Jota4 em voz alta" em Meu Perfil para usar esse recurso';
+            } else {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                btn.innerHTML = _ttsEnabled ? '<i class="fas fa-volume-high"></i>' : '<i class="fas fa-volume-xmark"></i>';
+                btn.title = _ttsEnabled ? 'Desativar leitura em voz alta' : 'Ativar leitura em voz alta';
+            }
+        }
+        if (bar && TTS_PROVIDER === 'browser') bar.style.display = _ttsEnabled ? 'flex' : 'none';
+    }
+
+    window.aiChatToggleTts = function () {
+        if (!TTS_ENABLED_DEFAULT) return; // desativado em Meu Perfil — ignora o clique
+        _ttsEnabled = !_ttsEnabled;
+        localStorage.setItem('aiChatTtsEnabled', _ttsEnabled ? '1' : '0');
+        if (!_ttsEnabled) _cancelSpeech();
+        _updateTtsUI();
+    };
+
+    const voiceSelectEl = document.getElementById('aiVoiceSelect');
+    if (voiceSelectEl) {
+        voiceSelectEl.addEventListener('change', function () {
+            _ttsVoiceURI = voiceSelectEl.value;
+            localStorage.setItem('aiChatTtsVoiceURI', _ttsVoiceURI);
+        });
+    }
+
+    _updateTtsUI();
 
     // Player de mensagem de voz, estilo WhatsApp: botão de play + barra de
     // progresso clicável + duração — sem precisar do <audio controls> nativo.
@@ -1194,7 +1386,7 @@
             typing.style.display = 'none';
             if (chatData.ok) {
                 saveSessionId(chatData.session_id);
-                appendMessage('assistant', chatData.response);
+                appendMessage('assistant', chatData.response, null, null, true);
                 scrollToBottom();
             }
         } catch (err) {

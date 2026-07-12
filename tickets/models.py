@@ -53,6 +53,13 @@ class UserProfile(models.Model):
     ai_proactive_alert_count = models.PositiveIntegerField(default=0, verbose_name="Tentativas de aviso do Jota4 sobre pendências não resolvidas")
     voice_wakeword_enabled = models.BooleanField(default=False, verbose_name="Escuta por voz (chamar o Jota4 dizendo o nome dele)")
 
+    TTS_VOICE_GENDER_CHOICES = [
+        ('female', 'Feminina'),
+        ('male', 'Masculina'),
+    ]
+    tts_enabled = models.BooleanField(default=False, verbose_name="Respostas do Jota4 em voz alta")
+    tts_voice_gender = models.CharField(max_length=10, choices=TTS_VOICE_GENDER_CHOICES, default='female', verbose_name="Voz preferida")
+
     # Restrições de Funcionalidades
     can_view_tickets = models.BooleanField(default=True, verbose_name="Visualizar Ordens de Serviço")
     can_create_tickets = models.BooleanField(default=True, verbose_name="Criar Ordens de Serviço")
@@ -379,6 +386,31 @@ class SystemSettings(models.Model):
     # várias e alternar qual está ativa) — aqui fica só o liga/desliga geral,
     # que é ortogonal a qual configuração está ativa no momento.
     ai_enabled = models.BooleanField(default=False, verbose_name="Ativar Assistente de IA")
+
+    # === Integrações — Busca na Internet ===
+    # Usado pelo Jota4 (tools search_web / search_company_details) pra pesquisar
+    # informações reais na web (endereços, telefones, contatos, especificações de
+    # equipamento, etc.) — sem isso configurado, a busca retorna erro claro em vez
+    # de fingir que pesquisou. search_provider decide qual das chaves abaixo é usada.
+    SEARCH_PROVIDER_CHOICES = [
+        ('google', 'Google Custom Search'),
+        ('tavily', 'Tavily'),
+    ]
+    search_provider = models.CharField(max_length=20, choices=SEARCH_PROVIDER_CHOICES, default='google', verbose_name="Provedor de Busca")
+    google_search_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Google Custom Search)")
+    google_search_engine_id = models.CharField(max_length=100, blank=True, verbose_name="ID do Mecanismo de Busca (cx)")
+    tavily_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Tavily)")
+
+    # === Integrações — Resposta por Voz (Text-to-Speech) ===
+    # 'browser' usa a Web Speech API do navegador do usuário (grátis, mas soa
+    # robotizada). 'google' usa o Google Cloud Text-to-Speech (voz muito mais
+    # natural, exige chave de API própria e cobra por caractere após a cota grátis).
+    TTS_PROVIDER_CHOICES = [
+        ('browser', 'Navegador (gratuito)'),
+        ('google', 'Google Cloud Text-to-Speech'),
+    ]
+    tts_provider = models.CharField(max_length=20, choices=TTS_PROVIDER_CHOICES, default='browser', verbose_name="Provedor de Voz (TTS)")
+    google_tts_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Google Cloud Text-to-Speech)")
 
     def __str__(self):
         return "Configurações do Sistema"

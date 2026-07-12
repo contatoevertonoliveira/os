@@ -83,11 +83,17 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "search_web",
-        "description": "Busca informações na internet via DuckDuckGo. Use para verificar o nome oficial de empresas, razão social, ou qualquer informação que precise de confirmação externa antes de cadastrar.",
+        "description": (
+            "Busca informações reais na internet via Google. Uso geral — não é só para cadastro de "
+            "empresas: use sempre que o usuário pedir para pesquisar/buscar/procurar algo online, por "
+            "exemplo: nome oficial e razão social de empresas, endereço de clientes/lojas, telefones, "
+            "contatos, e-mails, ou qualquer marca/modelo/especificação de equipamento (câmeras, "
+            "sensores, nobreaks, etc)."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Termo de busca. Para empresas, inclua palavras como 'empresa', 'razão social' ou 'CNPJ' para melhores resultados. Ex: 'Rede Globo empresa razão social Brasil'"}
+                "query": {"type": "string", "description": "Termo de busca, o mais específico possível. Ex: 'Rede Globo razão social Brasil', 'Bain & Company São Paulo endereço telefone', 'câmera Dahua DH-XVR7108 ficha técnica'"}
             },
             "required": ["query"]
         }
@@ -824,89 +830,215 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
 # Implementação de cada tool
 # ---------------------------------------------------------------------------
 
-def _search_web(args, user):
-    """Busca na internet usando DuckDuckGo (sem API key). Retorna até 5 resultados."""
+def _google_custom_search(query, num=5, api_key=None, engine_id=None):
+    """Chama a API do Google Custom Search. Levanta ValueError se não configurada,
+    ou retorna a lista de 'items' (title, snippet, link) do Google.
+    Se api_key/engine_id não forem passados, usa os valores salvos em SystemSettings
+    (uso normal); passar os dois permite testar valores ainda não salvos."""
     import urllib.request
     import urllib.parse
     import json as _json
+    from .models import SystemSettings
 
+    if api_key is None or engine_id is None:
+        settings_obj = SystemSettings.objects.first()
+        api_key = api_key if api_key is not None else ((settings_obj.google_search_api_key if settings_obj else "") or "")
+        engine_id = engine_id if engine_id is not None else ((settings_obj.google_search_engine_id if settings_obj else "") or "")
+
+    if not api_key or not engine_id:
+        raise ValueError(
+            "Busca na internet não está configurada. Peça a um administrador para configurar em "
+            "Configurações → Integrações (Google Custom Search)."
+        )
+
+    params = urllib.parse.urlencode({
+        "key": api_key,
+        "cx": engine_id,
+        "q": query,
+        "num": min(max(num, 1), 10),
+        "gl": "br",
+        "hl": "pt-BR",
+    })
+    url = f"https://www.googleapis.com/customsearch/v1?{params}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (JumperFour OS)"})
+
+    import urllib.error
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = _json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        # Extrai a mensagem real de erro do corpo da resposta do Google (ex: chave
+        # inválida, API não habilitada, cota excedida) em vez de um "HTTP Error 403" genérico.
+        try:
+            error_body = _json.loads(e.read().decode("utf-8"))
+            message = error_body.get("error", {}).get("message") or f"Erro HTTP {e.code} na API do Google."
+        except Exception:
+            message = f"Erro HTTP {e.code} na API do Google."
+        raise ValueError(message)
+
+    if "error" in data:
+        raise ValueError(data["error"].get("message") or "Erro desconhecido na API do Google.")
+
+    return data.get("items", [])
+
+
+def _tavily_search(query, num=5, api_key=None):
+    """Chama a API da Tavily. Levanta ValueError se não configurada, ou retorna
+    lista normalizada [{'title', 'snippet', 'link'}] (mesmo formato do Google).
+    Se api_key não for passada, usa o valor salvo em SystemSettings."""
+    import urllib.request
+    import urllib.error
+    import json as _json
+    from .models import SystemSettings
+
+    if api_key is None:
+        settings_obj = SystemSettings.objects.first()
+        api_key = (settings_obj.tavily_api_key if settings_obj else "") or ""
+
+    if not api_key:
+        raise ValueError(
+            "Busca na internet não está configurada. Peça a um administrador para configurar em "
+            "Configurações → Integrações (Tavily)."
+        )
+
+    body = _json.dumps({
+        "api_key": api_key,
+        "query": query,
+        "max_results": min(max(num, 1), 10),
+        "search_depth": "basic",
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.tavily.com/search",
+        data=body,
+        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (JumperFour OS)"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = _json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            error_body = _json.loads(e.read().decode("utf-8"))
+            message = error_body.get("detail", {}).get("error") or error_body.get("error") or f"Erro HTTP {e.code} na API da Tavily."
+        except Exception:
+            message = f"Erro HTTP {e.code} na API da Tavily."
+        raise ValueError(message)
+
+    items = data.get("results", [])
+    return [
+        {"title": it.get("title", ""), "snippet": it.get("content", ""), "link": it.get("url", "")}
+        for it in items
+    ]
+
+
+def _web_search(query, num=5, provider=None, google_api_key=None, google_engine_id=None, tavily_api_key=None):
+    """Busca na web através do provedor configurado em SystemSettings.search_provider
+    (google ou tavily), retornando lista normalizada [{'title', 'snippet', 'link'}].
+    Os parâmetros *_api_key/engine_id, se passados, sobrepõem o valor salvo (uso em
+    telas de teste, antes de salvar)."""
+    from .models import SystemSettings
+
+    if provider is None:
+        settings_obj = SystemSettings.objects.first()
+        provider = (settings_obj.search_provider if settings_obj else "") or "google"
+
+    if provider == "tavily":
+        return _tavily_search(query, num=num, api_key=tavily_api_key)
+    return _google_custom_search(query, num=num, api_key=google_api_key, engine_id=google_engine_id)
+
+
+def google_tts_synthesize(text, voice_gender="FEMALE", api_key=None):
+    """Chama o Google Cloud Text-to-Speech e retorna o áudio em MP3 (bytes).
+    Levanta ValueError se não configurado ou em caso de erro da API.
+    Se api_key não for passada, usa o valor salvo em SystemSettings (uso normal);
+    passá-la permite testar uma chave ainda não salva."""
+    import urllib.request
+    import urllib.error
+    import json as _json
+    import base64
+    from .models import SystemSettings
+
+    if api_key is None:
+        settings_obj = SystemSettings.objects.first()
+        api_key = (settings_obj.google_tts_api_key if settings_obj else "") or ""
+
+    if not api_key:
+        raise ValueError(
+            "Voz profissional (Google Cloud) não está configurada. Peça a um administrador para "
+            "configurar em Configurações → Integrações (Google Cloud Text-to-Speech)."
+        )
+
+    gender = "FEMALE" if str(voice_gender).lower() not in ("male", "masculina", "masculino") else "MALE"
+
+    body = _json.dumps({
+        "input": {"text": text[:4900]},  # limite de segurança bem abaixo do máximo da API (5000 bytes)
+        "voice": {"languageCode": "pt-BR", "ssmlGender": gender},
+        "audioConfig": {"audioEncoding": "MP3"},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}",
+        data=body,
+        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (JumperFour OS)"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = _json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            error_body = _json.loads(e.read().decode("utf-8"))
+            message = error_body.get("error", {}).get("message") or f"Erro HTTP {e.code} na API do Google."
+        except Exception:
+            message = f"Erro HTTP {e.code} na API do Google."
+        raise ValueError(message)
+
+    audio_b64 = data.get("audioContent")
+    if not audio_b64:
+        raise ValueError("A API do Google não retornou áudio.")
+
+    return base64.b64decode(audio_b64)
+
+
+def _search_web(args, user):
+    """Busca informações reais na internet (Google ou Tavily, conforme configurado).
+    Use para clientes, endereços, telefones, contatos, e-mails, equipamentos,
+    marcas/modelos ou qualquer outra informação que precise ser confirmada fora do sistema."""
     query = args.get("query", "").strip()
     if not query:
         return {"ok": False, "error": "Consulta vazia."}
 
     try:
-        params = urllib.parse.urlencode({
-            "q": query,
-            "format": "json",
-            "no_html": "1",
-            "skip_disambig": "1",
-        })
-        url = f"https://api.duckduckgo.com/?{params}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (JumperFour OS)"})
-        with urllib.request.urlopen(req, timeout=7) as r:
-            data = _json.loads(r.read().decode("utf-8"))
-
-        results = []
-
-        # Resultado principal (entidade direta)
-        if data.get("Heading"):
-            entry = {"name": data["Heading"]}
-            if data.get("AbstractText"):
-                entry["info"] = data["AbstractText"][:180]
-            results.append(entry)
-
-        # Tópicos relacionados
-        for topic in data.get("RelatedTopics", []):
-            if len(results) >= 5:
-                break
-            if isinstance(topic, dict):
-                subtopics = topic.get("Topics", [topic])
-                for sub in subtopics:
-                    if len(results) >= 5:
-                        break
-                    text = sub.get("Text", "")
-                    if not text:
-                        continue
-                    name = text.split(" - ")[0].split("\n")[0].strip()
-                    if name and not any(r["name"] == name for r in results):
-                        results.append({"name": name, "info": text[:180]})
-
+        items = _web_search(query, num=5)
+        results = [
+            {"name": it.get("title", ""), "info": it.get("snippet", "")[:220], "url": it.get("link", "")}
+            for it in items
+        ]
         return {"ok": True, "data": results or [{"name": query, "info": "Nenhum resultado encontrado na internet."}]}
-
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
     except Exception as e:
         return {"ok": False, "error": f"Falha na busca web: {str(e)}"}
 
 
 def _search_company_details(args, user):
     """Busca detalhes de uma empresa na internet: endereço, telefone, CNPJ, site."""
-    import urllib.request
-    import urllib.parse
-    import json as _json
     import re
 
     company_name = args.get("company_name", "").strip()
     if not company_name:
         return {"ok": False, "error": "Nome da empresa não informado."}
 
-    def _ddg(query):
-        params = urllib.parse.urlencode({"q": query, "format": "json", "no_html": "1", "skip_disambig": "1"})
-        req = urllib.request.Request(
-            f"https://api.duckduckgo.com/?{params}",
-            headers={"User-Agent": "Mozilla/5.0 (JumperFour OS)"}
-        )
-        with urllib.request.urlopen(req, timeout=7) as r:
-            return _json.loads(r.read().decode("utf-8"))
-
     details = {"company": company_name}
 
     try:
-        # Busca geral da empresa
-        data = _ddg(f"{company_name} empresa endereço telefone CNPJ site oficial")
+        general_items = _web_search(f"{company_name} empresa endereço telefone CNPJ site oficial", num=5)
+        addr_items = _web_search(f"{company_name} sede endereço rua cidade estado CEP", num=5)
 
-        all_text = " ".join([
-            data.get("AbstractText", ""),
-            " ".join(t.get("Text", "") for t in data.get("RelatedTopics", []) if isinstance(t, dict))
-        ])
+        general_text = " ".join(f"{it.get('title', '')} {it.get('snippet', '')}" for it in general_items)
+        addr_text = " ".join(f"{it.get('title', '')} {it.get('snippet', '')}" for it in addr_items)
+        all_text = f"{general_text} {addr_text}"
 
         # CNPJ
         cnpj = re.search(r'\d{2}[\.\s]?\d{3}[\.\s]?\d{3}[\/\s]?\d{4}[\-\s]?\d{2}', all_text)
@@ -918,20 +1050,17 @@ def _search_company_details(args, user):
         if phone:
             details["phone"] = phone.group(0).strip()
 
-        # Site
-        site = re.search(r'(?:www\.|https?://)[a-zA-Z0-9\-\.]+\.[a-z]{2,}(?:/[^\s]*)?', all_text)
-        if site:
-            details["website"] = site.group(0).strip()
+        # Site (prioriza o link do primeiro resultado geral, que costuma ser o site oficial)
+        if general_items and general_items[0].get("link"):
+            details["website"] = general_items[0]["link"]
+        else:
+            site = re.search(r'(?:www\.|https?://)[a-zA-Z0-9\-\.]+\.[a-z]{2,}(?:/[^\s]*)?', all_text)
+            if site:
+                details["website"] = site.group(0).strip()
 
         # Resumo/descrição
-        if data.get("AbstractText"):
-            details["description"] = data["AbstractText"][:300]
-
-        # Busca específica de endereço
-        addr_data = _ddg(f"{company_name} sede endereço rua cidade estado CEP")
-        addr_text = addr_data.get("AbstractText", "") + " ".join(
-            t.get("Text", "") for t in addr_data.get("RelatedTopics", []) if isinstance(t, dict)
-        )
+        if general_items and general_items[0].get("snippet"):
+            details["description"] = general_items[0]["snippet"][:300]
 
         # CEP
         cep = re.search(r'\d{5}[\-\s]?\d{3}', addr_text)
@@ -950,6 +1079,8 @@ def _search_company_details(args, user):
 
         return {"ok": True, "data": details}
 
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
     except Exception as e:
         return {"ok": False, "error": f"Não foi possível buscar detalhes: {str(e)}"}
 
@@ -2997,7 +3128,19 @@ chamados pra mim"), NÃO tente chamar create_ticket várias vezes seguidas sem p
 Nunca crie as OS do lote uma a uma silenciosamente sem esse fluxo — o usuário precisa poder acompanhar,
 ajustar e cancelar a qualquer momento antes da confirmação final.
 
-BUSCA NA INTERNET E PRÉ-PREENCHIMENTO DE DADOS:
+BUSCA NA INTERNET — MUITO IMPORTANTE:
+Você TEM acesso real à internet via search_web (Google) e search_company_details. Não é só para
+cadastro de cliente — use sempre que o usuário pedir para pesquisar/buscar/procurar algo online,
+por exemplo: nome oficial/razão social de empresa, endereço de cliente ou loja, telefone, contato,
+e-mail, ou marca/modelo/especificação de um equipamento (câmera, sensor, nobreak, etc). Monte uma
+query específica com o que foi pedido (ex: "Intelbras VIP 3230 B G3 ficha técnica", "Bain & Company
+São Paulo endereço telefone") e apresente o que encontrar de forma direta, citando a fonte (title/URL)
+quando fizer sentido.
+Se a tool retornar erro dizendo que a busca não está configurada, repasse essa mensagem exatamente
+como veio (ela já explica que um administrador precisa configurar em Configurações → Integrações) —
+nunca invente um resultado nem finja que pesquisou.
+
+BUSCA NA INTERNET E PRÉ-PREENCHIMENTO DE DADOS (fluxo de cadastro de cliente):
 
 Passo 1 — Nome da empresa:
 Quando o usuário quiser cadastrar um cliente com nome informal/abreviado, chame search_web com query "[nome] empresa razão social Brasil".

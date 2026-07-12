@@ -392,6 +392,42 @@ class AIChatTestView(LoginRequiredMixin, View):
             return JsonResponse({"ok": False, "error": str(e)})
 
 
+class AITTSView(LoginRequiredMixin, View):
+    """POST /ai/chat/tts/ — sintetiza uma resposta do Jota4 em áudio via Google Cloud
+    Text-to-Speech (voz "profissional", configurada pelo admin). Só é chamada pelo
+    widget quando o provedor de voz ativo é 'google' — no provedor 'browser' (padrão,
+    gratuito) a leitura é feita direto no navegador, sem passar pelo servidor."""
+
+    def post(self, request):
+        settings_obj = _get_settings()
+        if not settings_obj.ai_enabled:
+            return JsonResponse({"ok": False, "error": "Assistente de IA não está ativado."}, status=403)
+
+        try:
+            body = json.loads(request.body)
+        except Exception:
+            body = {}
+
+        text = (body.get("text") or "").strip()
+        if not text:
+            return JsonResponse({"ok": False, "error": "Texto vazio."}, status=400)
+
+        profile = getattr(request.user, 'profile', None)
+        voice_gender = getattr(profile, 'tts_voice_gender', 'female') or 'female'
+
+        from .ai_tools import google_tts_synthesize
+        from django.http import HttpResponse
+        try:
+            audio_bytes = google_tts_synthesize(text, voice_gender=voice_gender)
+            resp = HttpResponse(audio_bytes, content_type="audio/mpeg")
+            resp['Cache-Control'] = 'no-store'
+            return resp
+        except ValueError as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": f"Falha ao sintetizar voz: {str(e)}"})
+
+
 class AIChatNewSessionView(LoginRequiredMixin, View):
     """POST /ai/chat/new/ — cria nova sessão de chat."""
 
