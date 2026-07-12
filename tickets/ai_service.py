@@ -153,8 +153,8 @@ def run_agent(config, messages: list, tools: list, tool_executor, *, expose_erro
     Executa o loop de agente completo com o provider configurado.
 
     Args:
-        config: objeto com ai_provider, ai_api_key, ai_model (ex: a AIProviderConfig
-            ativa, ou um objeto temporário equivalente usado no teste de conexão)
+        config: objeto com provider, api_key, model (ex: a AIProviderConfig ativa,
+            ou um objeto temporário equivalente usado no teste de conexão)
         messages: lista de dicts {role, content} incluindo system prompt
         tools: lista de tool definitions no formato interno
         tool_executor: callable(tool_name, args) → dict
@@ -167,9 +167,9 @@ def run_agent(config, messages: list, tools: list, tool_executor, *, expose_erro
     Returns:
         Texto da resposta final do assistente
     """
-    provider = config.ai_provider or 'deepseek'
-    api_key = config.ai_api_key or ''
-    model = config.ai_model or DEFAULT_MODELS.get(provider, 'deepseek-chat')
+    provider = config.provider or 'deepseek'
+    api_key = config.api_key or ''
+    model = config.model or DEFAULT_MODELS.get(provider, 'deepseek-chat')
 
     if not api_key:
         return "⚠️ Chave de API não configurada. Acesse Configurações → Inteligência Artificial para configurar."

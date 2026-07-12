@@ -371,9 +371,9 @@ class AIChatTestView(LoginRequiredMixin, View):
             pass
 
         temp = TempConfig()
-        temp.ai_provider = provider or 'deepseek'
-        temp.ai_api_key = api_key
-        temp.ai_model = model
+        temp.provider = provider or 'deepseek'
+        temp.api_key = api_key
+        temp.model = model
 
         from .ai_service import run_agent
 
