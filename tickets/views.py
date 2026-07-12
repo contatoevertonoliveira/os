@@ -1966,9 +1966,15 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
             new_google_tts_key = request.POST.get('google_tts_api_key', '').strip()
             if new_google_tts_key:
                 obj.google_tts_api_key = new_google_tts_key
+            new_elevenlabs_key = request.POST.get('elevenlabs_api_key', '').strip()
+            if new_elevenlabs_key:
+                obj.elevenlabs_api_key = new_elevenlabs_key
+            obj.elevenlabs_voice_id_female = request.POST.get('elevenlabs_voice_id_female', '').strip()
+            obj.elevenlabs_voice_id_male = request.POST.get('elevenlabs_voice_id_male', '').strip()
             obj.save(update_fields=[
                 'search_provider', 'google_search_api_key', 'google_search_engine_id', 'tavily_api_key',
                 'tts_provider', 'google_tts_api_key',
+                'elevenlabs_api_key', 'elevenlabs_voice_id_female', 'elevenlabs_voice_id_male',
             ])
             messages.success(request, "Configurações de Integrações atualizadas com sucesso!")
             return redirect(reverse_lazy('settings') + '?tab=integrations')
@@ -2111,9 +2117,9 @@ class SearchIntegrationTestView(LoginRequiredMixin, View):
 
 class TTSIntegrationTestView(LoginRequiredMixin, View):
     """POST /settings/tts-integration/test/ — sintetiza uma frase de teste com a chave
-    do Google Cloud Text-to-Speech informada (permite testar antes de salvar, e ouvir
-    a qualidade da voz na hora). Retorna o áudio (MP3) direto em caso de sucesso, ou
-    JSON de erro em caso de falha."""
+    do provedor informado (Google Cloud TTS ou ElevenLabs — permite testar antes de
+    salvar, e ouvir a qualidade da voz na hora). Retorna o áudio (MP3) direto em caso
+    de sucesso, ou JSON de erro em caso de falha."""
 
     def post(self, request):
         _require_settings_admin(request)
@@ -2122,14 +2128,20 @@ class TTSIntegrationTestView(LoginRequiredMixin, View):
         except Exception:
             body = {}
 
-        api_key = (body.get('api_key') or '').strip() or None
+        provider = (body.get('provider') or 'google').strip()
         voice_gender = (body.get('voice_gender') or 'female').strip()
+        google_api_key = (body.get('google_api_key') or body.get('api_key') or '').strip() or None
+        elevenlabs_api_key = (body.get('elevenlabs_api_key') or '').strip() or None
+        elevenlabs_voice_id = (body.get('elevenlabs_voice_id') or '').strip() or None
 
-        from .ai_tools import google_tts_synthesize
+        sample_text = "Olá! Esta é a voz profissional do Jota4, o assistente de IA da JumperFour OS."
+
+        from .ai_tools import tts_synthesize
         try:
-            audio_bytes = google_tts_synthesize(
-                "Olá! Esta é a voz profissional do Jota4, o assistente de IA da JumperFour OS.",
-                voice_gender=voice_gender, api_key=api_key,
+            audio_bytes = tts_synthesize(
+                sample_text, voice_gender=voice_gender, provider=provider,
+                google_api_key=google_api_key,
+                elevenlabs_api_key=elevenlabs_api_key, elevenlabs_voice_id=elevenlabs_voice_id,
             )
             resp = HttpResponse(audio_bytes, content_type="audio/mpeg")
             resp['Cache-Control'] = 'no-store'

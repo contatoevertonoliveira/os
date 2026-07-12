@@ -397,10 +397,10 @@ class AIChatTestView(LoginRequiredMixin, View):
 
 
 class AITTSView(LoginRequiredMixin, View):
-    """POST /ai/chat/tts/ — sintetiza uma resposta do Jota4 em áudio via Google Cloud
-    Text-to-Speech (voz "profissional", configurada pelo admin). Só é chamada pelo
-    widget quando o provedor de voz ativo é 'google' — no provedor 'browser' (padrão,
-    gratuito) a leitura é feita direto no navegador, sem passar pelo servidor."""
+    """POST /ai/chat/tts/ — sintetiza uma resposta do Jota4 em áudio via um provedor
+    de voz "profissional" (Google Cloud TTS ou ElevenLabs, configurado pelo admin).
+    Só é chamada pelo widget quando o provedor ativo NÃO é 'browser' — no provedor
+    padrão/gratuito a leitura é feita direto no navegador, sem passar pelo servidor."""
 
     def post(self, request):
         settings_obj = _get_settings()
@@ -418,11 +418,14 @@ class AITTSView(LoginRequiredMixin, View):
 
         profile = getattr(request.user, 'profile', None)
         voice_gender = getattr(profile, 'tts_voice_gender', 'female') or 'female'
+        # Se o usuário escolheu uma voz específica da ElevenLabs no próprio perfil,
+        # ela tem prioridade sobre o padrão por gênero configurado pelo admin.
+        elevenlabs_voice_id = (getattr(profile, 'elevenlabs_voice_id', '') or '').strip() or None
 
-        from .ai_tools import google_tts_synthesize
+        from .ai_tools import tts_synthesize
         from django.http import HttpResponse
         try:
-            audio_bytes = google_tts_synthesize(text, voice_gender=voice_gender)
+            audio_bytes = tts_synthesize(text, voice_gender=voice_gender, elevenlabs_voice_id=elevenlabs_voice_id)
             resp = HttpResponse(audio_bytes, content_type="audio/mpeg")
             resp['Cache-Control'] = 'no-store'
             return resp
@@ -430,6 +433,21 @@ class AITTSView(LoginRequiredMixin, View):
             return JsonResponse({"ok": False, "error": str(e)})
         except Exception as e:
             return JsonResponse({"ok": False, "error": f"Falha ao sintetizar voz: {str(e)}"})
+
+
+class ElevenLabsVoicesListView(LoginRequiredMixin, View):
+    """GET /ai/chat/elevenlabs-voices/ — lista as vozes disponíveis na conta ElevenLabs
+    configurada pelo admin, pra o usuário escolher a sua em Meu Perfil (com preview)."""
+
+    def get(self, request):
+        from .ai_tools import list_elevenlabs_voices
+        try:
+            voices = list_elevenlabs_voices()
+            return JsonResponse({"ok": True, "data": voices})
+        except ValueError as e:
+            return JsonResponse({"ok": False, "error": str(e)})
+        except Exception as e:
+            return JsonResponse({"ok": False, "error": f"Falha ao buscar vozes: {str(e)}"})
 
 
 class AIChatNewSessionView(LoginRequiredMixin, View):

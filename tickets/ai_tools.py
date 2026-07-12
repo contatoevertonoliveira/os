@@ -1075,6 +1075,124 @@ def google_tts_synthesize(text, voice_gender="FEMALE", api_key=None):
     return base64.b64decode(audio_b64)
 
 
+def elevenlabs_tts_synthesize(text, voice_gender="female", api_key=None, voice_id=None):
+    """Chama a API da ElevenLabs (via SDK oficial) e retorna o áudio em MP3 (bytes).
+    Levanta ValueError se não configurado ou em caso de erro da API. ElevenLabs não
+    escolhe voz automaticamente por gênero/idioma como o Google — depende de um ID
+    de voz específico da biblioteca do usuário, cadastrado por gênero em SystemSettings.
+    Se api_key/voice_id não forem passados, usa os valores salvos (uso normal);
+    passá-los permite testar valores ainda não salvos."""
+    from .models import SystemSettings
+
+    settings_obj = SystemSettings.objects.first() if (api_key is None or voice_id is None) else None
+
+    if api_key is None:
+        api_key = (settings_obj.elevenlabs_api_key if settings_obj else "") or ""
+    if not api_key:
+        raise ValueError(
+            "Voz ElevenLabs não está configurada. Peça a um administrador para configurar em "
+            "Configurações → Integrações (ElevenLabs)."
+        )
+
+    if voice_id is None:
+        is_male = str(voice_gender).lower() in ("male", "masculina", "masculino")
+        if settings_obj:
+            voice_id = settings_obj.elevenlabs_voice_id_male if is_male else settings_obj.elevenlabs_voice_id_female
+        voice_id = voice_id or ""
+    if not voice_id:
+        raise ValueError(
+            "Nenhum ID de voz ElevenLabs configurado para esse gênero. Configure em Configurações → "
+            "Integrações (ElevenLabs)."
+        )
+
+    from elevenlabs.client import ElevenLabs
+    from elevenlabs.core.api_error import ApiError
+
+    client = ElevenLabs(api_key=api_key)
+    try:
+        audio_stream = client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=text[:4900],
+            model_id="eleven_v3",  # modelo mais atual/expressivo recomendado no quickstart oficial
+            output_format="mp3_44100_128",
+        )
+        return b"".join(audio_stream)
+    except ApiError as e:
+        message = None
+        if isinstance(e.body, dict):
+            detail = e.body.get("detail")
+            if isinstance(detail, dict):
+                message = detail.get("message")
+            elif isinstance(detail, str):
+                message = detail
+        raise ValueError(message or f"Erro HTTP {e.status_code} na API da ElevenLabs.")
+
+
+def list_elevenlabs_voices(api_key=None):
+    """Busca a biblioteca de vozes disponíveis na conta ElevenLabs configurada (vozes
+    prontas + qualquer voz customizada/clonada da conta). Retorna lista normalizada
+    [{'voice_id', 'name', 'gender', 'preview_url'}]. Levanta ValueError se não
+    configurado ou em caso de erro da API. Se api_key não for passada, usa a salva
+    em SystemSettings (uso normal); passá-la permite testar uma chave ainda não salva."""
+    from .models import SystemSettings
+
+    if api_key is None:
+        settings_obj = SystemSettings.objects.first()
+        api_key = (settings_obj.elevenlabs_api_key if settings_obj else "") or ""
+    if not api_key:
+        raise ValueError(
+            "Voz ElevenLabs não está configurada. Peça a um administrador para configurar em "
+            "Configurações → Integrações (ElevenLabs)."
+        )
+
+    from elevenlabs.client import ElevenLabs
+    from elevenlabs.core.api_error import ApiError
+
+    client = ElevenLabs(api_key=api_key)
+    try:
+        resp = client.voices.get_all()
+    except ApiError as e:
+        message = None
+        if isinstance(e.body, dict):
+            detail = e.body.get("detail")
+            if isinstance(detail, dict):
+                message = detail.get("message")
+            elif isinstance(detail, str):
+                message = detail
+        raise ValueError(message or f"Erro HTTP {e.status_code} na API da ElevenLabs.")
+
+    voices = []
+    for v in resp.voices:
+        labels = v.labels or {}
+        voices.append({
+            "voice_id": v.voice_id,
+            "name": v.name,
+            "gender": (labels.get("gender") or "").lower(),
+            "preview_url": v.preview_url or "",
+        })
+    voices.sort(key=lambda x: (x["gender"] != "female", x["gender"] != "male", x["name"] or ""))
+    return voices
+
+
+def tts_synthesize(text, voice_gender="female", provider=None, google_api_key=None,
+                    elevenlabs_api_key=None, elevenlabs_voice_id=None):
+    """Sintetiza voz através do provedor configurado em SystemSettings.tts_provider
+    (google ou elevenlabs) — o provedor 'browser' não passa por aqui, é tratado
+    inteiramente no navegador do usuário. Retorna áudio em MP3 (bytes); levanta
+    ValueError se não configurado ou em caso de erro do provedor."""
+    from .models import SystemSettings
+
+    if provider is None:
+        settings_obj = SystemSettings.objects.first()
+        provider = (settings_obj.tts_provider if settings_obj else "") or "browser"
+
+    if provider == "elevenlabs":
+        return elevenlabs_tts_synthesize(
+            text, voice_gender=voice_gender, api_key=elevenlabs_api_key, voice_id=elevenlabs_voice_id
+        )
+    return google_tts_synthesize(text, voice_gender=voice_gender, api_key=google_api_key)
+
+
 def _search_web(args, user):
     """Busca informações reais na internet (Google ou Tavily, conforme configurado).
     Use para clientes, endereços, telefones, contatos, e-mails, equipamentos,

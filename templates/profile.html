@@ -197,8 +197,28 @@
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold text-muted mb-1">Voz preferida</label>
                                 {% render_field form.tts_voice_gender class="form-select form-select-sm" %}
-                                <small class="text-muted d-block mt-1">Vale ao usar o provedor Google Cloud. No provedor gratuito (navegador), a voz é escolhida direto no Chat IA.</small>
+                                <small class="text-muted d-block mt-1">
+                                    Vale para o provedor Google Cloud (e como voz padrão da ElevenLabs, até você
+                                    escolher uma específica ao lado). No provedor gratuito (navegador), a voz é
+                                    escolhida direto no Chat IA.
+                                </small>
                             </div>
+                            {% if system_settings.tts_provider == 'elevenlabs' %}
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold text-muted mb-1">Voz ElevenLabs</label>
+                                <div class="input-group input-group-sm">
+                                    <select class="form-select form-select-sm" id="elevenlabsVoiceSelect" name="elevenlabs_voice_id">
+                                        <option value="">Carregando vozes...</option>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary" id="elevenlabsVoicePreviewBtn" title="Ouvir prévia" disabled>
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mt-1" id="elevenlabsVoiceHint">
+                                    Escolha uma voz específica da biblioteca ElevenLabs e clique no play para ouvir uma prévia.
+                                </small>
+                            </div>
+                            {% endif %}
                         </div>
 
                         <div class="d-flex justify-content-end pt-3 border-top">
@@ -244,6 +264,77 @@
                     deniedMsg?.classList.remove('d-none');
                 });
         });
+    });
+
+    // Busca a biblioteca de vozes da ElevenLabs (via servidor, que guarda a chave) e
+    // popula o select com prévia tocável — só existe na página quando o provedor de
+    // TTS ativo é ElevenLabs.
+    document.addEventListener('DOMContentLoaded', function () {
+        const voiceSelect = document.getElementById('elevenlabsVoiceSelect');
+        if (!voiceSelect) return;
+
+        const previewBtn = document.getElementById('elevenlabsVoicePreviewBtn');
+        const hintEl = document.getElementById('elevenlabsVoiceHint');
+        const currentVoiceId = "{{ user.profile.elevenlabs_voice_id|default:''|escapejs }}";
+        let previewAudio = null;
+
+        function updatePreviewButtonState() {
+            const selected = voiceSelect.options[voiceSelect.selectedIndex];
+            const hasPreview = selected && selected.dataset.previewUrl;
+            if (previewBtn) previewBtn.disabled = !hasPreview;
+        }
+
+        fetch("{% url 'ai_chat_elevenlabs_voices' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                voiceSelect.innerHTML = '';
+
+                if (!data.ok) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'Erro ao carregar vozes';
+                    voiceSelect.appendChild(opt);
+                    if (hintEl) {
+                        hintEl.textContent = data.error || 'Não foi possível buscar as vozes.';
+                        hintEl.classList.add('text-danger');
+                    }
+                    return;
+                }
+
+                const blankOpt = document.createElement('option');
+                blankOpt.value = '';
+                blankOpt.textContent = '— Usar padrão do administrador —';
+                voiceSelect.appendChild(blankOpt);
+
+                const genderLabel = { female: 'Feminina', male: 'Masculina' };
+                (data.data || []).forEach(function (v) {
+                    const opt = document.createElement('option');
+                    opt.value = v.voice_id;
+                    const genderTag = genderLabel[v.gender] ? ' (' + genderLabel[v.gender] + ')' : '';
+                    opt.textContent = v.name + genderTag;
+                    opt.dataset.previewUrl = v.preview_url || '';
+                    voiceSelect.appendChild(opt);
+                });
+
+                if (currentVoiceId) voiceSelect.value = currentVoiceId;
+                updatePreviewButtonState();
+            })
+            .catch(function () {
+                voiceSelect.innerHTML = '<option value="">Erro ao carregar vozes</option>';
+            });
+
+        voiceSelect.addEventListener('change', updatePreviewButtonState);
+
+        if (previewBtn) {
+            previewBtn.addEventListener('click', function () {
+                const selected = voiceSelect.options[voiceSelect.selectedIndex];
+                const url = selected && selected.dataset.previewUrl;
+                if (!url) return;
+                if (previewAudio) previewAudio.pause();
+                previewAudio = new Audio(url);
+                previewAudio.play();
+            });
+        }
     });
 
     function copyToken(event) {

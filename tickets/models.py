@@ -59,6 +59,9 @@ class UserProfile(models.Model):
     ]
     tts_enabled = models.BooleanField(default=False, verbose_name="Respostas do Jota4 em voz alta")
     tts_voice_gender = models.CharField(max_length=10, choices=TTS_VOICE_GENDER_CHOICES, default='female', verbose_name="Voz preferida")
+    # Voz específica escolhida pelo próprio usuário na biblioteca da ElevenLabs (só usada
+    # quando o provedor de TTS ativo é 'elevenlabs' — nos demais provedores vale tts_voice_gender).
+    elevenlabs_voice_id = models.CharField(max_length=100, blank=True, verbose_name="Voz ElevenLabs")
 
     # Restrições de Funcionalidades
     can_view_tickets = models.BooleanField(default=True, verbose_name="Visualizar Ordens de Serviço")
@@ -408,9 +411,15 @@ class SystemSettings(models.Model):
     TTS_PROVIDER_CHOICES = [
         ('browser', 'Navegador (gratuito)'),
         ('google', 'Google Cloud Text-to-Speech'),
+        ('elevenlabs', 'ElevenLabs'),
     ]
     tts_provider = models.CharField(max_length=20, choices=TTS_PROVIDER_CHOICES, default='browser', verbose_name="Provedor de Voz (TTS)")
     google_tts_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Google Cloud Text-to-Speech)")
+    # ElevenLabs não tem seleção automática de voz por gênero/idioma como o Google —
+    # precisa do ID de uma voz específica da biblioteca do usuário, um pra cada gênero.
+    elevenlabs_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (ElevenLabs)")
+    elevenlabs_voice_id_female = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Feminina (ElevenLabs)")
+    elevenlabs_voice_id_male = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Masculina (ElevenLabs)")
 
     def __str__(self):
         return "Configurações do Sistema"

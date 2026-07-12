@@ -701,11 +701,13 @@ class UserProfileForm(forms.ModelForm):
         # não renderiza o checkbox, o ModelForm gravava False a cada salvamento (checkbox
         # ausente = não enviado = False), fazendo o Chat IA sumir. É uma permissão
         # gerenciada apenas pela tela de Permissões.
-        # 'voice_wakeword_enabled', 'tts_enabled' e 'tts_voice_gender' são preferências do
-        # próprio usuário (diferente de ai_chat_enabled) — os campos SÃO sempre renderizados
-        # em profile.html, então não sofrem o mesmo problema.
+        # 'voice_wakeword_enabled', 'tts_enabled', 'tts_voice_gender' e 'elevenlabs_voice_id'
+        # são preferências do próprio usuário (diferente de ai_chat_enabled) — os campos SÃO
+        # sempre renderizados em profile.html, então não sofrem o mesmo problema.
+        # 'elevenlabs_voice_id' é renderizado manualmente no template (select populado via
+        # JS, sem choices fixas no form) — o campo aqui só cuida da validação/salvamento.
         fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role',
-                  'voice_wakeword_enabled', 'tts_enabled', 'tts_voice_gender']
+                  'voice_wakeword_enabled', 'tts_enabled', 'tts_voice_gender', 'elevenlabs_voice_id']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),

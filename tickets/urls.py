@@ -1,6 +1,6 @@
 from django.urls import path
 from django.contrib.auth.views import LogoutView
-from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView, AIChatProactiveCheckView, AITTSView
+from .views_ai import AIChatView, AIChatNewSessionView, AIChatHistoryView, AIChatTestView, AIChatProactiveCheckView, AITTSView, ElevenLabsVoicesListView
 from .views_private_chat import (
     PrivateChatContactsView, PrivateChatOpenView, PrivateChatMessagesView,
     PrivateChatSendView, PrivateChatPollView,
@@ -226,6 +226,7 @@ urlpatterns = [
     path('ai/chat/test/', AIChatTestView.as_view(), name='ai_chat_test'),
     path('ai/chat/proactive-check/', AIChatProactiveCheckView.as_view(), name='ai_chat_proactive_check'),
     path('ai/chat/tts/', AITTSView.as_view(), name='ai_chat_tts'),
+    path('ai/chat/elevenlabs-voices/', ElevenLabsVoicesListView.as_view(), name='ai_chat_elevenlabs_voices'),
 
     # Chat Particular (1:1 entre usuários, estilo Messenger)
     path('chat/private/contacts/', PrivateChatContactsView.as_view(), name='private_chat_contacts'),

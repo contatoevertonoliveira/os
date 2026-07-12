@@ -369,11 +369,22 @@
                                 <select name="tts_provider" id="id_tts_provider" class="form-select" style="max-width: 300px;">
                                     <option value="browser" {% if system_settings.tts_provider == 'browser' %}selected{% endif %}>Navegador (gratuito)</option>
                                     <option value="google" {% if system_settings.tts_provider == 'google' %}selected{% endif %}>Google Cloud Text-to-Speech</option>
+                                    <option value="elevenlabs" {% if system_settings.tts_provider == 'elevenlabs' %}selected{% endif %}>ElevenLabs</option>
                                 </select>
                                 <small class="text-muted d-block mt-1">
                                     Decide como o Jota4 fala as respostas quando o usuário ativa "Respostas em voz alta" em Meu Perfil.
-                                    "Navegador" é grátis mas soa robotizada; "Google Cloud" tem voz natural, mas exige chave própria e cobra por caractere.
+                                    "Navegador" é grátis mas soa robotizada; "Google Cloud" e "ElevenLabs" têm voz natural, mas exigem
+                                    chave própria e cobram por uso.
                                 </small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Voz de teste (gênero)</label>
+                                <select id="id_tts_test_voice" class="form-select" style="max-width: 200px;">
+                                    <option value="female">Feminina</option>
+                                    <option value="male">Masculina</option>
+                                </select>
+                                <small class="text-muted d-block mt-1">Usado só pelo botão "Testar agora" abaixo — a preferência de cada usuário fica em Meu Perfil.</small>
                             </div>
 
                             <div id="ttsProviderGoogle" class="border rounded-3 p-3 mb-3">
@@ -390,18 +401,60 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label fw-semibold">Voz de teste</label>
-                                        <select id="id_tts_test_voice" class="form-select">
-                                            <option value="female">Feminina</option>
-                                            <option value="male">Masculina</option>
-                                        </select>
-                                    </div>
                                 </div>
                                 <small class="text-muted d-block mt-2">
                                     Chave em <a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com</a>
                                     (habilite a API "Cloud Text-to-Speech API" — é uma API diferente da "Custom Search API").
                                     Exige faturamento ativo no projeto do Google Cloud, igual à busca.
+                                </small>
+                            </div>
+
+                            <div id="ttsProviderElevenlabs" class="border rounded-3 p-3 mb-3">
+                                <div class="fw-semibold small text-uppercase text-muted mb-3">ElevenLabs</div>
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label fw-semibold">Chave de API</label>
+                                        <div class="input-group">
+                                            <input type="password" name="elevenlabs_api_key" id="id_elevenlabs_api_key"
+                                                   class="form-control" autocomplete="off"
+                                                   placeholder="{% if system_settings.elevenlabs_api_key %}Deixe em branco para manter a chave atual{% else %}Cole sua chave aqui...{% endif %}">
+                                            <button type="button" class="btn btn-outline-secondary" id="toggleElevenlabsApiKey" title="Mostrar/Ocultar">
+                                                <i class="fas fa-eye" id="toggleElevenlabsApiKeyIcon"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" id="btnRefreshElevenlabsVoices" title="Buscar vozes com a chave salva">
+                                                <i class="fas fa-rotate"></i> Buscar vozes
+                                            </button>
+                                        </div>
+                                        <small class="text-muted">Salve a chave primeiro (botão no fim da página) pra depois conseguir listar as vozes aqui.</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Voz Feminina (padrão)</label>
+                                        <div class="input-group">
+                                            <select class="form-select" id="id_elevenlabs_voice_id_female" name="elevenlabs_voice_id_female">
+                                                <option value="">Clique em "Buscar vozes" acima</option>
+                                            </select>
+                                            <button type="button" class="btn btn-outline-secondary elevenlabs-preview-btn" data-select="id_elevenlabs_voice_id_female" title="Ouvir prévia" disabled>
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold">Voz Masculina (padrão)</label>
+                                        <div class="input-group">
+                                            <select class="form-select" id="id_elevenlabs_voice_id_male" name="elevenlabs_voice_id_male">
+                                                <option value="">Clique em "Buscar vozes" acima</option>
+                                            </select>
+                                            <button type="button" class="btn btn-outline-secondary elevenlabs-preview-btn" data-select="id_elevenlabs_voice_id_male" title="Ouvir prévia" disabled>
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="elevenlabsVoicesStatus" class="col-12"></div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Chave em <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a> — precisa
+                                    das permissões "Text to Speech" e "Voices: Read". Essas são as vozes padrão por gênero; cada usuário
+                                    ainda pode escolher a própria voz específica em Meu Perfil.
                                 </small>
                             </div>
 
@@ -781,27 +834,115 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Mostra o bloco de configuração do Google TTS só quando ele é o provedor selecionado
+    // Mostra só o bloco de configuração do provedor de TTS selecionado
     const ttsProviderSelectEl = document.getElementById('id_tts_provider');
     const ttsGoogleBlock = document.getElementById('ttsProviderGoogle');
+    const ttsElevenlabsBlock = document.getElementById('ttsProviderElevenlabs');
     function updateTtsProviderVisibility() {
         ttsGoogleBlock.classList.toggle('d-none', ttsProviderSelectEl.value !== 'google');
+        ttsElevenlabsBlock.classList.toggle('d-none', ttsProviderSelectEl.value !== 'elevenlabs');
     }
     if (ttsProviderSelectEl) {
         ttsProviderSelectEl.addEventListener('change', updateTtsProviderVisibility);
         updateTtsProviderVisibility();
     }
     wireToggleKey('toggleTtsApiKey', 'id_google_tts_api_key', 'toggleTtsApiKeyIcon');
+    wireToggleKey('toggleElevenlabsApiKey', 'id_elevenlabs_api_key', 'toggleElevenlabsApiKeyIcon');
 
-    // Botão Testar Voz — sintetiza e já toca o áudio de teste
+    // Busca a biblioteca de vozes da ElevenLabs (com a chave já salva no servidor) e
+    // preenche os dois selects de voz padrão (feminina/masculina), com prévia tocável.
+    (function () {
+        const femaleSelect = document.getElementById('id_elevenlabs_voice_id_female');
+        const maleSelect   = document.getElementById('id_elevenlabs_voice_id_male');
+        const statusEl     = document.getElementById('elevenlabsVoicesStatus');
+        const refreshBtn   = document.getElementById('btnRefreshElevenlabsVoices');
+        if (!femaleSelect || !maleSelect) return;
+
+        const currentFemale = "{{ system_settings.elevenlabs_voice_id_female|default:''|escapejs }}";
+        const currentMale   = "{{ system_settings.elevenlabs_voice_id_male|default:''|escapejs }}";
+        const genderLabel = { female: 'Feminina', male: 'Masculina' };
+
+        function updatePreviewButtonsState() {
+            document.querySelectorAll('.elevenlabs-preview-btn').forEach(function (btn) {
+                const sel = document.getElementById(btn.dataset.select);
+                const opt = sel && sel.options[sel.selectedIndex];
+                btn.disabled = !(opt && opt.dataset.previewUrl);
+            });
+        }
+
+        function fillSelect(select, voices, preselectId) {
+            select.innerHTML = '';
+            const blankOpt = document.createElement('option');
+            blankOpt.value = '';
+            blankOpt.textContent = '— Nenhuma (usa o padrão do provedor) —';
+            select.appendChild(blankOpt);
+            voices.forEach(function (v) {
+                const opt = document.createElement('option');
+                opt.value = v.voice_id;
+                const genderTag = genderLabel[v.gender] ? ' (' + genderLabel[v.gender] + ')' : '';
+                opt.textContent = v.name + genderTag;
+                opt.dataset.previewUrl = v.preview_url || '';
+                select.appendChild(opt);
+            });
+            if (preselectId) select.value = preselectId;
+        }
+
+        function loadVoices() {
+            if (statusEl) statusEl.innerHTML = '<small class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Buscando vozes...</small>';
+            fetch("{% url 'ai_chat_elevenlabs_voices' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok) {
+                        if (statusEl) statusEl.innerHTML = `<small class="text-danger"><i class="fas fa-triangle-exclamation me-1"></i>${data.error}</small>`;
+                        return;
+                    }
+                    fillSelect(femaleSelect, data.data, currentFemale);
+                    fillSelect(maleSelect, data.data, currentMale);
+                    updatePreviewButtonsState();
+                    if (statusEl) statusEl.innerHTML = `<small class="text-success"><i class="fas fa-check me-1"></i>${data.data.length} vozes encontradas.</small>`;
+                })
+                .catch(function () {
+                    if (statusEl) statusEl.innerHTML = '<small class="text-danger">Erro inesperado ao buscar vozes.</small>';
+                });
+        }
+
+        if (refreshBtn) refreshBtn.addEventListener('click', loadVoices);
+        [femaleSelect, maleSelect].forEach(function (sel) { sel.addEventListener('change', updatePreviewButtonsState); });
+        document.querySelectorAll('.elevenlabs-preview-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const sel = document.getElementById(btn.dataset.select);
+                const opt = sel && sel.options[sel.selectedIndex];
+                const url = opt && opt.dataset.previewUrl;
+                if (!url) return;
+                new Audio(url).play();
+            });
+        });
+
+        // Se já tem chave salva, busca a lista sozinho ao abrir a página
+        if ({{ system_settings.elevenlabs_api_key|yesno:"true,false" }}) loadVoices();
+    })();
+
+    // Botão Testar Voz — testa o provedor atualmente selecionado, e já toca o áudio de teste
     const btnTestTts = document.getElementById('btnTestTts');
     const ttsTestResult = document.getElementById('ttsTestResult');
     const ttsTestResultInner = document.getElementById('ttsTestResultInner');
     let _ttsTestAudio = null;
     if (btnTestTts) {
         btnTestTts.addEventListener('click', async function () {
-            const apiKey = document.getElementById('id_google_tts_api_key')?.value || '';
+            const provider = ttsProviderSelectEl?.value || 'google';
             const voiceGender = document.getElementById('id_tts_test_voice')?.value || 'female';
+            const googleApiKey = document.getElementById('id_google_tts_api_key')?.value || '';
+            const elevenlabsApiKey = document.getElementById('id_elevenlabs_api_key')?.value || '';
+            const elevenlabsVoiceId = voiceGender === 'male'
+                ? (document.getElementById('id_elevenlabs_voice_id_male')?.value || '')
+                : (document.getElementById('id_elevenlabs_voice_id_female')?.value || '');
+
+            if (provider === 'browser') {
+                ttsTestResult.classList.remove('d-none');
+                ttsTestResultInner.className = 'alert alert-warning mb-0 py-2 small';
+                ttsTestResultInner.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> O provedor "Navegador" não passa pelo servidor — teste direto no Chat IA.';
+                return;
+            }
 
             btnTestTts.disabled = true;
             btnTestTts.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
@@ -815,7 +956,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         'X-CSRFToken': document.querySelector('#searchIntegrationForm [name=csrfmiddlewaretoken]')?.value || '',
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify({ api_key: apiKey, voice_gender: voiceGender }),
+                    body: JSON.stringify({
+                        provider: provider,
+                        voice_gender: voiceGender,
+                        google_api_key: googleApiKey,
+                        elevenlabs_api_key: elevenlabsApiKey,
+                        elevenlabs_voice_id: elevenlabsVoiceId,
+                    }),
                 });
 
                 ttsTestResult.classList.remove('d-none');
