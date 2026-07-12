@@ -148,22 +148,28 @@ def _run_anthropic_agent(client, model: str, messages: list, tools: list, tool_e
     return "Desculpe, não consegui completar a operação."
 
 
-def run_agent(settings_obj, messages: list, tools: list, tool_executor) -> str:
+def run_agent(config, messages: list, tools: list, tool_executor, *, expose_errors: bool = True) -> str:
     """
     Executa o loop de agente completo com o provider configurado.
 
     Args:
-        settings_obj: instância de SystemSettings com ai_provider, ai_api_key, ai_model
+        config: objeto com ai_provider, ai_api_key, ai_model (ex: a AIProviderConfig
+            ativa, ou um objeto temporário equivalente usado no teste de conexão)
         messages: lista de dicts {role, content} incluindo system prompt
         tools: lista de tool definitions no formato interno
         tool_executor: callable(tool_name, args) → dict
+        expose_errors: se True, mostra o texto cru da exceção do provedor na resposta
+            (uso interno/admin, ex: teste de conexão). Se False, retorna uma mensagem
+            genérica pro usuário final e só loga o detalhe real no servidor — evita
+            vazar mensagens de erro internas do provedor de IA pro chat de qualquer
+            usuário.
 
     Returns:
         Texto da resposta final do assistente
     """
-    provider = settings_obj.ai_provider or 'deepseek'
-    api_key = settings_obj.ai_api_key or ''
-    model = settings_obj.ai_model or DEFAULT_MODELS.get(provider, 'deepseek-chat')
+    provider = config.ai_provider or 'deepseek'
+    api_key = config.ai_api_key or ''
+    model = config.ai_model or DEFAULT_MODELS.get(provider, 'deepseek-chat')
 
     if not api_key:
         return "⚠️ Chave de API não configurada. Acesse Configurações → Inteligência Artificial para configurar."
@@ -191,4 +197,6 @@ def run_agent(settings_obj, messages: list, tools: list, tool_executor) -> str:
 
     except Exception as e:
         logger.error("Erro no agente IA (%s): %s", provider, e)
-        return f"⚠️ Erro ao comunicar com a IA: {e}"
+        if expose_errors:
+            return f"⚠️ Erro ao comunicar com a IA: {e}"
+        return "⚠️ Não foi possível obter resposta da IA no momento. Se o problema persistir, avise um administrador."

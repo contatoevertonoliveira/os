@@ -1942,16 +1942,12 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         tab = request.POST.get('_tab', '')
 
         if tab == 'ai':
-            # Salva apenas os campos de IA sem tocar nos campos gerais
+            # Nesta aba só fica o liga/desliga geral — qual provedor/modelo/chave
+            # está em uso é gerenciado pela lista de AIProviderConfig (ver views
+            # AIProviderConfig* abaixo).
             obj = self.object
             obj.ai_enabled = request.POST.get('ai_enabled') == 'on'
-            obj.ai_provider = request.POST.get('ai_provider', obj.ai_provider)
-            obj.ai_model = request.POST.get('ai_model', '').strip()
-            # Só atualiza a chave se o usuário digitou algo (evita limpar por acidente)
-            new_key = request.POST.get('ai_api_key', '').strip()
-            if new_key:
-                obj.ai_api_key = new_key
-            obj.save(update_fields=['ai_enabled', 'ai_provider', 'ai_api_key', 'ai_model'])
+            obj.save(update_fields=['ai_enabled'])
             messages.success(request, "Configurações de IA atualizadas com sucesso!")
             return redirect(reverse_lazy('settings') + '?tab=ai')
 
@@ -1960,7 +1956,103 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['checklist_templates'] = ChecklistTemplate.objects.annotate(item_count=Count('items')).all()
+        context['ai_provider_configs'] = AIProviderConfig.objects.all()
+        context['ai_provider_config_form'] = AIProviderConfigForm()
         return context
+
+
+def _require_settings_admin(request):
+    """Mesma checagem de acesso usada em SettingsView — admin/super_admin apenas."""
+    from django.core.exceptions import PermissionDenied
+    if not request.user.is_authenticated:
+        raise PermissionDenied
+    if not hasattr(request.user, 'profile') or request.user.profile.role not in ['admin', 'super_admin']:
+        raise PermissionDenied
+
+
+class AIProviderConfigCreateView(LoginRequiredMixin, View):
+    """POST /settings/ai-config/create/ — cadastra uma nova configuração de IA na lista."""
+
+    def post(self, request):
+        _require_settings_admin(request)
+        form = AIProviderConfigForm(request.POST)
+        if form.is_valid():
+            config = form.save(commit=False)
+            # Primeira configuração cadastrada já entra ativa, senão a lista ficaria sem nenhuma em uso
+            if not AIProviderConfig.objects.exists():
+                config.is_active = True
+            config.save()
+            messages.success(request, f'Configuração "{config.name}" cadastrada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível cadastrar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings') + '?tab=ai')
+
+
+class AIProviderConfigUpdateView(LoginRequiredMixin, View):
+    """POST /settings/ai-config/<pk>/update/ — edita uma configuração de IA existente."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(AIProviderConfig, pk=pk)
+        # Precisa ser capturada ANTES de vincular o form — form.save(commit=False)
+        # muta a própria instância de "config" em memória (mesmo objeto), então
+        # lê-la depois já traria o valor novo (vazio), não o antigo.
+        old_api_key = config.api_key
+        form = AIProviderConfigForm(request.POST, instance=config)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            # Chave em branco no formulário de edição = manter a chave já salva
+            if not (request.POST.get('api_key') or '').strip():
+                updated.api_key = old_api_key
+            updated.save()
+            messages.success(request, f'Configuração "{updated.name}" atualizada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível salvar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings') + '?tab=ai')
+
+
+class AIProviderConfigDeleteView(LoginRequiredMixin, View):
+    """POST /settings/ai-config/<pk>/delete/ — remove uma configuração de IA da lista."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(AIProviderConfig, pk=pk)
+        was_active = config.is_active
+        name = config.name
+        config.delete()
+        if was_active:
+            # Ativa automaticamente outra, se sobrar alguma — pra não deixar o Jota4 sem provedor
+            fallback = AIProviderConfig.objects.first()
+            if fallback:
+                fallback.is_active = True
+                fallback.save(update_fields=['is_active'])
+        messages.success(request, f'Configuração "{name}" removida.')
+        return redirect(reverse_lazy('settings') + '?tab=ai')
+
+
+class AIProviderConfigActivateView(LoginRequiredMixin, View):
+    """POST /settings/ai-config/<pk>/activate/ — marca esta configuração como a ativa (switch da lista)."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(AIProviderConfig, pk=pk)
+        config.is_active = True
+        config.save()  # o save() do model já desativa as demais
+        return JsonResponse({"ok": True, "active_id": config.id})
+
+
+class AIProviderConfigRevealView(LoginRequiredMixin, View):
+    """GET /settings/ai-config/<pk>/reveal/ — retorna a chave de API completa (não mascarada).
+    Restrito a Super Admin — Admin comum só enxerga a chave mascarada na listagem."""
+
+    def get(self, request, pk):
+        profile = getattr(request.user, 'profile', None)
+        if not profile or profile.role != 'super_admin':
+            return JsonResponse({"ok": False, "error": "Apenas Super Admin pode visualizar a chave completa."}, status=403)
+        config = get_object_or_404(AIProviderConfig, pk=pk)
+        resp = JsonResponse({"ok": True, "api_key": config.api_key})
+        resp['Cache-Control'] = 'no-store'
+        return resp
 
 # Tasks (refatorado: Passagem de Turno)
 @method_decorator(ensure_csrf_cookie, name='dispatch')

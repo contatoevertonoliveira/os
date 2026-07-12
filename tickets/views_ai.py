@@ -10,11 +10,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 
-from .models import SystemSettings, AIChatSession, AIChatMessage, AIUserMemory
+from .models import SystemSettings, AIProviderConfig, AIChatSession, AIChatMessage, AIUserMemory
 from .ai_service import run_agent
 from .ai_tools import TOOL_DEFINITIONS, SYSTEM_PROMPT, execute_tool
 
 CLEAR_CHAT_CONFIRMATION = "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"
+
+_WEEKDAYS_PT = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo']
 
 # Detecta pedidos explícitos de "limpar o chat" antes de chamar o modelo — o
 # modelo às vezes apenas repete o texto de confirmação sem de fato chamar a
@@ -36,6 +38,11 @@ def _get_settings():
     return obj
 
 
+def _get_active_ai_config():
+    """Retorna a AIProviderConfig marcada como ativa, ou None se nenhuma estiver cadastrada/ativa."""
+    return AIProviderConfig.objects.filter(is_active=True).first()
+
+
 class AIChatView(LoginRequiredMixin, View):
     """POST /ai/chat/ — envia mensagem e recebe resposta da IA."""
 
@@ -44,6 +51,10 @@ class AIChatView(LoginRequiredMixin, View):
         if not settings_obj.ai_enabled:
             return JsonResponse({"ok": False, "error": "Assistente de IA não está ativado."}, status=403)
 
+        active_ai_config = _get_active_ai_config()
+        if not active_ai_config:
+            return JsonResponse({"ok": False, "error": "Nenhuma configuração de IA ativa. Peça a um administrador para cadastrar/ativar uma em Configurações → Inteligência Artificial."}, status=503)
+
         # Verifica se o usuário tem permissão para acessar o chat IA.
         # Super Admin sempre tem acesso, independente do valor salvo no profile.
         user_profile = getattr(request.user, 'profile', None)
@@ -51,14 +62,26 @@ class AIChatView(LoginRequiredMixin, View):
         if user_profile and not user_profile.ai_chat_enabled and not is_super_admin:
             return JsonResponse({"ok": False, "error": "Você não tem permissão para usar o Chat IA."}, status=403)
 
+        # Erros crus do provedor de IA (ex: chave inválida, modelo inexistente) só são
+        # exibidos literalmente pra quem pode corrigi-los — outros usuários veem uma
+        # mensagem genérica, evitando vazar detalhes internos da integração no chat.
+        is_admin_user = user_profile and user_profile.role in ('admin', 'super_admin')
+
         # Mensagem de voz chega como multipart/form-data (texto transcrito + arquivo de
         # áudio); mensagem de texto normal continua vindo como JSON.
         audio_file = None
+        voice_confidence = None
         if request.content_type and request.content_type.startswith('multipart/form-data'):
             user_message = (request.POST.get("message") or "").strip()
             session_id = request.POST.get("session_id") or None
             is_proactive_check = False
             audio_file = request.FILES.get("audio")
+            raw_confidence = request.POST.get("voice_confidence")
+            if raw_confidence:
+                try:
+                    voice_confidence = float(raw_confidence)
+                except ValueError:
+                    voice_confidence = None
         else:
             try:
                 body = json.loads(request.body)
@@ -113,21 +136,56 @@ class AIChatView(LoginRequiredMixin, View):
 
         first_name = (request.user.first_name or request.user.username).split()[0]
         is_new_conversation = len(visible_history) <= 1
-        current_hour = timezone.localtime(timezone.now()).hour
+        now_local = timezone.localtime(timezone.now())
+        current_hour = now_local.hour
+        weekday_name = _WEEKDAYS_PT[now_local.weekday()]
+        today_iso = now_local.strftime('%Y-%m-%d')
+        now_iso = now_local.strftime('%Y-%m-%dT%H:%M')
 
         memory = AIUserMemory.objects.filter(user=request.user).first()
         memory_notes = (memory.notes.strip() if memory else "")
+
+        voice_note = ""
+        if audio_file and not is_proactive_check:
+            if voice_confidence is not None and voice_confidence < 0.65:
+                voice_note = (
+                    "\n\nESTA MENSAGEM VEIO DE ÁUDIO (ditado por voz) COM BAIXA CONFIANÇA DE TRANSCRIÇÃO "
+                    f"({voice_confidence * 100:.0f}%) — o texto do usuário abaixo pode conter erros de "
+                    "reconhecimento de voz, especialmente em nomes próprios, números e termos técnicos. NÃO "
+                    "tente adivinhar ou corrigir por conta própria o que não fizer sentido: peça ao usuário "
+                    "para regravar o áudio falando mais devagar e perto do microfone, ou soletrar a "
+                    "palavra/nome que ficou confuso."
+                )
+            else:
+                voice_note = (
+                    "\n\nESTA MENSAGEM VEIO DE ÁUDIO (ditado por voz) — a transcrição automática do navegador "
+                    "pode conter erros, especialmente em nomes próprios. Se algo no texto não fizer sentido no "
+                    "contexto, não bater com nenhum resultado de busca (cliente, contato, equipamento, etc) ou "
+                    "parecer incoerente, não assuma nem tente adivinhar: peça ao usuário para regravar o áudio "
+                    "ou soletrar o trecho específico que ficou confuso."
+                )
 
         system_with_user = (
             SYSTEM_PROMPT
             + f"\n\nUSUÁRIO ATUAL: {first_name}. Use o primeiro nome dele ocasionalmente para tornar a conversa mais natural — não em todas as mensagens, apenas em perguntas, confirmações ou quando fizer sentido humanizar."
             + (f"\n\nMEMÓRIA SOBRE ESTE USUÁRIO (aprendida em conversas anteriores):\n{memory_notes}" if memory_notes else "")
-            + f"\n\nHORÁRIO ATUAL: {current_hour}h (use para escolher Bom dia/Boa tarde/Boa noite quando for se apresentar)."
+            + (
+                f"\n\nDATA E HORA ATUAL DO SISTEMA: {weekday_name}, {now_local.strftime('%d/%m/%Y')} às "
+                f"{now_local.strftime('%H:%M')} (fuso America/Sao_Paulo — Brasília/São Paulo). "
+                f"Hoje em formato ISO = {today_iso}. Agora (data+hora) em formato ISO = {now_iso}. "
+                "Use estes valores para escolher Bom dia/Boa tarde/Boa noite ao se apresentar, e SEMPRE que o "
+                "usuário disser 'hoje', 'agora', 'data atual', 'data e hora local/de hoje', 'amanhã', um dia da "
+                "semana (ex: 'sexta'), 'semana que vem' ou expressão relativa parecida em qualquer campo de "
+                "data (início, prazo, viagem, etc): calcule você mesmo a data/hora resultante a partir do valor "
+                "acima e preencha o campo diretamente — NUNCA diga que não tem como acessar a data/hora do "
+                "sistema nem peça para o usuário informar a data de hoje, você já tem essa informação aqui."
+            )
             + (
                 "\n\nESTA É A PRIMEIRA MENSAGEM DESTA CONVERSA — apresente-se como instruído em IDENTIDADE antes de responder ao pedido do usuário."
                 if is_new_conversation
                 else "\n\nEsta conversa já está em andamento — NÃO se apresente novamente, apenas responda normalmente."
             )
+            + voice_note
         )
 
         messages = [{"role": "system", "content": system_with_user}] + [
@@ -187,7 +245,7 @@ class AIChatView(LoginRequiredMixin, View):
             return result
 
         # Chama o agente
-        response_text = run_agent(settings_obj, messages, TOOL_DEFINITIONS, tool_executor)
+        response_text = run_agent(active_ai_config, messages, TOOL_DEFINITIONS, tool_executor, expose_errors=is_admin_user)
 
         if _clear_requested["value"]:
             # Apaga TODAS as sessões antigas do usuário (incluindo a atual, que
@@ -292,24 +350,28 @@ class AIChatTestView(LoginRequiredMixin, View):
         except Exception:
             body = {}
 
-        # Monta um settings temporário com os dados enviados pelo formulário
-        # (permite testar antes de salvar definitivamente)
-        from .models import SystemSettings
-        settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
+        provider = body.get('provider') or ''
+        api_key = body.get('api_key') or ''
+        model = body.get('model') or ''
 
-        provider = body.get('provider') or settings_obj.ai_provider
-        api_key = body.get('api_key') or settings_obj.ai_api_key
-        model = body.get('model') or settings_obj.ai_model
+        # Editando uma config existente sem retypar a chave: cai pra chave já salva.
+        config_id = body.get('config_id')
+        if config_id and not api_key:
+            existing = AIProviderConfig.objects.filter(pk=config_id).first()
+            if existing:
+                api_key = existing.api_key
+                provider = provider or existing.provider
+                model = model or existing.model
 
         if not api_key:
             return JsonResponse({"ok": False, "error": "Nenhuma chave de API informada."})
 
-        # Cria um objeto temporário com os dados do teste
-        class TempSettings:
+        # Cria um objeto temporário com os dados do teste (permite testar antes de salvar)
+        class TempConfig:
             pass
 
-        temp = TempSettings()
-        temp.ai_provider = provider
+        temp = TempConfig()
+        temp.ai_provider = provider or 'deepseek'
         temp.ai_api_key = api_key
         temp.ai_model = model
 
@@ -352,7 +414,7 @@ class AIChatHistoryView(LoginRequiredMixin, View):
             sessions = AIChatSession.objects.filter(user=request.user).order_by('-updated_at')[:10]
             return JsonResponse({
                 "ok": True,
-                "sessions": [{"id": s.id, "title": s.title, "updated_at": s.updated_at.strftime("%d/%m %H:%M")} for s in sessions]
+                "sessions": [{"id": s.id, "title": s.title, "updated_at": timezone.localtime(s.updated_at).strftime("%d/%m %H:%M")} for s in sessions]
             })
 
         try:
@@ -369,7 +431,7 @@ class AIChatHistoryView(LoginRequiredMixin, View):
                 {
                     "role": m.role,
                     "content": m.content,
-                    "created_at": m.created_at.strftime("%H:%M"),
+                    "created_at": timezone.localtime(m.created_at).strftime("%H:%M"),
                     "audio_url": m.audio.url if m.audio else None,
                 }
                 for m in messages

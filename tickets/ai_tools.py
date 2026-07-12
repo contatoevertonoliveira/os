@@ -984,10 +984,45 @@ def _search_all_contacts(args, user):
 
 def _search_client(args, user):
     from .models import Client
+    import difflib
+    import unicodedata
+
+    def _norm(s):
+        s = unicodedata.normalize('NFKD', s or '')
+        s = ''.join(ch for ch in s if not unicodedata.combining(ch))
+        return s.lower().strip()
+
     name = args.get("name", "").strip()
     if not name:
         return {"ok": False, "error": "Nome não informado."}
-    clients = Client.objects.filter(name__icontains=name).order_by('name')[:10]
+
+    # 1) Busca direta por substring — cobre a maioria dos casos
+    #    (ex: "bain" encontra "Bain & Company", "banco" encontra todos os "Banco X").
+    clients = list(Client.objects.filter(name__icontains=name).order_by('name')[:10])
+
+    # 2) Nada encontrado e o termo tem mais de uma palavra? Tenta casar cada palavra
+    #    separadamente (ex: "Bain Company" -> bate com "Bain & Company", que não contém
+    #    o termo completo como substring por causa do "&").
+    if not clients:
+        words = [w for w in name.split() if len(w) >= 3]
+        if words:
+            q = Q()
+            for w in words:
+                q &= Q(name__icontains=w)
+            clients = list(Client.objects.filter(q).order_by('name')[:10])
+
+    # 3) Ainda nada? Busca por aproximação (fuzzy) contra todos os clientes cadastrados,
+    #    para sugerir os nomes mais parecidos e deixar o usuário escolher/confirmar.
+    if not clients:
+        target = _norm(name)
+        scored = []
+        for c in Client.objects.all().only('id', 'name', 'email'):
+            ratio = difflib.SequenceMatcher(None, target, _norm(c.name)).ratio()
+            if ratio >= 0.6:
+                scored.append((ratio, c))
+        scored.sort(key=lambda t: t[0], reverse=True)
+        clients = [c for _, c in scored[:5]]
+
     return {
         "ok": True,
         "data": [{"id": c.id, "name": c.name, "email": c.email or ""} for c in clients]
@@ -1118,8 +1153,8 @@ def _get_ticket(args, user):
             "status": ticket.status,
             "description": ticket.description,
             "final_description": ticket.final_description or "",
-            "start_date": ticket.start_date.strftime("%d/%m/%Y %H:%M") if ticket.start_date else None,
-            "deadline": ticket.deadline.strftime("%d/%m/%Y %H:%M") if ticket.deadline else None,
+            "start_date": timezone.localtime(ticket.start_date).strftime("%d/%m/%Y %H:%M") if ticket.start_date else None,
+            "deadline": timezone.localtime(ticket.deadline).strftime("%d/%m/%Y %H:%M") if ticket.deadline else None,
             "requester": ticket.contact_client_requester.name if ticket.contact_client_requester else None,
             "responsible": ticket.contact_jumper_responsible.name if ticket.contact_jumper_responsible else None,
             "ticket_type": ticket.ticket_type.name if ticket.ticket_type else None,
@@ -1677,7 +1712,7 @@ def _check_pending_alerts(args, user):
             "sender_name": n.sender.get_full_name() or n.sender.username if n.sender else "Sistema",
             "title": n.title,
             "preview": (n.message or "")[:120],
-            "created_at": n.created_at.strftime("%d/%m/%Y %H:%M"),
+            "created_at": timezone.localtime(n.created_at).strftime("%d/%m/%Y %H:%M"),
         }
         for n in messages_qs
     ]
@@ -1695,7 +1730,7 @@ def _check_pending_alerts(args, user):
             "priority": a.get_priority_display(),
             "preview": (a.entry.text or "")[:120],
             "shift_date": a.entry.handover.shift_date.strftime("%d/%m/%Y") if a.entry.handover else "",
-            "created_at": a.created_at.strftime("%d/%m/%Y %H:%M"),
+            "created_at": timezone.localtime(a.created_at).strftime("%d/%m/%Y %H:%M"),
         }
         for a in alerts_qs
     ]
@@ -1723,7 +1758,7 @@ def _get_message_content(args, user):
         "title": n.title,
         "message": n.message,
         "is_read": n.is_read,
-        "created_at": n.created_at.strftime("%d/%m/%Y %H:%M"),
+        "created_at": timezone.localtime(n.created_at).strftime("%d/%m/%Y %H:%M"),
     }}
 
 
@@ -2531,7 +2566,7 @@ def _list_all_users_admin(args, user):
                 "email": u.email or "N/A",
                 "role": user_role,
                 "active": u.is_active,
-                "last_login": u.last_login.strftime("%d/%m/%Y %H:%M") if u.last_login else "Nunca",
+                "last_login": timezone.localtime(u.last_login).strftime("%d/%m/%Y %H:%M") if u.last_login else "Nunca",
                 "ai_chat_enabled": getattr(profile, 'ai_chat_enabled', True) if profile else True,
                 "can_view_tickets": getattr(profile, 'can_view_tickets', True) if profile else True,
                 "can_create_tickets": getattr(profile, 'can_create_tickets', True) if profile else True,
@@ -2586,8 +2621,8 @@ def _get_user_details_admin(args, user):
         "job_title": getattr(profile, 'job_title', '') or "N/A",
         "phone": getattr(profile, 'company_phone', '') or "N/A",
         "token": getattr(profile, 'token', 'N/A'),
-        "last_login": target_user.last_login.strftime("%d/%m/%Y %H:%M") if target_user.last_login else "Nunca",
-        "date_joined": target_user.date_joined.strftime("%d/%m/%Y %H:%M"),
+        "last_login": timezone.localtime(target_user.last_login).strftime("%d/%m/%Y %H:%M") if target_user.last_login else "Nunca",
+        "date_joined": timezone.localtime(target_user.date_joined).strftime("%d/%m/%Y %H:%M"),
         "restricoes_individuais": {
             "ai_chat_enabled": getattr(profile, 'ai_chat_enabled', True),
             "can_view_tickets": getattr(profile, 'can_view_tickets', True),
@@ -2715,7 +2750,7 @@ def _change_user_password_admin(args, user):
 
 def _get_system_info_admin(args, user):
     from django.contrib.auth.models import User as DjangoUser
-    from .models import Ticket, SystemSettings
+    from .models import Ticket, SystemSettings, AIProviderConfig
 
     role = getattr(getattr(user, 'profile', None), 'role', None)
     if role not in ('admin', 'super_admin'):
@@ -2729,7 +2764,8 @@ def _get_system_info_admin(args, user):
 
         settings = SystemSettings.objects.first()
         ai_enabled = settings.ai_enabled if settings else False
-        ai_provider = settings.ai_provider if settings else "N/A"
+        active_config = AIProviderConfig.objects.filter(is_active=True).first()
+        ai_provider = active_config.get_provider_display() if active_config else "Nenhuma configuração ativa"
 
         return {"ok": True, "data": {
             "total_users": total_users,
@@ -2765,8 +2801,8 @@ def _list_online_users_admin(args, user):
                 "name": session.user.get_full_name() or session.user.username,
                 "username": session.user.username,
                 "ip_address": session.ip_address,
-                "last_activity": session.last_activity.strftime("%d/%m/%Y %H:%M:%S"),
-                "logged_at": session.created_at.strftime("%d/%m/%Y %H:%M:%S"),
+                "last_activity": timezone.localtime(session.last_activity).strftime("%d/%m/%Y %H:%M:%S"),
+                "logged_at": timezone.localtime(session.created_at).strftime("%d/%m/%Y %H:%M:%S"),
             })
 
         return {"ok": True, "data": {
@@ -3000,6 +3036,21 @@ Se o usuário confirmar, colete apenas o nome (e e-mail/telefone se oferecer) e 
 Após cadastrar, retome o fluxo de onde parou automaticamente.
 Isso vale para: cliente, contato solicitante, responsável JumperFour, hub/loja, equipamento, tipo de problema.
 
+MENSAGENS DE VOZ (ditado) COM TRANSCRIÇÃO DUVIDOSA — MUITO IMPORTANTE:
+Mensagens de voz chegam já transcritas automaticamente pelo navegador do usuário — você nunca ouve o áudio
+em si, só o texto gerado. Esse reconhecimento de voz erra com frequência, principalmente em nomes próprios
+(clientes, pessoas), números e termos técnicos. Se a mensagem de sistema indicar que esta mensagem veio de
+áudio (com ou sem aviso de baixa confiança), redobre a atenção:
+- Se um trecho não fizer sentido no contexto, resultar em busca vazia (cliente, contato, equipamento etc.)
+  ou parecer incoerente com o resto da frase, NÃO tente adivinhar, corrigir sozinho ou seguir em frente
+  como se tivesse entendido.
+- Peça ao usuário para esclarecer esse trecho específico, oferecendo duas opções: regravar o áudio (falando
+  mais devagar e perto do microfone) ou soletrar a palavra/nome em questão. Exemplo:
+  "Não entendi direito o nome do cliente no áudio. Pode regravar falando mais devagar, ou soletrar o nome
+  pra mim?"
+- Isso vale mesmo no meio de um fluxo (ex: coletando dados de uma OS) — pare nesse campo específico e só
+  prossiga depois que o usuário esclarecer.
+
 Se o usuário fizer qualquer pergunta FORA desse escopo (política, programação, receitas, curiosidades gerais, etc.), responda EXATAMENTE assim:
 "Não estou autorizado a responder questionamentos fora da geração de tickets ou chamados de serviço. Deseja abrir um chamado?"
 
@@ -3102,7 +3153,17 @@ REGRAS OBRIGATÓRIAS:
 1. Antes de criar, editar ou excluir, monte um resumo curto e pergunte "Confirma?". Só execute após confirmação.
    Aceite como confirmação qualquer expressão positiva, por exemplo: sim, ok, pode, pode fazer, vai, manda bala, bora, confirmo, isso, exato, correto, prossiga, segue, pode criar, pode salvar, pode deletar, fecha, fecha negócio, e similares. Use o bom senso — se a intenção for claramente de confirmar, execute.
    Aceite como negação/cancelamento: não, cancela, para, volta, deixa pra lá, esqueça, desisti, agora não, e similares.
-2. Ao buscar clientes, mostre as opções encontradas e pergunte qual é o correto.
+2. Ao buscar clientes, mostre as opções encontradas e pergunte qual é o correto. A busca (search_client)
+   já retorna resultados por aproximação quando não há uma correspondência exata — trate qualquer resultado
+   retornado (mesmo que o nome não seja idêntico ao que o usuário digitou) como candidato válido a confirmar,
+   nunca como "não encontrado". Exemplos:
+   - Usuário digita "banco" → search_client retorna vários clientes com "Banco" no nome → liste todos
+     numerados e pergunte qual é.
+   - Usuário digita "bain" ou "Bain Company" → search_client pode retornar "Bain & Company" (aproximado) →
+     apresente: "Você quis dizer Bain & Company?" (se vier só 1 resultado) ou liste numerado (se vier mais
+     de 1) — nunca pergunte antes se pode cadastrar um cliente novo.
+   Só ofereça cadastrar um cliente novo (CADASTRO SOB DEMANDA) quando search_client retornar uma lista
+   VAZIA — ou seja, nenhum resultado, nem aproximado.
 3. Se o usuário não tiver permissão, informe em uma linha e pare.
 4. ERROS — regra crítica: se qualquer tool retornar "ok": false ou lançar exceção, NUNCA omita o erro.
    Informe o usuário exatamente assim:
@@ -3116,6 +3177,15 @@ REGRAS OBRIGATÓRIAS:
    pode dizer "OS #... criada" — chame a tool primeiro, leia o "formatted_id" do resultado, e só então informe
    esse valor exato ao usuário. O mesmo vale para qualquer outro cadastro (cliente, equipamento, contato, etc):
    use sempre o "id"/"name" retornado pela tool, nunca um valor lembrado de mensagens anteriores.
+6. DATA E HORA — regra crítica: a mensagem de sistema traz sempre "DATA E HORA ATUAL DO SISTEMA" (dia da
+   semana, data e hora reais do computador/servidor, fuso America/Sao_Paulo). Você TEM acesso à data e hora
+   de hoje — nunca diga que não consegue acessar a data/hora do sistema, e nunca peça para o usuário informar
+   "qual é a data de hoje". Sempre que o usuário usar uma expressão relativa em qualquer campo de data (início,
+   prazo, data de viagem, etc) — "hoje", "agora", "data e hora local/atual", "amanhã", "sexta", "segunda que
+   vem", "daqui a 2 dias", etc — calcule você mesmo a data/hora resultante a partir do valor informado na
+   mensagem de sistema e preencha o campo já no formato YYYY-MM-DDTHH:MM, sem perguntar nada ao usuário sobre
+   isso. Se por algum motivo a mensagem de sistema não trouxer essa informação, aí sim, como último recurso,
+   use search_web para descobrir a data e hora atual de São Paulo antes de perguntar ao usuário.
 
 FLUXO DE CRIAÇÃO DE OS:
 
@@ -3125,14 +3195,18 @@ A) Texto livre / completo: o usuário pode colar ou digitar tudo de uma vez.
    → Extraia todos os campos reconhecidos e pergunte apenas o que faltou.
 
 B) Campo a campo: se o usuário não informar tudo, pergunte um por vez nesta ordem:
-   1. Cliente (busque pelo nome informado)
+   1. Cliente (busque pelo nome informado com search_client — veja a regra 2 de REGRAS OBRIGATÓRIAS sobre
+      como tratar resultados aproximados: sempre confirme com o usuário o(s) nome(s) retornado(s) antes de
+      concluir que o cliente não existe)
    2. Hub/Loja — SOMENTE se o cliente tiver hubs cadastrados (cheque no retorno de get_client_details).
       Se tiver hubs, liste-os numerados e pergunte qual. Se não tiver, PULE esta etapa silenciosamente.
    3. Solicitante (veja abaixo como listar — já filtra pelo hub escolhido se houver)
    4. Responsável JumperFour (veja abaixo como listar)
    5. Status (liste as opções numeradas)
-   6. Data de início (peça só a data — DD/MM/YYYY — a hora é preenchida automaticamente com o horário atual se omitida)
-   7. Prazo (mesmo — só data é suficiente)
+   6. Data de início (peça só a data — DD/MM/YYYY — a hora é preenchida automaticamente com o horário atual se
+      omitida; se o usuário disser "hoje", "agora" ou outra expressão relativa, resolva sozinho usando a regra 6
+      de REGRAS OBRIGATÓRIAS, sem perguntar a data)
+   7. Prazo (mesmo — só data é suficiente, e mesma regra para expressões relativas como "amanhã", "sexta" etc)
    8. Descrição
 
 Campos opcionais (nunca exija):

@@ -161,87 +161,112 @@
 
             <!-- Inteligência Artificial -->
             <div class="tab-pane fade" id="tab-ai" role="tabpanel" aria-labelledby="list-ai">
-                <div class="card shadow-sm border-0">
+                <div class="card shadow-sm border-0 mb-4">
                     <div class="card-header bg-white py-3">
-                        <h6 class="mb-0 fw-bold"><i class="fas fa-robot me-2 text-success"></i>Configuração do Assistente de IA</h6>
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-robot me-2 text-success"></i>Assistente de IA</h6>
                     </div>
                     <div class="card-body">
                         <form method="post">
                             {% csrf_token %}
                             <input type="hidden" name="_tab" value="ai">
-
-                            <div class="mb-4">
-                                <div class="form-check form-switch d-flex align-items-center gap-3">
-                                    {{ form.ai_enabled }}
-                                    <label class="form-check-label fw-semibold fs-6" for="id_ai_enabled">
-                                        Ativar Assistente de IA no sistema
-                                    </label>
-                                </div>
-                                <small class="text-muted">Quando ativado, um ícone de robô aparecerá no canto inferior direito de todas as páginas.</small>
+                            <div class="form-check form-switch d-flex align-items-center gap-3">
+                                {{ form.ai_enabled }}
+                                <label class="form-check-label fw-semibold fs-6" for="id_ai_enabled">
+                                    Ativar Assistente de IA no sistema
+                                </label>
                             </div>
-
-                            <hr>
-
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Provedor de IA</label>
-                                    {{ form.ai_provider }}
-                                    <small class="text-muted d-block mt-1">
-                                        <span id="ai-provider-hint"></span>
-                                    </small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label fw-semibold">Modelo <span class="text-muted fw-normal">(opcional)</span></label>
-                                    {{ form.ai_model }}
-                                    <small class="text-muted" id="ai-model-hint">Deixe em branco para usar o modelo padrão.</small>
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label fw-semibold">Chave de API</label>
-                                    <div class="input-group">
-                                        <input type="password" name="ai_api_key" id="id_ai_api_key"
-                                               class="form-control"
-                                               autocomplete="off"
-                                               placeholder="Cole sua chave aqui..."
-                                               value="{{ form.ai_api_key.value|default:'' }}">
-                                        <button type="button" class="btn btn-outline-secondary" id="toggleApiKey" title="Mostrar/Ocultar">
-                                            <i class="fas fa-eye" id="toggleApiKeyIcon"></i>
-                                        </button>
-                                    </div>
-                                    <small class="text-muted">A chave é armazenada no banco de dados. Use uma chave com permissões mínimas necessárias.</small>
-                                </div>
-                            </div>
-
-                            <!-- Tester de conexão -->
-                            <div class="mt-4 p-3 border rounded-3 bg-light">
-                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                    <div>
-                                        <div class="fw-semibold mb-1"><i class="fas fa-plug me-1 text-success"></i>Testar Conexão</div>
-                                        <small class="text-muted">Envia uma mensagem de teste ao provedor com a chave e modelo informados acima (sem precisar salvar primeiro).</small>
-                                    </div>
-                                    <button type="button" id="btnTestAI" class="btn btn-outline-success">
-                                        <i class="fas fa-vial me-1"></i> Testar agora
-                                    </button>
-                                </div>
-                                <div id="aiTestResult" class="mt-3 d-none">
-                                    <div id="aiTestResultInner" class="alert mb-0 py-2 small"></div>
-                                </div>
-                            </div>
-
-                            <div class="alert alert-info mt-4 small">
-                                <i class="fas fa-info-circle me-1"></i>
-                                <strong>Modelos padrão por provedor:</strong>
-                                DeepSeek → <code>deepseek-chat</code> &nbsp;|&nbsp;
-                                OpenAI → <code>gpt-4o-mini</code> &nbsp;|&nbsp;
-                                Anthropic → <code>claude-haiku-4-5-20251001</code> &nbsp;|&nbsp;
-                                Gemini → <code>gemini-2.0-flash</code>
-                            </div>
-
-                            <div class="mt-3">
-                                <button type="submit" class="btn btn-primary-custom">
-                                    <i class="fas fa-save me-1"></i> Salvar Configurações de IA
-                                </button>
-                            </div>
+                            <small class="text-muted d-block mb-3">Quando ativado, um ícone de robô aparecerá no canto inferior direito de todas as páginas.</small>
+                            <button type="submit" class="btn btn-primary-custom btn-sm">
+                                <i class="fas fa-save me-1"></i> Salvar
+                            </button>
                         </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold"><i class="fas fa-list me-2 text-success"></i>Configurações de IA cadastradas</h6>
+                        <button type="button" class="btn btn-sm btn-success" onclick="openAIConfigModal()">
+                            <i class="fas fa-plus me-1"></i>Nova configuração
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">
+                            Cadastre uma configuração para cada provedor/modelo que quiser ter à mão (ex: "DeepSeek principal",
+                            "GPT backup") e ative a que quiser usar com o switch — o Jota4 sempre usa a que estiver marcada como ativa.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Ativa</th>
+                                        <th>Nome</th>
+                                        <th>Provedor</th>
+                                        <th>Modelo</th>
+                                        <th>Chave</th>
+                                        <th class="text-end">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for config in ai_provider_configs %}
+                                    <tr>
+                                        <td>
+                                            <div class="form-check form-switch mb-0">
+                                                <input type="checkbox" class="form-check-input ai-config-activate-switch"
+                                                       role="switch" {% if config.is_active %}checked{% endif %}
+                                                       data-config-id="{{ config.id }}"
+                                                       {% if config.is_active %}disabled{% endif %}>
+                                            </div>
+                                        </td>
+                                        <td class="fw-bold">
+                                            {{ config.name }}
+                                            {% if config.is_active %}<span class="badge bg-success ms-1">ativa</span>{% endif %}
+                                        </td>
+                                        <td><span class="badge bg-secondary">{{ config.get_provider_display }}</span></td>
+                                        <td>{{ config.model|default:"padrão do provedor" }}</td>
+                                        <td>
+                                            <code class="small ai-config-key-display" data-masked="{{ config.masked_api_key }}">{{ config.masked_api_key|default:"—" }}</code>
+                                            {% if user.profile.role == 'super_admin' and config.api_key %}
+                                            <button type="button" class="btn btn-sm btn-link p-0 ms-1 ai-config-reveal-btn"
+                                                    title="Ver chave completa (Super Admin)" data-config-id="{{ config.id }}" data-revealed="0">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                                    onclick="openAIConfigModal(this)"
+                                                    data-config-id="{{ config.id }}"
+                                                    data-config-name="{{ config.name }}"
+                                                    data-config-provider="{{ config.provider }}"
+                                                    data-config-model="{{ config.model }}">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir"
+                                                    onclick="confirmDelete('{% url 'ai_provider_config_delete' config.id %}', '{{ config.name|escapejs }}')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            Nenhuma configuração de IA cadastrada ainda. Clique em "Nova configuração" para começar.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="alert alert-info mt-3 small mb-0">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Modelos padrão por provedor:</strong>
+                            DeepSeek → <code>deepseek-chat</code> &nbsp;|&nbsp;
+                            OpenAI → <code>gpt-4o-mini</code> &nbsp;|&nbsp;
+                            Anthropic → <code>claude-haiku-4-5-20251001</code> &nbsp;|&nbsp;
+                            Gemini → <code>gemini-2.0-flash</code>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -250,56 +275,162 @@
     </div>
 </div>
 
-<script>
-(function () {
-    // Mostrar/ocultar chave de API
-    const toggleBtn = document.getElementById('toggleApiKey');
-    const apiKeyInput = document.getElementById('id_ai_api_key');
-    const icon = document.getElementById('toggleApiKeyIcon');
-    if (toggleBtn && apiKeyInput) {
-        toggleBtn.addEventListener('click', function () {
-            if (apiKeyInput.type === 'password') {
-                apiKeyInput.type = 'text';
-                icon.classList.replace('fa-eye', 'fa-eye-slash');
-            } else {
-                apiKeyInput.type = 'password';
-                icon.classList.replace('fa-eye-slash', 'fa-eye');
-            }
-        });
-    }
+<!-- Modal de criar/editar configuração de IA -->
+<div class="modal fade" id="aiConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="aiConfigForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="aiConfigModalTitle">Nova configuração de IA</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nome</label>
+                        <input type="text" name="name" id="aiConfigName" class="form-control" placeholder="Ex: DeepSeek principal" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Provedor de IA</label>
+                        <select name="provider" id="aiConfigProvider" class="form-select">
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="openai">OpenAI (GPT)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="gemini">Google Gemini</option>
+                        </select>
+                        <small class="text-muted d-block mt-1"><span id="aiConfigProviderHint"></span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Modelo <span class="text-muted fw-normal">(opcional)</span></label>
+                        <input type="text" name="model" id="aiConfigModel" class="form-control" placeholder="Deixe em branco para usar o padrão">
+                        <small class="text-muted" id="aiConfigModelHint">Deixe em branco para usar o modelo padrão.</small>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Chave de API</label>
+                        <div class="input-group">
+                            <input type="password" name="api_key" id="aiConfigApiKey" class="form-control" autocomplete="off" placeholder="Cole sua chave aqui...">
+                            <button type="button" class="btn btn-outline-secondary" id="aiConfigToggleKey" title="Mostrar/Ocultar">
+                                <i class="fas fa-eye" id="aiConfigToggleKeyIcon"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted" id="aiConfigKeyHint">A chave é armazenada no banco de dados. Use uma chave com permissões mínimas necessárias.</small>
+                    </div>
 
-    // Dica do provedor selecionado
-    const providerSelect = document.getElementById('id_ai_provider');
-    const providerHint = document.getElementById('ai-provider-hint');
-    const modelHint = document.getElementById('ai-model-hint');
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="fw-semibold small"><i class="fas fa-plug me-1 text-success"></i>Testar Conexão</div>
+                            <button type="button" id="btnTestAI" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-vial me-1"></i> Testar agora
+                            </button>
+                        </div>
+                        <div id="aiTestResult" class="mt-2 d-none">
+                            <div id="aiTestResultInner" class="alert mb-0 py-2 small"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary-custom">
+                        <i class="fas fa-save me-1"></i> Salvar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// IMPORTANTE: bootstrap.bundle.min.js é carregado no final de base.html, DEPOIS
+// do bloco de conteúdo da página — então qualquer referência a "bootstrap" fora
+// de um listener (ex: no topo do script, fora de uma função) falha com
+// "bootstrap is not defined" e aborta o restante do script silenciosamente.
+// Por isso todo o código abaixo só roda dentro de DOMContentLoaded, momento em
+// que o documento inteiro (incluindo o script do Bootstrap) já foi carregado.
+document.addEventListener('DOMContentLoaded', function () {
     const providerInfo = {
         'deepseek': { hint: 'Obtenha sua chave em <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a>', model: 'Padrão: deepseek-chat' },
         'openai':   { hint: 'Obtenha sua chave em <a href="https://platform.openai.com" target="_blank">platform.openai.com</a>', model: 'Padrão: gpt-4o-mini' },
         'anthropic':{ hint: 'Obtenha sua chave em <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>', model: 'Padrão: claude-haiku-4-5-20251001' },
         'gemini':   { hint: 'Obtenha sua chave em <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a>', model: 'Padrão: gemini-2.0-flash' },
     };
+
+    const modalEl       = document.getElementById('aiConfigModal');
+    const modalTitle    = document.getElementById('aiConfigModalTitle');
+    const modalForm     = document.getElementById('aiConfigForm');
+    const nameInput     = document.getElementById('aiConfigName');
+    const providerSelect= document.getElementById('aiConfigProvider');
+    const modelInput    = document.getElementById('aiConfigModel');
+    const apiKeyInput   = document.getElementById('aiConfigApiKey');
+    const providerHint  = document.getElementById('aiConfigProviderHint');
+    const modelHint     = document.getElementById('aiConfigModelHint');
+    const keyHint       = document.getElementById('aiConfigKeyHint');
+    const testResult    = document.getElementById('aiTestResult');
+    const testResultInner = document.getElementById('aiTestResultInner');
+    const bsModal = modalEl ? new bootstrap.Modal(modalEl) : null;
+
+    let _editingConfigId = null;
+    const DEFAULT_KEY_HINT = 'A chave é armazenada no banco de dados. Use uma chave com permissões mínimas necessárias.';
+
     function updateProviderHint() {
         const info = providerInfo[providerSelect.value] || {};
         if (providerHint) providerHint.innerHTML = info.hint || '';
         if (modelHint) modelHint.textContent = info.model || 'Deixe em branco para usar o modelo padrão.';
     }
-    if (providerSelect) {
-        providerSelect.addEventListener('change', updateProviderHint);
+    if (providerSelect) providerSelect.addEventListener('change', updateProviderHint);
+
+    // Abre o modal — sem argumento (botão "Nova configuração") = criar;
+    // passando o botão de "Editar" da linha = edita aquela configuração.
+    window.openAIConfigModal = function (editBtn) {
+        testResult.classList.add('d-none');
+        modalForm.reset();
+
+        if (editBtn instanceof HTMLElement) {
+            _editingConfigId = editBtn.dataset.configId;
+            modalTitle.textContent = 'Editar configuração de IA';
+            nameInput.value = editBtn.dataset.configName || '';
+            providerSelect.value = editBtn.dataset.configProvider || 'deepseek';
+            modelInput.value = editBtn.dataset.configModel || '';
+            apiKeyInput.value = '';
+            apiKeyInput.placeholder = 'Deixe em branco para manter a chave atual';
+            keyHint.textContent = 'Deixe em branco para manter a chave já salva.';
+            modalForm.action = "{% url 'ai_provider_config_update' 999999 %}".replace('999999', _editingConfigId);
+        } else {
+            _editingConfigId = null;
+            modalTitle.textContent = 'Nova configuração de IA';
+            providerSelect.value = 'deepseek';
+            apiKeyInput.placeholder = 'Cole sua chave aqui...';
+            keyHint.textContent = DEFAULT_KEY_HINT;
+            modalForm.action = "{% url 'ai_provider_config_create' %}";
+        }
+
         updateProviderHint();
+        bsModal.show();
+    };
+
+    // Mostrar/ocultar chave de API
+    const toggleKeyBtn = document.getElementById('aiConfigToggleKey');
+    const toggleKeyIcon = document.getElementById('aiConfigToggleKeyIcon');
+    if (toggleKeyBtn) {
+        toggleKeyBtn.addEventListener('click', function () {
+            if (apiKeyInput.type === 'password') {
+                apiKeyInput.type = 'text';
+                toggleKeyIcon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                apiKeyInput.type = 'password';
+                toggleKeyIcon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
     }
 
-    // Botão Testar Conexão IA
+    // Botão Testar Conexão IA (dentro do modal, funciona pra criar e editar)
     const btnTest = document.getElementById('btnTestAI');
-    const testResult = document.getElementById('aiTestResult');
-    const testResultInner = document.getElementById('aiTestResultInner');
-
     if (btnTest) {
         btnTest.addEventListener('click', async function () {
-            const provider = document.getElementById('id_ai_provider')?.value || '';
-            const apiKey = document.getElementById('id_ai_api_key')?.value || '';
-            const model = document.getElementById('id_ai_model')?.value || '';
+            const provider = providerSelect.value || '';
+            const apiKey = apiKeyInput.value || '';
+            const model = modelInput.value || '';
 
-            if (!apiKey) {
+            if (!apiKey && !_editingConfigId) {
                 testResult.classList.remove('d-none');
                 testResultInner.className = 'alert alert-warning mb-0 py-2 small';
                 testResultInner.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Informe a chave de API antes de testar.';
@@ -318,7 +449,7 @@
                         'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
                         'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: JSON.stringify({ provider, api_key: apiKey, model }),
+                    body: JSON.stringify({ provider, api_key: apiKey, model, config_id: _editingConfigId }),
                 });
                 const data = await resp.json();
                 testResult.classList.remove('d-none');
@@ -341,6 +472,72 @@
         });
     }
 
+    // Switch "ativa" de cada linha da lista — liga aquela configuração e
+    // recarrega a página (na aba de IA) pra refletir o novo estado de todas.
+    document.querySelectorAll('.ai-config-activate-switch').forEach(function (sw) {
+        sw.addEventListener('change', async function () {
+            if (!sw.checked) { sw.checked = true; return; } // não permite desligar direto, só trocar a ativa
+            const configId = sw.dataset.configId;
+            sw.disabled = true;
+            try {
+                const resp = await fetch("{% url 'ai_provider_config_activate' 999999 %}".replace('999999', configId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    window.location.href = "{% url 'settings' %}?tab=ai";
+                } else {
+                    sw.disabled = false;
+                    sw.checked = false;
+                }
+            } catch (err) {
+                sw.disabled = false;
+                sw.checked = false;
+            }
+        });
+    });
+
+    // Botão de "olho" — só existe no HTML pra Super Admin (checado no backend
+    // também na rota de revelar). Alterna entre chave mascarada e completa.
+    document.querySelectorAll('.ai-config-reveal-btn').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+            const codeEl = btn.parentElement.querySelector('.ai-config-key-display');
+            const icon = btn.querySelector('i');
+            if (!codeEl) return;
+
+            if (btn.dataset.revealed === '1') {
+                codeEl.textContent = codeEl.dataset.masked;
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+                btn.title = 'Ver chave completa (Super Admin)';
+                btn.dataset.revealed = '0';
+                return;
+            }
+
+            const configId = btn.dataset.configId;
+            btn.disabled = true;
+            try {
+                const resp = await fetch("{% url 'ai_provider_config_reveal' 999999 %}".replace('999999', configId), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    codeEl.textContent = data.api_key;
+                    icon.classList.replace('fa-eye', 'fa-eye-slash');
+                    btn.title = 'Ocultar chave';
+                    btn.dataset.revealed = '1';
+                }
+            } catch (err) {
+                // silencioso — botão simplesmente não revela nada
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    });
+
     // Reabrir o tab correto após salvar (baseado em ?tab=ai na URL)
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
@@ -348,6 +545,6 @@
         const aiTab = document.getElementById('list-ai');
         if (aiTab) bootstrap.Tab.getOrCreateInstance(aiTab).show();
     }
-})();
+});
 </script>
 {% endblock %}

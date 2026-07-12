@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage, AIUserMemory, PrivateChatThread, PrivateChatMessage, AITicketBatchDraft
+from .models import Client, Ticket, TicketType, ClientHub, Equipment, EquipmentType, OrderType, ProblemType, System, SystemSettings, AIProviderConfig, UserProfile, TechnicianTravel, ChecklistTemplate, ChecklistTemplateItem, DailyChecklist, DailyChecklistItem, ContactPerson, AIChatSession, AIChatMessage, AIUserMemory, PrivateChatThread, PrivateChatMessage, AITicketBatchDraft
 
 @admin.register(TechnicianTravel)
 class TechnicianTravelAdmin(admin.ModelAdmin):
@@ -93,6 +93,12 @@ class SystemSettingsAdmin(admin.ModelAdmin):
         if self.model.objects.exists():
             return False
         return super().has_add_permission(request)
+
+
+@admin.register(AIProviderConfig)
+class AIProviderConfigAdmin(admin.ModelAdmin):
+    list_display = ('name', 'provider', 'model', 'is_active', 'updated_at')
+    list_filter = ('provider', 'is_active')
 
 
 class AIChatMessageInline(admin.TabularInline):

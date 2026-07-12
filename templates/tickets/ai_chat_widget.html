@@ -117,6 +117,24 @@
 #aiFabBtn.ai-open { animation: none; }
 #aiWidget.dragging #aiFabBtn { cursor: grabbing; transform: scale(1.08); animation: none; }
 
+/* Indicador de escuta por voz em segundo plano (wake-word "Jota4") — ponto
+   vermelho pulsante no canto do FAB, pra deixar sempre claro que o microfone
+   está ativo, mesmo com o chat minimizado. */
+#aiFabBtn.ai-wake-listening::after {
+    content: '';
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 14px; height: 14px;
+    background: #dc3545;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    animation: aiWakePulse 1.6s ease-in-out infinite;
+}
+@keyframes aiWakePulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(220,53,69,.55); }
+    50%      { box-shadow: 0 0 0 5px rgba(220,53,69,0); }
+}
+
 .ai-msg { display: flex; }
 .ai-msg-user      { justify-content: flex-end; }
 .ai-msg-assistant { justify-content: flex-start; }
@@ -216,6 +234,10 @@
     let _sessionId     = localStorage.getItem('aiChatSessionId') || null;
     let _isOpen        = false;
     let _historyLoaded = false;
+
+    // Preferência do usuário (Meu Perfil): escuta contínua por voz do "Jota4"
+    const WAKE_WORD_ENABLED = {{ user.profile.voice_wakeword_enabled|yesno:"true,false" }};
+    const CURRENT_USER_FIRST_NAME = "{{ user.first_name|default:user.username|escapejs }}".split(' ')[0];
 
     // ── Redimensionamento do painel ───────────────────────────────────────
     const RESIZE_MIN_WIDTH = 280;
@@ -670,6 +692,9 @@
     let _recognition = null;
     let _isListening = false;
     let _finalTranscript = '';
+    let _interimTranscript = '';
+    let _confidences = [];
+    let _recordingCancelled = false;
     let _mediaRecorder = null;
     let _audioChunks = [];
 
@@ -679,12 +704,28 @@
         _recognition = new SpeechRecognitionAPI();
         _recognition.lang = 'pt-BR';
         _recognition.continuous = true;
-        _recognition.interimResults = false;
+        // IMPORTANTE: no Chrome, em modo contínuo, um resultado só vira "final" quando
+        // o motor detecta uma pausa/silêncio — se o usuário parar a gravação logo após
+        // falar (sem essa pausa), recognition.stop() aborta a sessão e NENHUM resultado
+        // final chega a ser emitido (a mensagem ficava sempre "não consegui entender").
+        // Por isso escutamos também os resultados interinos (ao vivo, enquanto fala) e
+        // usamos o último interino como texto de fallback quando o final nunca chegar.
+        _recognition.interimResults = true;
 
         _recognition.onresult = (event) => {
+            let interim = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
-                if (event.results[i].isFinal) _finalTranscript += event.results[i][0].transcript;
+                const result = event.results[i];
+                if (result.isFinal) {
+                    _finalTranscript += result[0].transcript;
+                    // confidence pode vir undefined/0 em alguns navegadores — só conta quando informado
+                    const c = result[0].confidence;
+                    if (typeof c === 'number' && c > 0) _confidences.push(c);
+                } else {
+                    interim += result[0].transcript;
+                }
             }
+            _interimTranscript = interim;
         };
 
         _recognition.onerror = (event) => {
@@ -700,7 +741,10 @@
     }
 
     async function startListening() {
+        _pauseWakeListening(); // não roda ao mesmo tempo que a escuta de fundo
         _finalTranscript = '';
+        _interimTranscript = '';
+        _confidences = [];
         _audioChunks = [];
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -708,20 +752,35 @@
             _mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) _audioChunks.push(e.data); };
             _mediaRecorder.onstop = () => {
                 stream.getTracks().forEach(t => t.stop());
-                const transcript = _finalTranscript.trim();
-                if (!transcript) {
-                    appendMessage('assistant', '⚠️ Não consegui entender o áudio. Tente falar mais perto do microfone e verifique a permissão de voz do navegador.');
-                    scrollToBottom();
+                if (_recordingCancelled) {
+                    // Cancelado (Esc) — descarta tudo, sem enviar e sem avisar "não entendi".
+                    _recordingCancelled = false;
+                    _resumeWakeListening();
                     return;
                 }
-                const blob = new Blob(_audioChunks, { type: _mediaRecorder.mimeType || 'audio/webm' });
-                sendVoiceMessage(blob, transcript);
+                // Pequena folga para um resultado assíncrono que ainda esteja a caminho
+                // (o motor de voz pode entregar o último trecho poucos ms após o stop()).
+                setTimeout(() => {
+                    const transcript = (_finalTranscript + _interimTranscript).trim();
+                    if (!transcript) {
+                        appendMessage('assistant', '⚠️ Não consegui entender o áudio. Tente falar mais perto do microfone e verifique a permissão de voz do navegador.');
+                        scrollToBottom();
+                        _resumeWakeListening();
+                        return;
+                    }
+                    const blob = new Blob(_audioChunks, { type: _mediaRecorder.mimeType || 'audio/webm' });
+                    const avgConfidence = _confidences.length
+                        ? _confidences.reduce((a, b) => a + b, 0) / _confidences.length
+                        : null;
+                    sendVoiceMessage(blob, transcript, avgConfidence).then(_resumeWakeListening);
+                }, 300);
             };
             _mediaRecorder.start();
         } catch (err) {
             console.error('[AI Chat] Erro ao acessar microfone:', err);
             appendMessage('assistant', '⚠️ Não foi possível acessar o microfone. Verifique a permissão do navegador.');
             scrollToBottom();
+            _resumeWakeListening();
             return;
         }
 
@@ -732,7 +791,8 @@
         try { _recognition.start(); } catch {}
     }
 
-    function stopListening() {
+    function stopListening(cancel) {
+        _recordingCancelled = !!cancel;
         _isListening = false;
         micBtn.style.background = '#6c757d';
         micBtn.title = 'Gravar mensagem de voz';
@@ -747,7 +807,155 @@
         else startListening();
     };
 
-    async function sendVoiceMessage(blob, transcript) {
+    // ── Escuta por voz em segundo plano (wake-word "Jota4") ─────────────────
+    // Ativada em "Meu Perfil". Roda uma sessão de reconhecimento própria,
+    // separada da gravação manual (push-to-talk) — as duas nunca ficam ativas
+    // ao mesmo tempo, já que o navegador só permite uma sessão de voz por vez.
+    //
+    // Dois comportamentos, dependendo do estado do chat no momento em que
+    // "Jota4" é ouvido:
+    //   • Chat MINIMIZADO → é só uma "chamada": abre o painel e responde com
+    //     uma saudação local (não manda nada pro backend, não aparece o que
+    //     foi dito no histórico — fica mais natural, tipo bater na porta).
+    //   • Chat JÁ ABERTO → comportamento normal: entra em modo de captura,
+    //     junta tudo que for dito a partir daí (permite pedidos completos,
+    //     ex: "Jota4, abre uma OS pra...") e envia como mensagem real assim
+    //     que detecta uma pausa na fala.
+    const WAKE_WORD_RE = /\bjota\s*(4|quatro)\b|\bj\s*4\b/i;
+    const WAKE_CAPTURE_SILENCE_MS = 1800;
+    const WAKE_GREETINGS = [
+        'Opa! {name}, estou aqui, precisa de algo?',
+        'Olá, estou aqui! Se precisar de algo é só falar.',
+        'Estou pronto, pode falar!',
+        'Oi, {name}! Diz aí o que você precisa.',
+        'Presente! Pode mandar.',
+        'Cheguei! Em que posso ajudar, {name}?',
+    ];
+    let _wakeRecognition   = null;
+    let _wakeListening     = false;
+    let _wakeSuspended     = false; // pausada de propósito (gravação manual em andamento)
+    let _wakeCaptureActive = false;
+    let _wakeCaptureText   = '';
+    let _wakeCaptureTimer  = null;
+
+    function _setWakeIndicator(active) {
+        fabBtn.classList.toggle('ai-wake-listening', !!active);
+    }
+
+    function _pickWakeGreeting() {
+        const msg = WAKE_GREETINGS[Math.floor(Math.random() * WAKE_GREETINGS.length)];
+        return msg.replace('{name}', CURRENT_USER_FIRST_NAME || '');
+    }
+
+    function _armWakeCaptureTimer() {
+        clearTimeout(_wakeCaptureTimer);
+        _wakeCaptureTimer = setTimeout(() => {
+            if (!_wakeCaptureActive) return;
+            const finalText = _wakeCaptureText.trim();
+            _wakeCaptureActive = false;
+            _wakeCaptureText = '';
+            if (finalText) _handleWakeWordDetected(finalText);
+        }, WAKE_CAPTURE_SILENCE_MS);
+    }
+
+    function _startWakeListening() {
+        if (!WAKE_WORD_ENABLED || !SpeechRecognitionAPI || !navigator.mediaDevices) return;
+        if (_wakeListening || _isListening || _wakeSuspended) return;
+        try {
+            _wakeRecognition = new SpeechRecognitionAPI();
+            _wakeRecognition.lang = 'pt-BR';
+            _wakeRecognition.continuous = true;
+            _wakeRecognition.interimResults = true;
+
+            _wakeRecognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    const text = result[0].transcript;
+                    if (!_wakeCaptureActive) {
+                        if (result.isFinal && WAKE_WORD_RE.test(text)) {
+                            if (!_isOpen) {
+                                // Chat minimizado: só "acorda" — não processa o que foi
+                                // dito como comando nem escreve no histórico.
+                                _handleWakeGreeting();
+                                return;
+                            }
+                            // Chat já aberto: segue ouvindo pra capturar o pedido completo.
+                            _wakeCaptureActive = true;
+                            _wakeCaptureText = text.trim();
+                            _armWakeCaptureTimer();
+                        }
+                    } else if (result.isFinal) {
+                        _wakeCaptureText += ' ' + text.trim();
+                        _armWakeCaptureTimer();
+                    } else {
+                        // Ainda falando (resultado interino) — só adia o timeout de silêncio
+                        _armWakeCaptureTimer();
+                    }
+                }
+            };
+            _wakeRecognition.onerror = (e) => {
+                console.warn('[AI Chat] Escuta por voz (wake-word):', e.error);
+            };
+            _wakeRecognition.onend = () => {
+                _wakeListening = false;
+                _setWakeIndicator(false);
+                // Reinicia sozinho pra manter a escuta contínua, a menos que tenha
+                // sido pausada de propósito (gravação manual em andamento).
+                if (WAKE_WORD_ENABLED && !_wakeSuspended) {
+                    setTimeout(_startWakeListening, 500);
+                }
+            };
+
+            _wakeRecognition.start();
+            _wakeListening = true;
+            _setWakeIndicator(true);
+        } catch (err) {
+            console.warn('[AI Chat] Não foi possível iniciar a escuta por voz:', err);
+        }
+    }
+
+    function _pauseWakeListening() {
+        _wakeSuspended = true;
+        _wakeCaptureActive = false;
+        _wakeCaptureText = '';
+        clearTimeout(_wakeCaptureTimer);
+        _setWakeIndicator(false);
+        if (_wakeRecognition) { try { _wakeRecognition.stop(); } catch {} }
+    }
+
+    function _resumeWakeListening() {
+        _wakeSuspended = false;
+        if (WAKE_WORD_ENABLED) setTimeout(_startWakeListening, 400);
+    }
+
+    // Chat estava minimizado — só abre e cumprimenta, sem enviar nada ao backend.
+    function _handleWakeGreeting() {
+        _pauseWakeListening();
+        aiChatToggle();
+        setTimeout(() => {
+            appendMessage('assistant', _pickWakeGreeting());
+            scrollToBottom();
+            _resumeWakeListening();
+        }, 300);
+    }
+
+    // Chat já estava aberto — processa o que foi capturado como uma mensagem real.
+    async function _handleWakeWordDetected(text) {
+        _pauseWakeListening();
+        appendMessage('user', text);
+        scrollToBottom();
+        input.disabled = true; sendBtn.disabled = true; micBtn.disabled = true;
+        await submitToAI({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken'), 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ message: text, session_id: _sessionId }),
+        });
+        input.disabled = false; sendBtn.disabled = false; micBtn.disabled = false;
+        scrollToBottom();
+        _resumeWakeListening();
+    }
+
+    async function sendVoiceMessage(blob, transcript, avgConfidence) {
         const audioUrl = URL.createObjectURL(blob);
         appendMessage('user', '', null, audioUrl);
         scrollToBottom();
@@ -757,6 +965,9 @@
         formData.append('message', transcript);
         formData.append('session_id', _sessionId || '');
         formData.append('audio', blob, 'voice-message.webm');
+        if (avgConfidence !== null && avgConfidence !== undefined) {
+            formData.append('voice_confidence', avgConfidence.toFixed(3));
+        }
 
         await submitToAI({
             method: 'POST',
@@ -766,6 +977,15 @@
 
         input.disabled = false; sendBtn.disabled = false; micBtn.disabled = false;
         input.focus(); scrollToBottom();
+    }
+
+    // Minimiza o chat pouco depois de criar/editar uma OS pelo Jota4 — dá tempo
+    // do usuário ler a confirmação, e então tira o painel da frente do acordeon
+    // que acabou de abrir no fundo, pra ele ver a OS por completo.
+    function _minimizeChatSoon() {
+        setTimeout(() => {
+            if (_isOpen) aiChatToggle();
+        }, 1200);
     }
 
     // ── Envio compartilhado (texto ou voz) — chama /ai/chat/ e trata a resposta ──
@@ -785,8 +1005,10 @@
                     // Nova OS criada ou existente editada — atualiza lista e destaca
                     if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.new_ticket_id);
+                        _minimizeChatSoon();
                     } else if (data.updated_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.updated_ticket_id);
+                        _minimizeChatSoon();
                     } else if (data.ticket_list_changed && typeof window.reorderTicketsList === 'function') {
                         // Ex.: exclusão de OS — não há ticket específico para destacar, só recarrega a lista
                         window.reorderTicketsList();
@@ -987,6 +1209,46 @@
     // pra captar mensagens/alertas que chegarem no meio da sessão, não só no login.
     setTimeout(runProactiveCheck, 1500);
     setInterval(runProactiveCheck, 30000);
+
+    // Liga a escuta de fundo por wake-word, se o usuário tiver ativado em Meu
+    // Perfil. Se a permissão de microfone ainda não tiver sido concedida antes,
+    // o navegador só vai pedir no primeiro uso manual (mic/atalho) — a partir
+    // daí, a escuta liga sozinha a cada página carregada.
+    setTimeout(_startWakeListening, 1500);
+
+    // ── Atalho de teclado: Ctrl+Shift+M — abrir + gravar / enviar áudio ────
+    // 1º aperto: chat fechado → abre o painel e já começa a gravar.
+    //            chat aberto e parado → começa a gravar.
+    // 2º aperto (gravação em andamento): para a gravação e envia o áudio — o
+    // ciclo então "zera" (próximo aperto volta a ser um 1º aperto).
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey || !e.shiftKey || e.altKey || e.key.toLowerCase() !== 'm') return;
+        e.preventDefault();
+
+        if (!SpeechRecognitionAPI || !navigator.mediaDevices || !window.MediaRecorder) return;
+        if (micBtn.disabled) return; // já tem um envio em andamento
+
+        if (_isListening) {
+            stopListening(); // dispara o envio automático do áudio gravado
+            return;
+        }
+
+        if (!_isOpen) {
+            aiChatToggle();
+            // pequena espera pra animação de abertura do painel terminar antes
+            // de pedir o microfone
+            setTimeout(() => startListening(), 250);
+        } else {
+            startListening();
+        }
+    });
+
+    // ── Esc cancela uma gravação em andamento (descarta, não envia) ────────
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !_isListening) return;
+        e.preventDefault();
+        stopListening(true);
+    });
 })();
 </script>
 {% endif %}

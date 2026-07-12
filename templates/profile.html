@@ -155,6 +155,31 @@
                             </div>
                         </div>
 
+                        <!-- Chat IA -->
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3 border-bottom pb-2">Chat IA</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <div class="form-check form-switch">
+                                    {% render_field form.voice_wakeword_enabled class="form-check-input" role="switch" id="voiceWakewordSwitch" %}
+                                    <label class="form-check-label fw-bold" for="voiceWakewordSwitch">
+                                        Escuta por voz — chamar o Jota4 dizendo o nome dele
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block mt-1">
+                                    Quando ativado, o microfone fica escutando em segundo plano enquanto você navega
+                                    pelo sistema. Ao dizer <strong>"Jota4"</strong> (ex: "Jota4, abre uma OS pra..."),
+                                    o chat abre sozinho e responde. Um indicador visual mostra sempre que a escuta
+                                    está ativa. Na primeira vez, o navegador vai pedir permissão de microfone.
+                                </small>
+                                {% if form.voice_wakeword_enabled.field.disabled %}
+                                    <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> O Chat IA está desativado para o seu usuário — fale com o administrador.</small>
+                                {% endif %}
+                                <small class="text-danger d-none" id="voiceWakewordDeniedMsg">
+                                    <i class="fas fa-exclamation-triangle me-1"></i> Permissão de microfone negada — ative manualmente nas configurações do navegador pra essa função funcionar.
+                                </small>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-end pt-3 border-top">
                             <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
                                 <i class="fas fa-save me-1"></i> Salvar Alterações
@@ -176,6 +201,30 @@
 </style>
 
 <script>
+    // Ao marcar o toggle de escuta por voz, pede a permissão de microfone na
+    // hora (clique = gesto do usuário, o navegador aceita o prompt aqui) —
+    // assim, nas próximas páginas, a escuta em segundo plano já liga sozinha,
+    // sem precisar de um clique novo em outro lugar do sistema.
+    document.addEventListener('DOMContentLoaded', function () {
+        const wakeSwitch = document.getElementById('voiceWakewordSwitch');
+        const deniedMsg  = document.getElementById('voiceWakewordDeniedMsg');
+        if (!wakeSwitch) return;
+
+        wakeSwitch.addEventListener('change', function () {
+            deniedMsg?.classList.add('d-none');
+            if (!wakeSwitch.checked) return;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(function (stream) {
+                    stream.getTracks().forEach(function (t) { t.stop(); });
+                })
+                .catch(function () {
+                    deniedMsg?.classList.remove('d-none');
+                });
+        });
+    });
+
     function copyToken(event) {
         event.preventDefault(); // Prevent form submission
         var copyText = document.getElementById("tokenInput");

@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.views import View
 
 from .models import (
-    ActiveSession, PrivateChatThread, PrivateChatMessage, PrivateChatReadState, SystemSettings,
+    ActiveSession, PrivateChatThread, PrivateChatMessage, PrivateChatReadState, SystemSettings, AIProviderConfig,
 )
 from .ai_service import run_agent
 from .ai_tools import TOOL_DEFINITIONS, SYSTEM_PROMPT, execute_tool
@@ -70,7 +70,7 @@ def _serialize_message(msg):
         "sender_name": sender_name,
         "is_ai_message": msg.is_ai_message,
         "content": msg.content,
-        "created_at": msg.created_at.strftime("%H:%M"),
+        "created_at": timezone.localtime(msg.created_at).strftime("%H:%M"),
     }
 
 
@@ -80,6 +80,10 @@ def _generate_ai_reply(thread, summoned_by):
     Retorna (mensagem_criada_ou_None, limpou_o_chat: bool)."""
     settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
     if not settings_obj.ai_enabled:
+        return None, False
+
+    active_ai_config = AIProviderConfig.objects.filter(is_active=True).first()
+    if not active_ai_config:
         return None, False
 
     other = thread.other_user(summoned_by)
@@ -125,7 +129,12 @@ def _generate_ai_reply(thread, summoned_by):
             return {"ok": True, "data": {"message": "Histórico limpo para você. A outra pessoa continua vendo a conversa normalmente."}}
         return execute_tool(tool_name, args, summoned_by)
 
-    response_text = run_agent(settings_obj, messages, TOOL_DEFINITIONS + [_CLEAR_PRIVATE_CHAT_TOOL], tool_executor)
+    summoner_profile = getattr(summoned_by, 'profile', None)
+    is_admin_summoner = summoner_profile and summoner_profile.role in ('admin', 'super_admin')
+    response_text = run_agent(
+        active_ai_config, messages, TOOL_DEFINITIONS + [_CLEAR_PRIVATE_CHAT_TOOL], tool_executor,
+        expose_errors=is_admin_summoner,
+    )
     if not response_text:
         return None, _cleared["value"]
 

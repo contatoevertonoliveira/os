@@ -1433,13 +1433,22 @@
                         if (typeof window.initTooltips === 'function') window.initTooltips(curAcc);
                         if (typeof window.applyRowBg === 'function') window.applyRowBg();
                     }
-                    // Destaca o ticket recém criado
+                    // Destaca o ticket recém criado/editado e já abre o acordeon dele,
+                    // pra o usuário confirmar visualmente e poder ajustar na hora, sem
+                    // precisar procurar e clicar manualmente na lista.
                     const item = document.querySelector(`[data-ticket-id="${ticketId}"]`)
                                  ?.closest('.accordion-item');
                     if (item) {
                         item.classList.add('ticket-ai-new');
                         item.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         setTimeout(() => item.classList.remove('ticket-ai-new'), 10000);
+
+                        const collapseEl = document.getElementById(`collapse${ticketId}`);
+                        if (collapseEl && window.bootstrap && window.bootstrap.Collapse) {
+                            setTimeout(() => {
+                                bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+                            }, 250);
+                        }
                     }
                     ticketsUpdated = false;
                 })

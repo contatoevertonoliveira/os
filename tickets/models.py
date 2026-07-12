@@ -51,6 +51,7 @@ class UserProfile(models.Model):
     # Chat IA
     ai_chat_enabled = models.BooleanField(default=True, verbose_name="Ativar Chat IA")
     ai_proactive_alert_count = models.PositiveIntegerField(default=0, verbose_name="Tentativas de aviso do Jota4 sobre pendências não resolvidas")
+    voice_wakeword_enabled = models.BooleanField(default=False, verbose_name="Escuta por voz (chamar o Jota4 dizendo o nome dele)")
 
     # Restrições de Funcionalidades
     can_view_tickets = models.BooleanField(default=True, verbose_name="Visualizar Ordens de Serviço")
@@ -374,22 +375,10 @@ class SystemSettings(models.Model):
     night_shift_end = models.TimeField(default=time(8, 0), verbose_name="Fim do turno noturno")
 
     # === Inteligência Artificial ===
-    AI_PROVIDER_CHOICES = [
-        ('deepseek', 'DeepSeek'),
-        ('openai', 'OpenAI (GPT)'),
-        ('anthropic', 'Anthropic (Claude)'),
-        ('gemini', 'Google Gemini'),
-    ]
+    # O provedor/modelo/chave em uso ficam em AIProviderConfig (permite cadastrar
+    # várias e alternar qual está ativa) — aqui fica só o liga/desliga geral,
+    # que é ortogonal a qual configuração está ativa no momento.
     ai_enabled = models.BooleanField(default=False, verbose_name="Ativar Assistente de IA")
-    ai_provider = models.CharField(
-        max_length=20, choices=AI_PROVIDER_CHOICES, default='deepseek',
-        verbose_name="Provedor de IA"
-    )
-    ai_api_key = models.CharField(max_length=500, blank=True, verbose_name="Chave de API")
-    ai_model = models.CharField(
-        max_length=100, blank=True, verbose_name="Modelo",
-        help_text="Deixe em branco para usar o modelo padrão do provedor"
-    )
 
     def __str__(self):
         return "Configurações do Sistema"
@@ -397,6 +386,53 @@ class SystemSettings(models.Model):
     class Meta:
         verbose_name = "Configuração do Sistema"
         verbose_name_plural = "Configurações do Sistema"
+
+
+class AIProviderConfig(models.Model):
+    """
+    Uma configuração cadastrada de provedor de IA (nome, provedor, modelo, chave).
+    Podem existir várias; a marcada com is_active=True é a que o Jota4 usa no
+    momento — trocar de provedor/modelo vira só ativar outra linha da lista.
+    """
+    PROVIDER_CHOICES = [
+        ('deepseek', 'DeepSeek'),
+        ('openai', 'OpenAI (GPT)'),
+        ('anthropic', 'Anthropic (Claude)'),
+        ('gemini', 'Google Gemini'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='deepseek', verbose_name="Provedor de IA")
+    model = models.CharField(
+        max_length=100, blank=True, verbose_name="Modelo",
+        help_text="Deixe em branco para usar o modelo padrão do provedor"
+    )
+    api_key = models.CharField(max_length=500, blank=True, verbose_name="Chave de API")
+    is_active = models.BooleanField(default=False, verbose_name="Ativa (em uso pelo Jota4)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_provider_display()})"
+
+    def masked_api_key(self):
+        """Só os últimos 4 caracteres visíveis — usado na listagem, nunca a chave completa."""
+        if not self.api_key:
+            return ""
+        if len(self.api_key) <= 4:
+            return "•" * len(self.api_key)
+        return "•" * (len(self.api_key) - 4) + self.api_key[-4:]
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            # Garante que só uma fique ativa por vez
+            AIProviderConfig.objects.exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Configuração de IA"
+        verbose_name_plural = "Configurações de IA"
+        ordering = ['-is_active', 'name']
 
 
 class AIChatSession(models.Model):

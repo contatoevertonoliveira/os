@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, Notification, ClientHub, Equipment, TicketType, ProblemType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, AIProviderConfig, Notification, ClientHub, Equipment, TicketType, ProblemType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
 
 
 class ContactClientForm(forms.ModelForm):
@@ -701,13 +701,17 @@ class UserProfileForm(forms.ModelForm):
         # não renderiza o checkbox, o ModelForm gravava False a cada salvamento (checkbox
         # ausente = não enviado = False), fazendo o Chat IA sumir. É uma permissão
         # gerenciada apenas pela tela de Permissões.
-        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role']
+        # 'voice_wakeword_enabled' é preferência do próprio usuário (diferente de
+        # ai_chat_enabled) — o checkbox É renderizado sempre em profile.html, então
+        # não sofre o mesmo problema.
+        fields = ['photo', 'personal_phone', 'company_phone', 'job_title', 'station', 'role', 'voice_wakeword_enabled']
         widgets = {
             'photo': forms.FileInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-select'}),
             'job_title': forms.TextInput(attrs={'class': 'form-control'}),
             'personal_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 00000-0000'}),
             'company_phone': forms.TextInput(attrs={'class': 'form-control phone-mask', 'placeholder': '(00) 0000-0000'}),
+            'voice_wakeword_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -728,7 +732,12 @@ class UserProfileForm(forms.ModelForm):
             self.fields['role'].disabled = True
             self.fields['station'].disabled = True # Assuming station is assigned by admin
             self.fields['job_title'].disabled = True
-        
+
+        # Escuta por voz só faz sentido se o Chat IA estiver ativo pra este usuário
+        # (ai_chat_enabled é gerenciado só pela tela de Permissões, não por este form).
+        if self.instance and not getattr(self.instance, 'ai_chat_enabled', True):
+            self.fields['voice_wakeword_enabled'].disabled = True
+
     def save(self, commit=True):
         profile = super().save(commit=False)
         
@@ -784,9 +793,6 @@ class SystemSettingsForm(forms.ModelForm):
             'night_shift_start',
             'night_shift_end',
             'ai_enabled',
-            'ai_provider',
-            'ai_api_key',
-            'ai_model',
         ]
         widgets = {
             'session_timeout_minutes': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'max': '1440'}),
@@ -796,10 +802,25 @@ class SystemSettingsForm(forms.ModelForm):
             'night_shift_start': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'night_shift_end': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'ai_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input', 'role': 'switch', 'id': 'id_ai_enabled'}),
-            'ai_provider': forms.Select(attrs={'class': 'form-select'}),
-            'ai_api_key': forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off', 'placeholder': 'sk-...'}),
-            'ai_model': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Deixe em branco para usar o padrão'}),
         }
+
+
+class AIProviderConfigForm(forms.ModelForm):
+    class Meta:
+        model = AIProviderConfig
+        fields = ['name', 'provider', 'model', 'api_key']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: DeepSeek principal'}),
+            'provider': forms.Select(attrs={'class': 'form-select'}),
+            'model': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Deixe em branco para usar o padrão'}),
+            'api_key': forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off', 'placeholder': 'sk-...'}, render_value=False),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Na edição, a chave não é obrigatória (deixar em branco mantém a atual)
+        if self.instance and self.instance.pk:
+            self.fields['api_key'].required = False
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
