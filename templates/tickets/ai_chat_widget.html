@@ -248,7 +248,10 @@
     const fabBtn  = document.getElementById('aiFabBtn');
 
     let _sessionId     = localStorage.getItem('aiChatSessionId') || null;
-    let _isOpen        = false;
+    // Persistido entre navegações de página (não só entre aberturas na mesma página) —
+    // se o Jota4 abrir outra tela do sistema a pedido do usuário, o chat continua
+    // aberto depois do recarregamento. Só fecha quando o usuário clica em minimizar.
+    let _isOpen        = localStorage.getItem('aiChatOpen') === '1';
     let _historyLoaded = false;
 
     // Preferência do usuário (Meu Perfil): escuta contínua por voz do "Jota4"
@@ -557,44 +560,36 @@
     }
 
     // ── Toggle abrir/fechar ───────────────────────────────────────────────
-    window.aiChatToggle = function () {
-        console.log('[AI Chat] aiChatToggle() chamado, _isOpen=', _isOpen);
-        _isOpen = !_isOpen;
-        console.log('[AI Chat] _isOpen agora é', _isOpen);
-        if (_isOpen) {
-            console.log('[AI Chat] Abrindo painel...');
-            repositionPanel();
-            clampPanelToViewport();
-            panel.style.pointerEvents = 'auto';
-            panel.style.opacity       = '1';
-            panel.style.transform     = 'scale(1) translateY(0)';
-            fabBtn.classList.add('ai-open');
-            console.log('[AI Chat] Estilos aplicados:');
-            console.log('  - opacity:', panel.style.opacity);
-            console.log('  - transform:', panel.style.transform);
-            console.log('  - pointerEvents:', panel.style.pointerEvents);
-            console.log('  - display:', panel.style.display);
-            console.log('  - visibility:', panel.style.visibility);
-            console.log('  - position:', panel.style.position);
-            console.log('  - top:', panel.style.top);
-            console.log('  - bottom:', panel.style.bottom);
-            console.log('  - left:', panel.style.left);
-            console.log('  - right:', panel.style.right);
-            console.log('[AI Chat] Painel deve estar visível agora');
-            if (!_historyLoaded) {
-                console.log('[AI Chat] Carregando histórico...');
-                loadHistory();
-            }
-            else setTimeout(() => input.focus(), 220);
+    // Separado em funções de UI reutilizáveis pra poder reabrir o painel
+    // automaticamente ao carregar a página (sem re-disparar o toggle/persistência).
+    function _applyOpenPanelUI() {
+        repositionPanel();
+        clampPanelToViewport();
+        panel.style.pointerEvents = 'auto';
+        panel.style.opacity       = '1';
+        panel.style.transform     = 'scale(1) translateY(0)';
+        fabBtn.classList.add('ai-open');
+        if (!_historyLoaded) {
+            loadHistory();
         } else {
-            console.log('[AI Chat] Fechando painel...');
-            panel.style.opacity       = '0';
-            panel.style.transform     = 'scale(0.85) translateY(20px)';
-            panel.style.pointerEvents = 'none';
-            fabBtn.classList.remove('ai-open');
-            if (_isListening) stopListening();
-            _cancelSpeech();
+            setTimeout(() => input.focus(), 220);
         }
+    }
+
+    function _applyClosePanelUI() {
+        panel.style.opacity       = '0';
+        panel.style.transform     = 'scale(0.85) translateY(20px)';
+        panel.style.pointerEvents = 'none';
+        fabBtn.classList.remove('ai-open');
+        if (_isListening) stopListening();
+        _cancelSpeech();
+    }
+
+    window.aiChatToggle = function () {
+        _isOpen = !_isOpen;
+        localStorage.setItem('aiChatOpen', _isOpen ? '1' : '0');
+        if (_isOpen) _applyOpenPanelUI();
+        else _applyClosePanelUI();
     };
 
     // Reajusta o painel se a janela for redimensionada com o chat aberto
@@ -1040,6 +1035,11 @@
                     if (data.open_private_chat && typeof window.openPrivateChatPopup === 'function') {
                         window.openPrivateChatPopup(data.open_private_chat.recipient_id, data.open_private_chat.recipient_name);
                     }
+                    // Pediu para abrir uma página do sistema — o chat continua aberto
+                    // (estado já persistido em localStorage) e reabre sozinho na página nova.
+                    if (data.navigate_url) {
+                        setTimeout(() => { window.location.href = data.navigate_url; }, 600);
+                    }
                 }
             } else {
                 appendMessage('assistant', '⚠️ ' + (data.error || 'Erro desconhecido.'), null, null, true);
@@ -1401,6 +1401,12 @@
     // pra captar mensagens/alertas que chegarem no meio da sessão, não só no login.
     setTimeout(runProactiveCheck, 1500);
     setInterval(runProactiveCheck, 30000);
+
+    // Reabre o painel automaticamente se ele já estava aberto antes de navegar
+    // pra essa página (ex: Jota4 abriu uma tela a pedido do usuário) — dá a
+    // sensação de que o chat "acompanha" o usuário pelo sistema, em vez de
+    // fechar sozinho a cada navegação.
+    if (_isOpen) _applyOpenPanelUI();
 
     // Liga a escuta de fundo por wake-word, se o usuário tiver ativado em Meu
     // Perfil. Se a permissão de microfone ainda não tiver sido concedida antes,

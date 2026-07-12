@@ -462,6 +462,44 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "create_handover_entry",
+        "description": (
+            "Cria uma nova anotação na Passagem de Turno (tela de Tasks), no turno vigente agora "
+            "(diurno/noturno, calculado automaticamente). Use quando o usuário pedir para anotar, "
+            "registrar ou deixar um recado na passagem de turno — inclusive quando ditar por voz. Se a "
+            "mensagem veio de áudio, ajuste pontuação/gramática antes de salvar, mantendo o sentido "
+            "original — nunca invente informação nova. Sempre confirme o texto final com o usuário antes "
+            "de chamar esta tool (regra geral de confirmação antes de criar)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Texto final da anotação, já revisado/formatado e confirmado pelo usuário"}
+            },
+            "required": ["text"]
+        }
+    },
+    {
+        "name": "notify_handover_entry",
+        "description": (
+            "Notifica (\"cutuca\") um usuário específico sobre uma anotação da passagem de turno — cria "
+            "um alerta pendente para ele, que aparece sozinho no próximo login/abertura do chat dele "
+            "(mesmo mecanismo lido por check_pending_alerts). Use depois de criar uma anotação (ou sobre "
+            "uma já existente) quando o usuário pedir para avisar/indicar alguém sobre ela. Diferente de "
+            "send_message_to_user (que manda uma mensagem direta) — aqui é um alerta vinculado à anotação."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entry_id": {"type": "integer", "description": "ID da anotação (retornado por create_handover_entry)"},
+                "recipient_id": {"type": "integer", "description": "ID do usuário a notificar (preferencial se já conhecido)"},
+                "recipient_name": {"type": "string", "description": "Nome do usuário a notificar, caso o ID não seja conhecido"},
+                "priority": {"type": "string", "description": "Prioridade do alerta: high, medium ou low (padrão medium)"}
+            },
+            "required": ["entry_id"]
+        }
+    },
+    {
         "name": "send_message_to_user",
         "description": (
             "Envia uma mensagem direta do usuário ATUAL para outro usuário do sistema (cria uma notificação "
@@ -697,6 +735,42 @@ TOOL_DEFINITIONS = [
         "name": "list_pages",
         "description": "Lista todas as páginas/telas disponíveis no sistema.",
         "parameters": {"type": "object", "properties": {}}
+    },
+    {
+        "name": "open_page",
+        "description": (
+            "Abre uma página do sistema no navegador do usuário, quando ele pedir pra 'abrir', 'ir para', "
+            "'mostrar' ou 'navegar até' uma tela específica. O chat continua aberto durante e depois da "
+            "navegação — nunca minimiza sozinho por causa disso, só quando o usuário clicar no botão de "
+            "minimizar."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "string",
+                    "description": (
+                        "Identificador exato da página (escolha o mais adequado ao pedido do usuário, mesmo "
+                        "que ele use um sinônimo ou termo informal): "
+                        "dashboard (Dashboard), hub_dashboard (Dashboard de Hubs), local (Local), "
+                        "task_list (Passagem de Turno / Tasks), ticket_list (Lista de Ordens de Serviço / OS), "
+                        "ticket_create (Criar Nova OS), checklist_daily (Checklist Diário), "
+                        "checklist_config (Configuração de Checklist), client_list (Clientes), "
+                        "equipment_list (Equipamentos), system_list (Sistemas), ticketstatus_list (Status de OS), "
+                        "ordertype_list (Tipos de Chamado), problemtype_list (Tipos de Problema), "
+                        "technician_list (Técnicos), responsible_list (Responsáveis), "
+                        "contactclient_list (Contatos de Clientes), contactjumper_list (Contatos JumperFour), "
+                        "travel_list (Viagens), user_list (Usuários), notification_list (Notificações), "
+                        "notification_monitor (Monitor de Notificações), profile (Meu Perfil), "
+                        "settings (Configurações), permissions (Permissões), "
+                        "tickets_daily_report_view (Relatório Diário de Chamados), "
+                        "tickets_weekly_report_view (Relatório Semanal de Chamados), "
+                        "tickets_monthly_report_view (Relatório Mensal de Chamados)"
+                    )
+                }
+            },
+            "required": ["page"]
+        }
     },
     {
         "name": "list_users",
@@ -1921,6 +1995,113 @@ def _acknowledge_handover_alert(args, user):
     return {"ok": True, "data": {"entry_id": entry_id, "message": "Baixa dada no alerta da passagem de turno."}}
 
 
+def _get_current_shift_handover():
+    """Encontra (ou cria) o ShiftHandover do turno vigente agora, replicando a mesma
+    lógica de virada de turno usada em TaskListView._build_shifts (tela de Tasks) —
+    considera turno noturno cruzando meia-noite, se estiver habilitado."""
+    from datetime import datetime, timedelta, time as dtime
+    from .models import SystemSettings, ShiftHandover
+
+    settings_obj, _ = SystemSettings.objects.get_or_create(pk=1)
+    day_start = settings_obj.day_shift_start or dtime(8, 0)
+    day_end = settings_obj.day_shift_end or dtime(20, 0)
+    enable_night = bool(settings_obj.enable_night_shift)
+    night_start = settings_obj.night_shift_start or dtime(20, 0)
+    night_end = settings_obj.night_shift_end or dtime(8, 0)
+
+    def aware(dt):
+        try:
+            return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+        except Exception:
+            return dt
+
+    now = timezone.localtime(timezone.now())
+    today = timezone.localdate()
+
+    candidates = []
+    for i in range(0, 3):  # hoje + 2 dias anteriores cobre qualquer virada de turno noturno
+        d = today - timedelta(days=i)
+        if enable_night:
+            ns = aware(datetime.combine(d, night_start))
+            end_day = d if night_end >= night_start else (d + timedelta(days=1))
+            ne = aware(datetime.combine(end_day, night_end))
+            candidates.append({'date': d, 'type': 'night', 'start': ns, 'end': ne})
+        ds = aware(datetime.combine(d, day_start))
+        de = aware(datetime.combine(d, day_end))
+        candidates.append({'date': d, 'type': 'day', 'start': ds, 'end': de})
+
+    current = next((c for c in candidates if c['start'] <= now < c['end']), None)
+    if not current:
+        started = [c for c in candidates if c['start'] <= now]
+        current = max(started, key=lambda c: c['start']) if started else candidates[0]
+
+    handover, _ = ShiftHandover.objects.get_or_create(shift_date=current['date'], shift_type=current['type'])
+    return handover
+
+
+def _create_handover_entry(args, user):
+    from .models import ShiftHandoverEntry
+
+    text = (args.get("text") or "").strip()
+    if not text:
+        return {"ok": False, "error": "Texto da anotação não informado."}
+    if len(text) > 4000:
+        return {"ok": False, "error": "Texto muito longo (máximo 4000 caracteres)."}
+
+    handover = _get_current_shift_handover()
+    entry = ShiftHandoverEntry.objects.create(
+        handover=handover,
+        created_by=user,
+        text=text,
+    )
+    return {"ok": True, "data": {
+        "entry_id": entry.id,
+        "text": entry.text,
+        "shift_date": handover.shift_date.strftime("%d/%m/%Y"),
+        "shift_type": handover.get_shift_type_display(),
+    }}
+
+
+def _notify_handover_entry(args, user):
+    from .models import ShiftHandoverEntry, ShiftHandoverEntryAlert
+
+    entry_id = args.get("entry_id")
+    if not entry_id:
+        return {"ok": False, "error": "entry_id é obrigatório."}
+    try:
+        entry = ShiftHandoverEntry.objects.get(pk=entry_id)
+    except ShiftHandoverEntry.DoesNotExist:
+        return {"ok": False, "error": f"Anotação ID {entry_id} não encontrada."}
+
+    target, error = _resolve_user(args.get("recipient_id"), args.get("recipient_name"), user)
+    if error:
+        return {"ok": False, "error": error}
+
+    priority = (args.get("priority") or "medium").strip()
+    if priority not in ("high", "medium", "low"):
+        priority = "medium"
+
+    alert, created = ShiftHandoverEntryAlert.objects.get_or_create(
+        entry=entry, target_user=target,
+        defaults={"created_by": user, "priority": priority},
+    )
+    if not created:
+        # Já existia (talvez já reconhecido) — reativa como pendente de novo
+        alert.acknowledged_at = None
+        if not alert.created_by_id:
+            alert.created_by = user
+        alert.priority = priority
+        alert.save(update_fields=["acknowledged_at", "created_by", "priority"])
+
+    target_display = target.get_full_name() or target.username
+    return {"ok": True, "data": {
+        "entry_id": entry.id,
+        "target_user": target_display,
+        "priority": alert.get_priority_display(),
+        "message": f"{target_display} foi notificado(a) sobre a anotação — vai aparecer pra ele(a) automaticamente.",
+    }}
+
+
 def _send_message_to_user(args, user):
     """Envia uma mensagem direta (Notification) do usuário ATUAL para outro usuário
     do sistema — permite o Jota4 atuar como intermediário (ex: responder, em nome
@@ -2479,6 +2660,86 @@ def _list_pages(args, user):
         return {"ok": False, "error": f"Erro ao listar páginas: {str(e)}"}
 
 
+# Páginas que o Jota4 pode abrir no navegador do usuário via tool "open_page".
+# Cobre o universo de telas navegáveis (bem mais amplo que o cadastro em AppPage,
+# que só existe pra ~31 páginas ligadas ao menu/permissões) — url_name -> nome amigável.
+_NAVIGABLE_PAGES = {
+    'dashboard': 'Dashboard',
+    'hub_dashboard': 'Dashboard de Hubs',
+    'local': 'Local',
+    'task_list': 'Passagem de Turno / Tasks',
+    'ticket_list': 'Lista de Ordens de Serviço (OS)',
+    'ticket_create': 'Criar Nova OS',
+    'checklist_daily': 'Checklist Diário',
+    'checklist_config': 'Configuração de Checklist',
+    'client_list': 'Clientes',
+    'equipment_list': 'Equipamentos',
+    'system_list': 'Sistemas',
+    'ticketstatus_list': 'Status de OS',
+    'ordertype_list': 'Tipos de Chamado',
+    'problemtype_list': 'Tipos de Problema',
+    'technician_list': 'Técnicos',
+    'responsible_list': 'Responsáveis',
+    'contactclient_list': 'Contatos de Clientes',
+    'contactjumper_list': 'Contatos JumperFour',
+    'travel_list': 'Viagens',
+    'user_list': 'Usuários',
+    'notification_list': 'Notificações',
+    'notification_monitor': 'Monitor de Notificações',
+    'profile': 'Meu Perfil',
+    'settings': 'Configurações',
+    'permissions': 'Permissões',
+    'tickets_daily_report_view': 'Relatório Diário de Chamados',
+    'tickets_weekly_report_view': 'Relatório Semanal de Chamados',
+    'tickets_monthly_report_view': 'Relatório Mensal de Chamados',
+}
+
+
+def _user_can_access_page(user, url_name):
+    """Replica a checagem de RolePageAccessMiddleware — mesma regra usada de
+    verdade pro sistema bloquear/liberar acesso a uma página."""
+    from .models import AppPage, RoleLevel, RolePagePermission
+
+    role_code = getattr(getattr(user, 'profile', None), 'role', None)
+    if role_code == 'super_admin':
+        return True
+
+    page = AppPage.objects.filter(url_name=url_name).first()
+    if page and not page.is_enabled:
+        return False
+    if not role_code or not page:
+        return True  # sem AppPage cadastrado -> mesmo comportamento do middleware (libera)
+
+    role = RoleLevel.objects.filter(code=role_code, is_active=True).first()
+    if not role:
+        return True
+
+    perm = RolePagePermission.objects.filter(role=role, page=page).first()
+    if perm and not perm.allowed:
+        return False
+    return True
+
+
+def _open_page(args, user):
+    """Resolve o pedido de navegação do usuário para uma URL real — quem de fato
+    navega o navegador é o widget do Chat IA no frontend, usando essa URL."""
+    from django.urls import reverse, NoReverseMatch
+
+    page_key = (args.get("page") or "").strip()
+    if page_key not in _NAVIGABLE_PAGES:
+        return {"ok": False, "error": f"Página '{page_key}' não reconhecida."}
+
+    if not _user_can_access_page(user, page_key):
+        return {"ok": False, "error": f"Você não tem permissão para acessar a página '{_NAVIGABLE_PAGES[page_key]}'."}
+
+    try:
+        url = reverse(page_key)
+    except NoReverseMatch:
+        return {"ok": False, "error": f"Não foi possível gerar o link para '{page_key}'."}
+
+    return {"ok": True, "data": {"url": url, "page_name": _NAVIGABLE_PAGES[page_key]}}
+
+
 def _list_users(args, user):
     from django.contrib.auth.models import User as DjangoUser
     try:
@@ -2978,6 +3239,8 @@ _TOOL_REGISTRY = {
     "get_message_content": _get_message_content,
     "mark_message_read": _mark_message_read,
     "acknowledge_handover_alert": _acknowledge_handover_alert,
+    "create_handover_entry": _create_handover_entry,
+    "notify_handover_entry": _notify_handover_entry,
     "send_message_to_user": _send_message_to_user,
     "open_private_chat": _open_private_chat,
     "create_contact_client": _create_contact_client,
@@ -2996,6 +3259,7 @@ _TOOL_REGISTRY = {
     "create_travel": _create_travel,
     "list_roles": _list_roles,
     "list_pages": _list_pages,
+    "open_page": _open_page,
     "list_users": _list_users,
     "toggle_page_enabled": _toggle_page_enabled,
     "update_page_permission": _update_page_permission,
@@ -3059,6 +3323,21 @@ mais insistente (porém sempre educado) a cada nova tentativa, como um colega qu
 O alerta também pode disparar no meio de uma sessão já aberta, assim que uma mensagem nova chegar — não é
 só no login.
 
+PASSAGEM DE TURNO — CRIAR ANOTAÇÃO — MUITO IMPORTANTE:
+Quando o usuário pedir para anotar algo, deixar um recado ou registrar uma informação na passagem de
+turno (ex: "anota aí que...", "deixa registrado que...", "bota na passagem de turno que...", ou ditando
+isso por áudio), monte o texto final: se a mensagem veio de voz, corrija pontuação/gramática/erros de
+transcrição, mas NUNCA mude o sentido nem invente informação que não foi dita. Mostre o texto revisado
+pro usuário e pergunte "Confirma?" antes de salvar (regra geral de confirmação antes de criar). Só então
+chame "create_handover_entry" — o turno (diurno/noturno) e a data são calculados automaticamente, não
+precisa perguntar isso ao usuário.
+Depois de criar com sucesso, pergunte se ele quer avisar/indicar alguém específico sobre essa anotação
+(ex: "Quer que eu avise alguém sobre isso?"). Se ele confirmar e disser o nome, use
+"notify_handover_entry" com o entry_id retornado e o nome/ID da pessoa — isso cria um alerta pendente que
+aparece sozinho pra ela (mesmo mecanismo de "VERIFICAÇÃO AUTOMÁTICA DE PENDÊNCIAS" acima), diferente de
+"send_message_to_user" que é uma mensagem direta avulsa. Pode notificar mais de uma pessoa, uma de cada
+vez, se o usuário pedir.
+
 VOCÊ COMO INTERLOCUTOR (RELAY DE MENSAGENS):
 Depois de mostrar uma mensagem pendente, se o usuário quiser responder (ex: "responde pra ele que já vou
 ver isso", "manda um recado pro Guilherme dizendo X"), use "send_message_to_user" para enviar a resposta
@@ -3082,6 +3361,17 @@ Você só pode ajudar com assuntos relacionados ao sistema JumperFour OS:
 - ADMIN ONLY: Cadastrar tipos de chamado, tipos de problema, sistemas, tipos de equipamento, status de OS, técnicos, responsáveis, usuários (qualquer nível) e viagens técnicas
 - ADMIN ONLY: Gerenciar níveis de acesso, páginas, permissões e restrições de usuário (somente para Super Admin e Admin)
 - Dúvidas sobre o funcionamento do sistema
+
+NAVEGAÇÃO — ABRIR PÁGINAS DO SISTEMA:
+Quando o usuário pedir para "abrir", "ir para", "mostrar" ou "navegar até" uma tela do sistema (ex: "abre a
+lista de clientes", "vai pra passagem de turno", "mostra as configurações"), use a tool "open_page" com o
+identificador da página mais próximo do pedido — não precisa perguntar confirmação antes (navegar não é uma
+ação destrutiva). Depois de chamar a tool com sucesso, responda confirmando de forma curta (ex: "Abrindo
+Clientes...") — a navegação em si acontece automaticamente no navegador do usuário, você não precisa (nem
+consegue) fazer mais nada além de chamar a tool. O chat NUNCA minimiza sozinho por causa de uma navegação —
+ele continua aberto do jeito que estava, acompanhando o usuário pelas telas; só fecha se o próprio usuário
+clicar no botão de minimizar. Se a tool retornar erro (página não reconhecida ou sem permissão), informe o
+motivo exato ao usuário, seguindo a regra geral de erros.
 
 VISÃO DE PERMISSÕES E RESTRIÇÕES (ADMIN/SUPER ADMIN) — MUITO IMPORTANTE:
 Você TEM visibilidade completa sobre o que está liberado ou bloqueado no sistema, tanto por nível de acesso

@@ -221,6 +221,7 @@ class AIChatView(LoginRequiredMixin, View):
         _updated_ticket_id  = {"value": None}
         _list_changed       = {"value": False}
         _open_private_chat  = {"value": None}
+        _navigate_url       = {"value": None}
 
         def tool_executor(tool_name, args):
             result = execute_tool(tool_name, args, request.user)
@@ -242,6 +243,8 @@ class AIChatView(LoginRequiredMixin, View):
                     "recipient_id": data.get("recipient_id"),
                     "recipient_name": data.get("recipient_name"),
                 }
+            elif tool_name == "open_page" and result.get("ok"):
+                _navigate_url["value"] = data.get("url")
             return result
 
         # Chama o agente
@@ -275,6 +278,7 @@ class AIChatView(LoginRequiredMixin, View):
             "updated_ticket_id": _updated_ticket_id["value"],
             "ticket_list_changed": _list_changed["value"],
             "open_private_chat": _open_private_chat["value"],
+            "navigate_url": _navigate_url["value"],
         })
 
 
