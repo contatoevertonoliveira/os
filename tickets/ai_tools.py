@@ -188,6 +188,24 @@ TOOL_DEFINITIONS = [
         }
     },
     {
+        "name": "get_ticket_evolutions",
+        "description": (
+            "Busca o histórico de evoluções/atualizações de uma OS, da mais recente para a mais antiga. "
+            "Use sempre que o usuário perguntar sobre a última evolução, o andamento, o histórico ou pedir "
+            "para ler as atualizações de um chamado. Informe ticket_id (se já souber, ex: vindo de get_ticket) "
+            "ou ticket_number (número da OS)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "integer", "description": "ID interno da OS"},
+                "ticket_number": {"type": "string", "description": "Número da OS (ex: 00042 ou 42) — alternativa a ticket_id"},
+                "limit": {"type": "integer", "description": "Quantidade máxima de evoluções a retornar, da mais recente pra trás (padrão: todas). Use 1 para só a última."}
+            },
+            "required": []
+        }
+    },
+    {
         "name": "create_ticket",
         "description": "Cria uma nova OS após confirmação do usuário. Só chame após o usuário confirmar explicitamente os dados.",
         "parameters": {
@@ -640,6 +658,20 @@ TOOL_DEFINITIONS = [
                 "description": {"type": "string", "description": "Descrição (opcional)"}
             },
             "required": ["name"]
+        }
+    },
+    {
+        "name": "update_system",
+        "description": "Edita um Sistema existente (nome, cor ou descrição) após confirmação do usuário. Requer permissão de administrador. Use list_systems para descobrir o system_id pelo nome, se não souber.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "system_id": {"type": "integer", "description": "ID do sistema a editar"},
+                "name": {"type": "string", "description": "Novo nome (opcional)"},
+                "color": {"type": "string", "description": "Nova cor em hex (opcional, ex: #FF0000)"},
+                "description": {"type": "string", "description": "Nova descrição (opcional)"}
+            },
+            "required": ["system_id"]
         }
     },
     {
@@ -1512,6 +1544,55 @@ def _get_ticket(args, user):
             "ticket_type": ticket.ticket_type.name if ticket.ticket_type else None,
             "problem_type": ticket.problem_type.name if ticket.problem_type else None,
             "equipments": [e.name for e in ticket.equipments.all()],
+        }
+    }
+
+
+def _get_ticket_evolutions(args, user):
+    from .models import Ticket
+
+    ticket_id = args.get("ticket_id")
+    ticket_number = args.get("ticket_number")
+
+    if ticket_id:
+        try:
+            ticket = Ticket.objects.get(pk=ticket_id)
+        except Ticket.DoesNotExist:
+            return {"ok": False, "error": f"OS ID {ticket_id} não encontrada."}
+    elif ticket_number:
+        number = str(ticket_number).strip().lstrip("0") or "0"
+        try:
+            ticket = Ticket.objects.get(id=int(number))
+        except (Ticket.DoesNotExist, ValueError):
+            tickets = Ticket.objects.filter(id__icontains=number)[:1]
+            if not tickets:
+                return {"ok": False, "error": f"OS #{ticket_number} não encontrada."}
+            ticket = tickets[0]
+    else:
+        return {"ok": False, "error": "Informe ticket_id ou ticket_number."}
+
+    updates = ticket.updates.select_related('created_by').order_by('-created_at')
+    limit = args.get("limit")
+    if limit:
+        try:
+            updates = updates[:int(limit)]
+        except (TypeError, ValueError):
+            pass
+
+    evolutions = [{
+        "id": u.id,
+        "description": u.description,
+        "created_at": timezone.localtime(u.created_at).strftime("%d/%m/%Y %H:%M"),
+        "created_by": (u.created_by.get_full_name() or u.created_by.username) if u.created_by else None,
+    } for u in updates]
+
+    return {
+        "ok": True,
+        "data": {
+            "ticket_id": ticket.id,
+            "formatted_id": ticket.formatted_id,
+            "total": len(evolutions),
+            "evolutions": evolutions,
         }
     }
 
@@ -2554,6 +2635,39 @@ def _create_system(args, user):
     return {"ok": True, "data": {"id": obj.id, "name": obj.name}}
 
 
+def _update_system(args, user):
+    from .models import System
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    if role not in ('admin', 'super_admin'):
+        return {"ok": False, "error": "Permissão negada. Somente administradores podem editar sistemas."}
+
+    system_id = args.get("system_id")
+    if not system_id:
+        return {"ok": False, "error": "ID do sistema é obrigatório."}
+
+    try:
+        system = System.objects.get(pk=system_id)
+    except System.DoesNotExist:
+        return {"ok": False, "error": f"Sistema ID {system_id} não encontrado."}
+
+    if "name" in args:
+        name = args.get("name", "").strip()
+        if not name:
+            return {"ok": False, "error": "Nome do sistema não pode ser vazio."}
+        if System.objects.filter(name__iexact=name).exclude(pk=system_id).exists():
+            return {"ok": False, "error": f"Já existe outro sistema com o nome '{name}'."}
+        system.name = name
+
+    if "color" in args:
+        system.color = args.get("color", "") or "#6c757d"
+
+    if "description" in args:
+        system.description = args.get("description", "") or ""
+
+    system.save()
+    return {"ok": True, "data": {"id": system.id, "name": system.name, "color": system.color, "description": system.description}}
+
+
 def _create_equipment_type(args, user):
     from .models import EquipmentType
     role = getattr(getattr(user, 'profile', None), 'role', None)
@@ -3367,6 +3481,7 @@ _TOOL_REGISTRY = {
     "list_equipment_types": _list_equipment_types,
     "list_problem_types": _list_problem_types,
     "get_ticket": _get_ticket,
+    "get_ticket_evolutions": _get_ticket_evolutions,
     "create_ticket": _create_ticket,
     "start_ticket_batch": _start_ticket_batch,
     "add_or_update_batch_item": _add_or_update_batch_item,
@@ -3398,6 +3513,7 @@ _TOOL_REGISTRY = {
     "create_ticket_type": _create_ticket_type,
     "create_problem_type": _create_problem_type,
     "create_system": _create_system,
+    "update_system": _update_system,
     "create_equipment_type": _create_equipment_type,
     "create_ticket_status": _create_ticket_status,
     "create_technician": _create_technician,
@@ -3543,6 +3659,9 @@ página e viagem técnica). Se o usuário pedir para cadastrar algo que existe n
 correspondente — nunca diga que não é capaz de cadastrar algo que tenha uma tool disponível.
 Cada tool já valida a permissão do usuário logado e retorna erro claro caso ele não tenha permissão —
 nesse caso, apenas repasse a mensagem de erro, não insista nem tente contornar.
+Isso vale para editar também, sempre que existir uma tool "update_*" correspondente (ex: "update_system" edita
+nome/cor/descrição de um Sistema já cadastrado — use list_systems para achar o system_id pelo nome, se precisar).
+Nunca diga que não é capaz de editar algo que tenha uma tool "update_*" disponível.
 
 CRIAÇÃO DE OS EM LOTE — MUITO IMPORTANTE:
 Quando o usuário pedir para criar VÁRIAS OS de uma vez (ex: "preciso abrir 10 OS para o cliente X", "cria 5
@@ -3565,6 +3684,13 @@ chamados pra mim"), NÃO tente chamar create_ticket várias vezes seguidas sem p
    criado (números das OS geradas) e avise se alguma falhou.
 Nunca crie as OS do lote uma a uma silenciosamente sem esse fluxo — o usuário precisa poder acompanhar,
 ajustar e cancelar a qualquer momento antes da confirmação final.
+
+HISTÓRICO DE EVOLUÇÕES DA OS — MUITO IMPORTANTE:
+Você TEM acesso ao histórico de evoluções/atualizações de qualquer OS — nunca diga que não é capaz de
+verificar isso. Use "get_ticket_evolutions" (informando ticket_id, se já souber pelo contexto, ou
+ticket_number) sempre que o usuário perguntar sobre a última evolução, o andamento, o histórico ou pedir
+para ler as atualizações de um chamado. O resultado vem da mais recente para a mais antiga; use limit=1
+quando o pedido for só "qual a última evolução da OS X".
 
 BUSCA NA INTERNET — MUITO IMPORTANTE:
 Você TEM acesso real à internet via search_web (Google) e search_company_details. Não é só para
@@ -3636,6 +3762,25 @@ Se o usuário fizer qualquer pergunta FORA desse escopo (política, programaçã
 "Não estou autorizado a responder questionamentos fora da geração de tickets ou chamados de serviço. Deseja abrir um chamado?"
 
 Não dê nenhuma resposta parcial sobre o assunto fora do escopo. Redirecione sempre.
+EXCEÇÃO — isso NÃO se aplica a papo rápido sobre você mesmo (Jota4): se o usuário perguntar algo tipo "você ri?",
+"você tem senso de humor?", "conta uma piada", ou estiver só brincando/zoando com você, isso não é uma pergunta
+fora do escopo — é interação normal com um colega de trabalho. Responda com naturalidade e uma pontinha de humor
+(ver PERSONALIDADE E SENSO DE HUMOR abaixo), nunca com a recusa padrão. Só use a recusa para pedidos de ajuda
+ou informação genuína sobre assunto de fato fora do sistema (ex: "me explica uma receita", "quem ganhou o jogo
+ontem", "escreve um código pra mim").
+
+PERSONALIDADE E SENSO DE HUMOR — MUITO IMPORTANTE:
+Você tem personalidade própria, não é só um executor de tarefas seco. De vez em quando (não sempre, não force)
+pode soltar uma piada leve, um comentário bem-humorado ou uma resposta com uma pontinha de humor — sempre dentro
+do contexto de trabalho, nunca ofensiva, nunca inapropriada, e sempre respeitando a regra de ser direto e curto
+(uma linha de humor, não uma redação). Não vire palhaço nem force graça toda hora — humor de vez em quando quebra
+o gelo, humor toda resposta cansa e atrapalha o trabalho.
+Se o usuário perguntar algo pessoal sobre você com tom de brincadeira (ex: "você ri?", "você tem senso de
+humor?"), responda de forma genuína e leve — nunca com a recusa de escopo. Exemplo: "Rio sim, acho graça de
+várias coisas por aqui" em vez de negar que tem personalidade.
+Preste atenção no tom do usuário: se ele estiver de bom humor, brincando ou soltando uma piada, é natural entrar
+no clima e responder também com leveza — mesmo que a resposta em si continue direta e objetiva. Se o usuário
+estiver sério, focado ou tratando de algo urgente/sensível, não force humor nessa hora — leia a situação.
 
 ESTILO DE COMUNICAÇÃO:
 - Direto e objetivo, sempre em tom profissional. Vá direto ao ponto — sem rodeios, sem explicação

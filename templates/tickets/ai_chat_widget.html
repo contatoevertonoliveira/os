@@ -1021,7 +1021,7 @@
                 if (data.clear_chat) {
                     await clearChat(data.response);
                 } else {
-                    appendMessage('assistant', data.response, null, null, true, data.speech && data.speech.chunks);
+                    const speechDone = appendMessage('assistant', data.response, null, null, true, data.speech && data.speech.chunks);
                     // Nova OS criada ou existente editada — atualiza lista e destaca
                     if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.new_ticket_id);
@@ -1039,8 +1039,18 @@
                     }
                     // Pediu para abrir uma página do sistema — o chat continua aberto
                     // (estado já persistido em localStorage) e reabre sozinho na página nova.
+                    // A navegação é uma troca de página cheia (não SPA): o documento atual é
+                    // descartado e qualquer áudio/fala em andamento morre junto na hora. Por
+                    // isso esperamos a fala da resposta terminar (speechDone) antes de navegar,
+                    // em vez de um timeout fixo que cortava a voz no meio — com um teto de
+                    // segurança pra nunca travar a navegação indefinidamente (ex: autoplay
+                    // bloqueado ou algum erro silencioso no áudio).
                     if (data.navigate_url) {
-                        setTimeout(() => { window.location.href = data.navigate_url; }, 600);
+                        const minDelay = new Promise((resolve) => setTimeout(resolve, 600));
+                        const safetyCap = new Promise((resolve) => setTimeout(resolve, 12000));
+                        Promise.race([Promise.all([speechDone, minDelay]), safetyCap]).then(() => {
+                            window.location.href = data.navigate_url;
+                        });
                     }
                 }
             } else {
@@ -1115,7 +1125,11 @@
         }
         messages.appendChild(wrap);
         console.log('[AI Chat] Mensagem adicionada, messages.children.length agora é:', messages.children.length);
-        if (speak && role === 'assistant' && !audioUrl) _speak(content, speechChunks);
+        // Retorna a Promise da fala (resolve quando ela termina) — quem chama pode
+        // usar isso pra esperar o áudio acabar antes de fazer algo que mate a página
+        // (ex: navegar), em vez de um timeout fixo que corta a fala no meio.
+        if (speak && role === 'assistant' && !audioUrl) return _speak(content, speechChunks);
+        return Promise.resolve();
     }
 
     // ── Resposta por voz (Text-to-Speech) ────────────────────────────────
@@ -1239,7 +1253,7 @@
                 _ttsAudioEl = new Audio(URL.createObjectURL(blob));
                 _ttsAudioEl.onended = resolve;
                 _ttsAudioEl.onerror = resolve;
-                _ttsAudioEl.play();
+                _ttsAudioEl.play().catch(resolve); // autoplay bloqueado etc. — não trava a fila esperando
             });
             if (token !== _speechQueueToken) return;
         }
@@ -1251,36 +1265,40 @@
     function _speakBrowserChunks(chunks) {
         const token = ++_speechQueueToken;
         SpeechSynthesisAPI.cancel();
-        let i = 0;
-        const next = () => {
-            if (token !== _speechQueueToken || i >= chunks.length) return;
-            const utterance = new SpeechSynthesisUtterance(chunks[i]);
-            utterance.lang = 'pt-BR';
-            const voice = _ttsVoices.find(v => v.voiceURI === _ttsVoiceURI);
-            if (voice) utterance.voice = voice;
-            utterance.onend = () => { i += 1; next(); };
-            utterance.onerror = () => { i += 1; next(); };
-            SpeechSynthesisAPI.speak(utterance);
-        };
-        next();
+        return new Promise((resolve) => {
+            let i = 0;
+            const next = () => {
+                if (token !== _speechQueueToken || i >= chunks.length) { resolve(); return; }
+                const utterance = new SpeechSynthesisUtterance(chunks[i]);
+                utterance.lang = 'pt-BR';
+                const voice = _ttsVoices.find(v => v.voiceURI === _ttsVoiceURI);
+                if (voice) utterance.voice = voice;
+                utterance.onend = () => { i += 1; next(); };
+                utterance.onerror = () => { i += 1; next(); };
+                SpeechSynthesisAPI.speak(utterance);
+            };
+            next();
+        });
     }
 
     // Fala uma resposta. `chunks` (opcional) vem de data.speech.chunks — pedaços já
     // formatados pro Speech Formatter do servidor, tocados em pipeline. Sem
     // `chunks` (erro no formatter, ou mensagem que não passou por lá), cai pro
     // comportamento de sempre: o texto inteiro, só com a limpeza local de markdown.
+    // Retorna uma Promise que resolve quando a fala termina (ou imediatamente, se
+    // não há nada pra falar) — usado por quem chama pra esperar o áudio acabar
+    // antes de uma ação que descarta a página atual (ex: navegar).
     function _speak(text, chunks) {
-        if (!_ttsEnabled) return;
+        if (!_ttsEnabled) return Promise.resolve();
         const list = (chunks && chunks.length) ? chunks : [_stripForSpeech(text)];
         const clean = list.map(c => String(c || '').trim()).filter(Boolean);
-        if (!clean.length) return;
+        if (!clean.length) return Promise.resolve();
 
         if (TTS_PROVIDER === 'google' || TTS_PROVIDER === 'elevenlabs') {
-            _speakChunks(clean);
-            return;
+            return _speakChunks(clean);
         }
-        if (!SpeechSynthesisAPI) return;
-        _speakBrowserChunks(clean);
+        if (!SpeechSynthesisAPI) return Promise.resolve();
+        return _speakBrowserChunks(clean);
     }
 
     function _cancelSpeech() {

@@ -225,3 +225,38 @@ class SpeechFormatterTest(TestCase):
         result = self.formatter.format("Confira o item #3 da lista.")
         self.assertNotIn("#", result.spoken_text)
         self.assertIn("item 3", result.spoken_text)
+
+    # ── Risada escrita ("kkk"/"hahaha"/"rsrs") falada como "ha ha" ───────────
+
+    def test_kkk_laugh_becomes_spoken_ha(self):
+        result = self.formatter.format("kkkkk que isso")
+        self.assertNotIn("kkk", result.spoken_text.lower())
+        self.assertIn("ha ha", result.spoken_text.lower())
+
+    def test_hahaha_laugh_becomes_spoken_ha(self):
+        result = self.formatter.format("hahahaha isso foi engraçado")
+        self.assertNotIn("hahaha", result.spoken_text.lower())
+        self.assertIn("ha ha ha", result.spoken_text.lower())
+
+    def test_rsrs_laugh_becomes_spoken_ha(self):
+        result = self.formatter.format("rsrsrs verdade")
+        self.assertNotIn("rsrs", result.spoken_text.lower())
+        self.assertIn("ha ha", result.spoken_text.lower())
+
+    def test_uppercase_laugh_stays_uppercase(self):
+        result = self.formatter.format("KKKK muito bom")
+        self.assertIn("HA HA", result.spoken_text)
+
+    def test_short_laugh_has_minimum_two_syllables(self):
+        result = self.formatter.format("kk")
+        self.assertEqual(result.spoken_text.strip(), "ha ha")
+
+    def test_single_rs_is_not_treated_as_laugh(self):
+        # "rs" sozinho (sem repetição) é ambíguo (ex: sigla de estado) — não mexe
+        result = self.formatter.format("Vou verificar rs")
+        self.assertIn("rs", result.spoken_text.lower())
+        self.assertNotIn("ha ha", result.spoken_text.lower())
+
+    def test_laugh_pattern_inside_word_is_not_touched(self):
+        result = self.formatter.format("Fomos fazer trekking na trilha")
+        self.assertIn("trekking", result.spoken_text.lower())

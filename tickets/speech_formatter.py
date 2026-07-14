@@ -63,6 +63,13 @@ _EMOJI_RE = re.compile(
 
 _SENTENCE_END_RE = re.compile(r'(?<=[.!?])\s+(?=[A-ZÀ-Úa-z0-9"\'])')
 
+# Risada escrita ("kkk", "hahaha", "rsrs") soa muito estranha lida ao pé da letra
+# pelo TTS (ex: "kkk" vira "cacaca" ou é soletrado). Troca por "ha ha" espaçado —
+# que qualquer sintetizador articula como uma risada de verdade — com a
+# quantidade de "ha"s proporcional ao tamanho do trecho original, pra preservar
+# um pouco da intensidade (poucos "k" = risadinha curta, muitos = risada mais longa).
+_LAUGH_RE = re.compile(r'\b(?:k{2,}|(?:ha){2,}h?|(?:he){2,}h?|(?:rs){2,})\b', re.IGNORECASE)
+
 _INTRO_PAUSE_WORDS = ["Olha", "Então", "Bom", "Bem", "Certo"]
 
 # (padrão, forma falada) — aplicado preservando a maiúscula inicial do trecho casado
@@ -154,6 +161,7 @@ class SpeechFormatter:
                speak_full: bool = False) -> FormattedSpeech:
         reduced = self._reduce_structured_blocks(text or "", speak_full=speak_full)
         cleaned = self._strip_markup(reduced)
+        cleaned = self._naturalize_laughter(cleaned)
         cleaned = self._debureaucratize(cleaned)
         cleaned = self._speak_os_as_ticket(cleaned, speak_full=speak_full)
         sentences = [s for s in self._split_sentences(cleaned) if s.strip()]
@@ -219,6 +227,16 @@ class SpeechFormatter:
         text = re.sub(r"[ \t]+", " ", text)
         text = re.sub(r"\n{2,}", "\n", text)
         return text.strip()
+
+    def _naturalize_laughter(self, text: str) -> str:
+        return _LAUGH_RE.sub(self._replace_laugh, text)
+
+    @staticmethod
+    def _replace_laugh(match):
+        matched = match.group(0)
+        reps = max(2, min(4, (len(matched) + 1) // 2))
+        laugh = " ".join(["ha"] * reps)
+        return laugh.upper() if matched.isupper() else laugh
 
     def _debureaucratize(self, text: str) -> str:
         for pattern, replacement in _DEBUREAUCRATIZE_RULES:
