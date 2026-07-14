@@ -43,11 +43,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
         # Period handling
         # Período dos cards/gráficos principais (mantém opção de filtro)
-        period = self.request.GET.get('period', 'month')
+        period = self.request.GET.get('period', 'year')
         now = timezone.now()
 
-        # Set default range (week)
-        start_date = now - timedelta(days=7)
+        # Set default range (year)
+        start_date = now - timedelta(days=365)
         end_date = now
 
         if period == 'today':
@@ -100,7 +100,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             end_formatted = end_date.strftime('%d/%m/%Y')
             context['period_label'] = f'{start_formatted} à {end_formatted}'
         else:
-            context['period_label'] = 'Esta semana'
+            context['period_label'] = 'Este ano'
 
         # Filtros adicionais: cliente e colaborador
         client_id = self.request.GET.get('client')

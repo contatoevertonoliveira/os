@@ -154,16 +154,14 @@
                 <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="fas fa-calendar me-1"></i>
                     {% if selected_period == 'today' %}Hoje
-                    {% elif selected_period == 'yesterday' %}Ontem
                     {% elif selected_period == 'week' %}Esta semana
                     {% elif selected_period == 'month' %}Este mês
                     {% elif selected_period == 'year' %}Este ano
                     {% elif selected_period == 'custom' %}Personalizado
-                    {% else %}Esta semana{% endif %}
+                    {% else %}Este ano{% endif %}
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="periodDropdown">
                     <li><a class="dropdown-item {% if selected_period == 'today' %}active{% endif %}" href="?period=today{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Hoje</a></li>
-                    <li><a class="dropdown-item {% if selected_period == 'yesterday' %}active{% endif %}" href="?period=yesterday{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Ontem</a></li>
                     <li><a class="dropdown-item {% if selected_period == 'week' %}active{% endif %}" href="?period=week{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Esta semana</a></li>
                     <li><a class="dropdown-item {% if selected_period == 'month' %}active{% endif %}" href="?period=month{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Este mês</a></li>
                     <li><a class="dropdown-item {% if selected_period == 'year' %}active{% endif %}" href="?period=year{% if current_client %}&client={{ current_client }}{% endif %}{% if current_collaborator %}&collaborator={{ current_collaborator }}{% endif %}">Este ano</a></li>
