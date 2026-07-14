@@ -11,12 +11,18 @@ class ChecklistTests(TestCase):
         # Create Admin User
         self.username_admin = f'admin_{timezone.now().timestamp()}'
         self.admin_user = User.objects.create_user(username=self.username_admin, password='password')
-        self.admin_profile = UserProfile.objects.create(user=self.admin_user, role='admin', department='IT')
-        
+        self.admin_profile = self.admin_user.profile
+        self.admin_profile.role = 'admin'
+        self.admin_profile.department = 'IT'
+        self.admin_profile.save()
+
         # Create Technician User
         self.username_tech = f'tech_{timezone.now().timestamp()}'
         self.tech_user = User.objects.create_user(username=self.username_tech, password='password')
-        self.tech_profile = UserProfile.objects.create(user=self.tech_user, role='technician', department='IT')
+        self.tech_profile = self.tech_user.profile
+        self.tech_profile.role = 'technician'
+        self.tech_profile.department = 'IT'
+        self.tech_profile.save()
         
         # Create Checklist Template
         self.template = ChecklistTemplate.objects.create(name='IT Daily', department='IT')

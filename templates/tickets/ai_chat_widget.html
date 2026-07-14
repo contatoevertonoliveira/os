@@ -1010,16 +1010,18 @@
     async function submitToAI(requestInit) {
         typing.style.display = 'block';
         scrollToBottom();
+        _scheduleFiller();
         try {
             const resp = await fetch("{% url 'ai_chat' %}", requestInit);
             const data = await resp.json();
+            _cancelFiller();
             typing.style.display = 'none';
             if (data.ok) {
                 saveSessionId(data.session_id);
                 if (data.clear_chat) {
                     await clearChat(data.response);
                 } else {
-                    appendMessage('assistant', data.response, null, null, true);
+                    appendMessage('assistant', data.response, null, null, true, data.speech && data.speech.chunks);
                     // Nova OS criada ou existente editada — atualiza lista e destaca
                     if (data.new_ticket_id && typeof window.aiRefreshAndHighlight === 'function') {
                         window.aiRefreshAndHighlight(data.new_ticket_id);
@@ -1045,6 +1047,7 @@
                 appendMessage('assistant', '⚠️ ' + (data.error || 'Erro desconhecido.'), null, null, true);
             }
         } catch {
+            _cancelFiller();
             typing.style.display = 'none';
             appendMessage('assistant', '⚠️ Falha de conexão. Tente novamente.', null, null, true);
         }
@@ -1089,7 +1092,7 @@
     // ativa, lê a mensagem em voz alta assim que ela aparece. Usado só nas
     // respostas NOVAS/ao vivo do assistente — nunca ao recarregar o histórico
     // (senão reabrir o chat leria tudo de novo em voz alta).
-    function appendMessage(role, content, time, audioUrl, speak) {
+    function appendMessage(role, content, time, audioUrl, speak, speechChunks) {
         console.log('[AI Chat] appendMessage() chamado:', role, 'content length:', content?.length, 'audio:', !!audioUrl);
         const wrap = document.createElement('div');
         wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
@@ -1112,13 +1115,13 @@
         }
         messages.appendChild(wrap);
         console.log('[AI Chat] Mensagem adicionada, messages.children.length agora é:', messages.children.length);
-        if (speak && role === 'assistant' && !audioUrl) _speak(content);
+        if (speak && role === 'assistant' && !audioUrl) _speak(content, speechChunks);
     }
 
     // ── Resposta por voz (Text-to-Speech) ────────────────────────────────
     // Provedor decidido pelo admin (TTS_PROVIDER, Configurações → Integrações):
     // 'browser' usa a Web Speech API do navegador (grátis, mas robotizada);
-    // 'google' manda o texto pro servidor sintetizar com o Google Cloud TTS
+    // 'google'/'elevenlabs' mandam o texto pro servidor sintetizar
     // (voz natural, precisa de chave configurada pelo admin).
     const SpeechSynthesisAPI = (TTS_PROVIDER === 'browser') ? (window.speechSynthesis || null) : null;
     // Ativação vem do "Meu Perfil" por padrão; o botão no cabeçalho pode
@@ -1190,8 +1193,8 @@
             .trim();
     }
 
-    async function _speakGoogle(clean) {
-        if (_ttsAudioEl) { _ttsAudioEl.pause(); _ttsAudioEl = null; }
+    // Busca o áudio de um pedaço de texto no servidor (ElevenLabs/Google), sem tocar.
+    async function _fetchTtsBlob(text) {
         try {
             const resp = await fetch("{% url 'ai_chat_tts' %}", {
                 method: 'POST',
@@ -1200,43 +1203,110 @@
                     'X-CSRFToken': getCookie('csrftoken'),
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ text: clean }),
+                body: JSON.stringify({ text }),
             });
             const contentType = resp.headers.get('Content-Type') || '';
             if (resp.ok && contentType.includes('audio')) {
-                const blob = await resp.blob();
-                _ttsAudioEl = new Audio(URL.createObjectURL(blob));
-                _ttsAudioEl.play();
-            } else {
-                const data = await resp.json().catch(() => null);
-                console.warn('[AI Chat] Falha ao sintetizar voz (Google TTS):', data && data.error);
+                return await resp.blob();
             }
+            const data = await resp.json().catch(() => null);
+            console.warn('[AI Chat] Falha ao sintetizar voz:', data && data.error);
         } catch (err) {
             console.warn('[AI Chat] Erro ao chamar TTS:', err);
         }
+        return null;
     }
 
-    function _speak(text) {
-        if (!_ttsEnabled) return;
-        const clean = _stripForSpeech(text);
-        if (!clean) return;
+    // Token que invalida qualquer fila de fala em andamento — incrementado sempre
+    // que uma fala nova começa ou é cancelada, pra nunca tocar duas respostas
+    // sobrepostas quando o usuário manda mensagens em sequência.
+    let _speechQueueToken = 0;
 
-        if (TTS_PROVIDER === 'google') {
-            _speakGoogle(clean);
+    // Toca uma lista de pedaços de texto em sequência no provedor de servidor
+    // (google/elevenlabs), buscando o áudio do próximo pedaço enquanto o atual
+    // ainda está tocando (fetch-ahead) — a fala começa assim que o 1º pedaço fica
+    // pronto, sem esperar a resposta inteira ser sintetizada.
+    async function _speakChunks(chunks) {
+        if (_ttsAudioEl) { _ttsAudioEl.pause(); _ttsAudioEl = null; }
+        const token = ++_speechQueueToken;
+        let nextBlobPromise = _fetchTtsBlob(chunks[0]);
+        for (let i = 0; i < chunks.length; i++) {
+            const blob = await nextBlobPromise;
+            if (token !== _speechQueueToken) return;
+            if (i + 1 < chunks.length) nextBlobPromise = _fetchTtsBlob(chunks[i + 1]);
+            if (!blob) continue;
+            await new Promise((resolve) => {
+                _ttsAudioEl = new Audio(URL.createObjectURL(blob));
+                _ttsAudioEl.onended = resolve;
+                _ttsAudioEl.onerror = resolve;
+                _ttsAudioEl.play();
+            });
+            if (token !== _speechQueueToken) return;
+        }
+    }
+
+    // Equivalente pro provedor 'browser' (Web Speech API nativa) — fala pedaço a
+    // pedaço em vez de ler o texto inteiro de uma vez (evita cortes/mau ritmo em
+    // respostas mais longas).
+    function _speakBrowserChunks(chunks) {
+        const token = ++_speechQueueToken;
+        SpeechSynthesisAPI.cancel();
+        let i = 0;
+        const next = () => {
+            if (token !== _speechQueueToken || i >= chunks.length) return;
+            const utterance = new SpeechSynthesisUtterance(chunks[i]);
+            utterance.lang = 'pt-BR';
+            const voice = _ttsVoices.find(v => v.voiceURI === _ttsVoiceURI);
+            if (voice) utterance.voice = voice;
+            utterance.onend = () => { i += 1; next(); };
+            utterance.onerror = () => { i += 1; next(); };
+            SpeechSynthesisAPI.speak(utterance);
+        };
+        next();
+    }
+
+    // Fala uma resposta. `chunks` (opcional) vem de data.speech.chunks — pedaços já
+    // formatados pro Speech Formatter do servidor, tocados em pipeline. Sem
+    // `chunks` (erro no formatter, ou mensagem que não passou por lá), cai pro
+    // comportamento de sempre: o texto inteiro, só com a limpeza local de markdown.
+    function _speak(text, chunks) {
+        if (!_ttsEnabled) return;
+        const list = (chunks && chunks.length) ? chunks : [_stripForSpeech(text)];
+        const clean = list.map(c => String(c || '').trim()).filter(Boolean);
+        if (!clean.length) return;
+
+        if (TTS_PROVIDER === 'google' || TTS_PROVIDER === 'elevenlabs') {
+            _speakChunks(clean);
             return;
         }
         if (!SpeechSynthesisAPI) return;
-        SpeechSynthesisAPI.cancel(); // corta qualquer fala anterior ainda em andamento
-        const utterance = new SpeechSynthesisUtterance(clean);
-        utterance.lang = 'pt-BR';
-        const voice = _ttsVoices.find(v => v.voiceURI === _ttsVoiceURI);
-        if (voice) utterance.voice = voice;
-        SpeechSynthesisAPI.speak(utterance);
+        _speakBrowserChunks(clean);
     }
 
     function _cancelSpeech() {
+        _speechQueueToken += 1; // invalida qualquer fila de fetch-ahead/utterances em andamento
         if (SpeechSynthesisAPI) SpeechSynthesisAPI.cancel();
         if (_ttsAudioEl) { _ttsAudioEl.pause(); _ttsAudioEl = null; }
+    }
+
+    // ── Fala de espera ("Só um instante...") ──────────────────────────────
+    // Se a IA demorar pra responder, fala uma frase curta de espera sem
+    // interromper o processamento — a resposta real, quando chega, já
+    // cancela/sobrepõe naturalmente qualquer fala em andamento (mesmo token
+    // de invalidação usado por _speakChunks/_speakBrowserChunks).
+    const FILLER_PHRASES = ["Só um instante...", "Estou verificando...", "Deixa eu ver isso rapidinho...", "Um segundo..."];
+    const FILLER_DELAY_MS = 3500;
+    let _fillerTimer = null;
+
+    function _scheduleFiller() {
+        _cancelFiller();
+        _fillerTimer = setTimeout(() => {
+            if (_ttsEnabled) _speak(FILLER_PHRASES[Math.floor(Math.random() * FILLER_PHRASES.length)]);
+        }, FILLER_DELAY_MS);
+    }
+
+    function _cancelFiller() {
+        if (_fillerTimer) { clearTimeout(_fillerTimer); _fillerTimer = null; }
     }
 
     function _updateTtsUI() {
@@ -1386,7 +1456,7 @@
             typing.style.display = 'none';
             if (chatData.ok) {
                 saveSessionId(chatData.session_id);
-                appendMessage('assistant', chatData.response, null, null, true);
+                appendMessage('assistant', chatData.response, null, null, true, chatData.speech && chatData.speech.chunks);
                 scrollToBottom();
             }
         } catch (err) {

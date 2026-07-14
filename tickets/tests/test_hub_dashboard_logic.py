@@ -10,7 +10,8 @@ class HubDashboardLogicTest(TestCase):
     def setUp(self):
         # Create user
         self.user = User.objects.create_user(username='testuser', password='password')
-        UserProfile.objects.create(user=self.user, role='admin')
+        self.user.profile.role = 'admin'
+        self.user.profile.save()
         
         # Create client
         self.client = Client.objects.create(name="Test Client")

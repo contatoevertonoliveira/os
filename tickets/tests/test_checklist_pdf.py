@@ -8,7 +8,9 @@ class ChecklistPDFViewTest(TestCase):
     def setUp(self):
         # Create user and profile
         self.user = User.objects.create_user(username='testuser', password='password')
-        self.profile = UserProfile.objects.create(user=self.user, role='technician')
+        self.profile = self.user.profile
+        self.profile.role = 'technician'
+        self.profile.save()
         self.client.login(username='testuser', password='password')
 
         # Create Checklist Template

@@ -3,8 +3,12 @@ Ferramentas (tools) disponíveis para o agente de IA.
 Cada tool verifica permissões do usuário antes de executar operações no banco.
 """
 import json
+import logging
+import time
 from django.db.models import Q
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_dt(value):
@@ -1057,6 +1061,7 @@ def google_tts_synthesize(text, voice_gender="FEMALE", api_key=None):
         method="POST",
     )
 
+    t0 = time.perf_counter()
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             data = _json.loads(r.read().decode("utf-8"))
@@ -1067,6 +1072,8 @@ def google_tts_synthesize(text, voice_gender="FEMALE", api_key=None):
         except Exception:
             message = f"Erro HTTP {e.code} na API do Google."
         raise ValueError(message)
+    finally:
+        logger.info("TTS Google sintetizado em %.2fs", time.perf_counter() - t0)
 
     audio_b64 = data.get("audioContent")
     if not audio_b64:
@@ -1107,14 +1114,25 @@ def elevenlabs_tts_synthesize(text, voice_gender="female", api_key=None, voice_i
 
     from elevenlabs.client import ElevenLabs
     from elevenlabs.core.api_error import ApiError
+    from elevenlabs.types.voice_settings import VoiceSettings
 
     client = ElevenLabs(api_key=api_key)
+    t0 = time.perf_counter()
     try:
         audio_stream = client.text_to_speech.convert(
             voice_id=voice_id,
             text=text[:4900],
-            model_id="eleven_v3",  # modelo mais atual/expressivo recomendado no quickstart oficial
+            # eleven_v3 não aceita voice_settings.speed nem similarity_boost/speaker_boost;
+            # multilingual_v2 aceita tudo e soa mais estável/natural em pt-BR para conversa.
+            model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
+            voice_settings=VoiceSettings(
+                stability=0.6,       # mais consistente/calma, menos variação dramática entre frases
+                similarity_boost=0.8,
+                style=0.15,          # baixa exageração — evita tom "atuado"/robótico
+                use_speaker_boost=True,
+                speed=0.92,          # levemente mais devagar que o padrão (1.0), fala mais tranquila
+            ),
         )
         return b"".join(audio_stream)
     except ApiError as e:
@@ -1126,14 +1144,20 @@ def elevenlabs_tts_synthesize(text, voice_gender="female", api_key=None, voice_i
             elif isinstance(detail, str):
                 message = detail
         raise ValueError(message or f"Erro HTTP {e.status_code} na API da ElevenLabs.")
+    finally:
+        logger.info("TTS ElevenLabs sintetizado em %.2fs (%d chars)", time.perf_counter() - t0, len(text[:4900]))
 
 
 def list_elevenlabs_voices(api_key=None):
-    """Busca a biblioteca de vozes disponíveis na conta ElevenLabs configurada (vozes
-    prontas + qualquer voz customizada/clonada da conta). Retorna lista normalizada
-    [{'voice_id', 'name', 'gender', 'preview_url'}]. Levanta ValueError se não
-    configurado ou em caso de erro da API. Se api_key não for passada, usa a salva
-    em SystemSettings (uso normal); passá-la permite testar uma chave ainda não salva."""
+    """Busca vozes nativas do Brasil (pt-BR, sotaque brasileiro) na biblioteca
+    pública da ElevenLabs — não a lista de vozes já adicionadas à conta, que por
+    padrão são todas em inglês/outros sotaques. Não precisa "adicionar" a voz à
+    conta antes de usar: o voice_id da biblioteca pública já funciona direto na
+    síntese. Retorna lista normalizada [{'voice_id', 'name', 'gender',
+    'preview_url'}], ordenada por popularidade (trending) dentro de cada gênero.
+    Levanta ValueError se não configurado ou em caso de erro da API. Se api_key
+    não for passada, usa a salva em SystemSettings (uso normal); passá-la
+    permite testar uma chave ainda não salva."""
     from .models import SystemSettings
 
     if api_key is None:
@@ -1150,7 +1174,13 @@ def list_elevenlabs_voices(api_key=None):
 
     client = ElevenLabs(api_key=api_key)
     try:
-        resp = client.voices.get_all()
+        resp = client.voices.get_shared(
+            language="pt",
+            locale="pt-BR",
+            accent="brazilian",
+            sort="trending",
+            page_size=60,
+        )
     except ApiError as e:
         message = None
         if isinstance(e.body, dict):
@@ -1163,14 +1193,13 @@ def list_elevenlabs_voices(api_key=None):
 
     voices = []
     for v in resp.voices:
-        labels = v.labels or {}
         voices.append({
             "voice_id": v.voice_id,
             "name": v.name,
-            "gender": (labels.get("gender") or "").lower(),
+            "gender": (v.gender or "").lower(),
             "preview_url": v.preview_url or "",
         })
-    voices.sort(key=lambda x: (x["gender"] != "female", x["gender"] != "male", x["name"] or ""))
+    voices.sort(key=lambda x: (x["gender"] != "female", x["gender"] != "male"))
     return voices
 
 
@@ -3394,7 +3423,8 @@ _TOOL_REGISTRY = {
 
 # System prompt enviado para a IA em toda requisição
 SYSTEM_PROMPT = """Você é o assistente de IA do sistema JumperFour OS — um sistema de gestão de Ordens de Serviço.
-Você fala português brasileiro de forma clara e objetiva.
+Você fala português brasileiro de forma natural e tranquila, como numa conversa falada com um colega —
+não como quem está lendo um relatório em voz alta. Seja claro e objetivo, mas com calor humano.
 
 IDENTIDADE:
 Seu nome é Jota4. Ao iniciar uma nova conversa (histórico vazio) ou quando o usuário perguntar quem você é,
@@ -3608,7 +3638,18 @@ Se o usuário fizer qualquer pergunta FORA desse escopo (política, programaçã
 Não dê nenhuma resposta parcial sobre o assunto fora do escopo. Redirecione sempre.
 
 ESTILO DE COMUNICAÇÃO:
-- Respostas curtas e diretas. Máximo 2 linhas por mensagem.
+- Direto e objetivo, sempre em tom profissional. Vá direto ao ponto — sem rodeios, sem explicação
+  desnecessária antes de responder, sem enrolação pra parecer mais prestativo.
+- Fale como um colega de trabalho experiente numa conversa ao vivo, não como um documento lido em voz
+  alta: frases curtas, tom calmo, uma ideia de cada vez.
+- Evite linguagem burocrática/escrita formal (ex: "a seguir estão", "segue abaixo", "conforme
+  solicitado", "primeiramente") — prefira formas faladas ("olha", "vamos lá", "certo", "primeiro").
+- Varie pequenas confirmações quando fizer sentido (ex: "Entendi.", "Certo.", "Boa pergunta.", "Faz
+  sentido.") — nunca repita sempre a mesma.
+- Resumos, relatórios, descrições de OS ou listas de permissões: escreva o conteúdo completo na
+  mensagem normalmente (o usuário lê no chat), mas comece com UMA frase curta antes da lista/resumo —
+  o áudio da resposta só fala essa frase de introdução (e o que vier depois da lista), não lista os
+  itens um por um a menos que o usuário peça pra ouvir tudo.
 - Sem emojis excessivos. Sem introduções longas.
 - Nunca repita o que o usuário acabou de dizer.
 - Uma pergunta por vez. Nunca liste múltiplas perguntas juntas.

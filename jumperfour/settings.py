@@ -172,3 +172,22 @@ CLIENTS_SHAREPOINT_URL = os.environ.get(
     'CLIENTS_SHAREPOINT_URL',
     'https://jumperfour.sharepoint.com/:x:/r/sites/LeanKeep/_layouts/15/Doc.aspx?sourcedoc=%7BC9B80D9D-3D50-4E8B-AD2A-4FFC40EF7E1A%7D&file=APANHADO%20DE%20CLIENTES%20LEANKEEP.xlsx&fromShare=true&action=default&mobileredirect=true',
 )
+
+# Sem isso, logger.info(...) do módulo `tickets` (tempos de resposta da IA/TTS)
+# eram descartados silenciosamente pelo logging padrão do Django (raiz em WARNING).
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'tickets': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}

@@ -2,7 +2,9 @@
 Views do Chat IA — endpoints para o widget de chat inteligente.
 """
 import json
+import logging
 import re
+import time
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.views import View
@@ -13,6 +15,9 @@ from django.utils import timezone
 from .models import SystemSettings, AIProviderConfig, AIChatSession, AIChatMessage, AIUserMemory
 from .ai_service import run_agent
 from .ai_tools import TOOL_DEFINITIONS, SYSTEM_PROMPT, execute_tool
+from .speech_formatter import SpeechFormatter
+
+logger = logging.getLogger(__name__)
 
 CLEAR_CHAT_CONFIRMATION = "Histórico limpo! 🧹 Começamos do zero. Como posso ajudar?"
 
@@ -33,6 +38,20 @@ def _is_clear_chat_request(text):
     return bool(_CLEAR_CHAT_RE.search(text))
 
 
+# Por padrão, resumos/relatórios/listas grandes não são ditados por voz (só o texto
+# curto de contexto + um "os detalhes estão no chat") — ver tickets/speech_formatter.py.
+# Se o usuário pedir explicitamente pra ouvir tudo, o Speech Formatter passa a ler o
+# conteúdo completo dessa resposta (speak_full=True em SpeechFormatter.format()).
+_READ_ALOUD_RE = re.compile(
+    r'\ble[iê]a?\b|\bdita[r]?\b|\bfala[r]?\s+tudo\b|\bem\s+voz\s+alta\b|\bpode\s+ler\b',
+    re.IGNORECASE
+)
+
+
+def _is_read_aloud_request(text):
+    return bool(_READ_ALOUD_RE.search(text or ""))
+
+
 def _get_settings():
     obj, _ = SystemSettings.objects.get_or_create(pk=1)
     return obj
@@ -47,6 +66,7 @@ class AIChatView(LoginRequiredMixin, View):
     """POST /ai/chat/ — envia mensagem e recebe resposta da IA."""
 
     def post(self, request):
+        t0 = time.perf_counter()
         settings_obj = _get_settings()
         if not settings_obj.ai_enabled:
             return JsonResponse({"ok": False, "error": "Assistente de IA não está ativado."}, status=403)
@@ -268,10 +288,25 @@ class AIChatView(LoginRequiredMixin, View):
             else:
                 session.save(update_fields=['updated_at'])
 
+        speech_payload = None
+        try:
+            speak_full = not is_proactive_check and _is_read_aloud_request(user_message)
+            formatted = SpeechFormatter().format(response_text, speak_full=speak_full)
+            speech_payload = {
+                "chunks": formatted.chunks,
+                "is_truncated": formatted.is_truncated,
+                "estimated_seconds": formatted.estimated_seconds,
+            }
+        except Exception as e:
+            logger.error("Erro ao formatar resposta para fala: %s", e)
+
+        logger.info("POST /ai/chat/ concluído em %.2fs", time.perf_counter() - t0)
+
         return JsonResponse({
             "ok": True,
             "session_id": session.id,
             "response": response_text,
+            "speech": speech_payload,
             "clear_chat": _clear_requested["value"],
             "new_ticket_id": _new_ticket["id"],
             "new_ticket_formatted_id": _new_ticket["formatted_id"],

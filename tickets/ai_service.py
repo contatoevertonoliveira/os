@@ -4,6 +4,7 @@ Executa o loop de agente: envia mensagens → processa tool calls → retorna re
 """
 import json
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +175,7 @@ def run_agent(config, messages: list, tools: list, tool_executor, *, expose_erro
     if not api_key:
         return "⚠️ Chave de API não configurada. Acesse Configurações → Inteligência Artificial para configurar."
 
+    t0 = time.perf_counter()
     try:
         if provider == 'anthropic':
             import anthropic
@@ -200,3 +202,5 @@ def run_agent(config, messages: list, tools: list, tool_executor, *, expose_erro
         if expose_errors:
             return f"⚠️ Erro ao comunicar com a IA: {e}"
         return "⚠️ Não foi possível obter resposta da IA no momento. Se o problema persistir, avise um administrador."
+    finally:
+        logger.info("IA (%s/%s) respondeu em %.2fs", provider, model, time.perf_counter() - t0)
