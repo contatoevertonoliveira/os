@@ -1,0 +1,787 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center pt-3 pb-3 mb-4 border-bottom">
+    <div>
+        <h1 class="h2 mb-1">Integrações</h1>
+        <p class="text-muted mb-0">Cadastre provedores de Busca e de Voz — ative o que quiser usar sem perder os demais.</p>
+    </div>
+    <a href="{% url 'settings' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> Voltar
+    </a>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Provedores de Busca -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-magnifying-glass me-2 text-success"></i>Provedores de Busca na Internet</h6>
+        <button type="button" class="btn btn-sm btn-success" onclick="openSearchConfigModal()">
+            <i class="fas fa-plus me-1"></i>Nova configuração
+        </button>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Usado pelo Jota4 para pesquisar informações reais na web (endereços, telefones, contatos, razão
+            social de empresas, especificações de equipamento). Cadastre uma configuração por provedor que
+            quiser ter à mão e ative a que quiser usar com o switch.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Ativa</th>
+                        <th>Nome</th>
+                        <th>Provedor</th>
+                        <th>Chave</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for config in search_provider_configs %}
+                    <tr>
+                        <td>
+                            <div class="form-check form-switch mb-0">
+                                <input type="checkbox" class="form-check-input search-config-activate-switch"
+                                       role="switch" {% if config.is_active %}checked{% endif %}
+                                       data-config-id="{{ config.id }}"
+                                       {% if config.is_active %}disabled{% endif %}>
+                            </div>
+                        </td>
+                        <td class="fw-bold">
+                            {{ config.name }}
+                            {% if config.is_active %}<span class="badge bg-success ms-1">ativa</span>{% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary">{{ config.get_provider_display }}</span></td>
+                        <td>
+                            <code class="small search-config-key-display" data-masked="{{ config.masked_api_key }}">{{ config.masked_api_key|default:"—" }}</code>
+                            {% if user.profile.role == 'super_admin' and config.api_key %}
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-1 search-config-reveal-btn"
+                                    title="Ver chave completa (Super Admin)" data-config-id="{{ config.id }}" data-revealed="0">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                    onclick="openSearchConfigModal(this)"
+                                    data-config-id="{{ config.id }}"
+                                    data-config-name="{{ config.name }}"
+                                    data-config-provider="{{ config.provider }}"
+                                    data-config-engine-id="{{ config.google_search_engine_id }}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir"
+                                    onclick="confirmDelete('{% url 'search_provider_config_delete' config.id %}', '{{ config.name|escapejs }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            Nenhuma configuração de busca cadastrada ainda. Clique em "Nova configuração" para começar.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Provedores de Voz -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-volume-high me-2 text-success"></i>Provedores de Voz (Text-to-Speech)</h6>
+        <button type="button" class="btn btn-sm btn-success" onclick="openVoiceConfigModal()">
+            <i class="fas fa-plus me-1"></i>Nova configuração
+        </button>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Decide como o Jota4 fala as respostas quando o usuário ativa "Respostas em voz alta". Cadastre uma
+            configuração por provedor e ative a que quiser usar com o switch.
+        </p>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Ativa</th>
+                        <th>Nome</th>
+                        <th>Provedor</th>
+                        <th>Chave</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for config in voice_provider_configs %}
+                    <tr>
+                        <td>
+                            <div class="form-check form-switch mb-0">
+                                <input type="checkbox" class="form-check-input voice-config-activate-switch"
+                                       role="switch" {% if config.is_active %}checked{% endif %}
+                                       data-config-id="{{ config.id }}"
+                                       {% if config.is_active %}disabled{% endif %}>
+                            </div>
+                        </td>
+                        <td class="fw-bold">
+                            {{ config.name }}
+                            {% if config.is_active %}<span class="badge bg-success ms-1">ativa</span>{% endif %}
+                        </td>
+                        <td><span class="badge bg-secondary">{{ config.get_provider_display }}</span></td>
+                        <td>
+                            <code class="small voice-config-key-display" data-masked="{{ config.masked_api_key }}">{{ config.masked_api_key|default:"—" }}</code>
+                            {% if user.profile.role == 'super_admin' and config.api_key %}
+                            <button type="button" class="btn btn-sm btn-link p-0 ms-1 voice-config-reveal-btn"
+                                    title="Ver chave completa (Super Admin)" data-config-id="{{ config.id }}" data-revealed="0">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" title="Editar"
+                                    onclick="openVoiceConfigModal(this)"
+                                    data-config-id="{{ config.id }}"
+                                    data-config-name="{{ config.name }}"
+                                    data-config-provider="{{ config.provider }}"
+                                    data-config-voice-female="{{ config.elevenlabs_voice_id_female }}"
+                                    data-config-voice-male="{{ config.elevenlabs_voice_id_male }}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir"
+                                    onclick="confirmDelete('{% url 'voice_provider_config_delete' config.id %}', '{{ config.name|escapejs }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            Nenhuma configuração de voz cadastrada ainda. Clique em "Nova configuração" para começar.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modo de Voz -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-user-gear me-2 text-success"></i>Modo de Voz</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            Decide quem escolhe a voz usada pelo Jota4: cada usuário escolhe a própria em Meu Perfil (como
+            hoje), ou uma única voz vale para todos, definida aqui pelo Super Admin.
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="voice_selection_mode" id="voiceModePerUser"
+                       value="per_user" {% if system_settings.voice_selection_mode != 'universal' %}checked{% endif %}>
+                <label class="form-check-label" for="voiceModePerUser">Cada usuário escolhe a própria voz</label>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="radio" name="voice_selection_mode" id="voiceModeUniversal"
+                       value="universal" {% if system_settings.voice_selection_mode == 'universal' %}checked{% endif %}>
+                <label class="form-check-label" for="voiceModeUniversal">Voz única para todos os usuários</label>
+            </div>
+
+            <div id="universalVoiceFields" class="border rounded-3 p-3 mb-3 {% if system_settings.voice_selection_mode != 'universal' %}d-none{% endif %}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Gênero da voz</label>
+                        <select name="universal_tts_voice_gender" id="id_universal_tts_voice_gender" class="form-select">
+                            <option value="female" {% if system_settings.universal_tts_voice_gender == 'female' %}selected{% endif %}>Feminina</option>
+                            <option value="male" {% if system_settings.universal_tts_voice_gender == 'male' %}selected{% endif %}>Masculina</option>
+                        </select>
+                    </div>
+                    {% if active_voice_config.provider == 'elevenlabs' %}
+                    <div class="col-md-8">
+                        <label class="form-label fw-semibold">Voz específica (ElevenLabs)</label>
+                        <div class="input-group">
+                            <select class="form-select" id="id_universal_elevenlabs_voice_id" name="universal_elevenlabs_voice_id">
+                                <option value="">Clique em "Buscar vozes" abaixo</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary universal-voice-preview-btn" title="Ouvir prévia" disabled>
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btnRefreshUniversalVoices" title="Buscar vozes com a chave salva">
+                                <i class="fas fa-rotate"></i> Buscar vozes
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">Deixe em branco para usar só o padrão por gênero acima.</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary-custom btn-sm">
+                <i class="fas fa-save me-1"></i> Salvar Modo de Voz
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Nova/Editar configuração de Busca -->
+<div class="modal fade" id="searchConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="searchConfigForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="searchConfigModalTitle">Nova configuração de busca</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nome</label>
+                        <input type="text" name="name" id="searchConfigName" class="form-control" placeholder="Ex: Google principal" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Provedor</label>
+                        <select name="provider" id="searchConfigProvider" class="form-select">
+                            <option value="google">Google Custom Search</option>
+                            <option value="tavily">Tavily</option>
+                        </select>
+                    </div>
+
+                    <div id="searchConfigGoogleFields">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">ID do Mecanismo de Busca (cx)</label>
+                            <input type="text" name="google_search_engine_id" id="searchConfigEngineId" class="form-control" placeholder="Ex: a1b2c3d4e5f6g7h8i">
+                        </div>
+                        <small class="text-muted d-block mb-3">
+                            Chave em <a href="https://console.cloud.google.com/apis/credentials" target="_blank">console.cloud.google.com</a>
+                            (habilite "Custom Search API") e o mecanismo em
+                            <a href="https://programmablesearchengine.google.com/controlpanel/create" target="_blank">programmablesearchengine.google.com</a>.
+                        </small>
+                    </div>
+                    <div id="searchConfigTavilyFields" class="d-none">
+                        <small class="text-muted d-block mb-3">
+                            Chave em <a href="https://app.tavily.com" target="_blank">app.tavily.com</a> — 1.000 buscas/mês grátis.
+                        </small>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Chave de API</label>
+                        <div class="input-group">
+                            <input type="password" name="api_key" id="searchConfigApiKey" class="form-control" autocomplete="off" placeholder="Cole sua chave aqui...">
+                            <button type="button" class="btn btn-outline-secondary" id="searchConfigToggleKey" title="Mostrar/Ocultar">
+                                <i class="fas fa-eye" id="searchConfigToggleKeyIcon"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted" id="searchConfigKeyHint">A chave é armazenada no banco de dados.</small>
+                    </div>
+
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="fw-semibold small"><i class="fas fa-plug me-1 text-success"></i>Testar Busca</div>
+                            <button type="button" id="btnTestSearchConfig" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-vial me-1"></i> Testar agora
+                            </button>
+                        </div>
+                        <div id="searchConfigTestResult" class="mt-2 d-none">
+                            <div id="searchConfigTestResultInner" class="alert mb-0 py-2 small"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary-custom"><i class="fas fa-save me-1"></i> Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Nova/Editar configuração de Voz -->
+<div class="modal fade" id="voiceConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="voiceConfigForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="voiceConfigModalTitle">Nova configuração de voz</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nome</label>
+                        <input type="text" name="name" id="voiceConfigName" class="form-control" placeholder="Ex: ElevenLabs principal" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Provedor</label>
+                        <select name="provider" id="voiceConfigProvider" class="form-select">
+                            <option value="browser">Navegador (gratuito)</option>
+                            <option value="google">Google Cloud Text-to-Speech</option>
+                            <option value="elevenlabs">ElevenLabs</option>
+                        </select>
+                        <small class="text-muted d-block mt-1">
+                            "Navegador" é grátis mas soa robotizada; "Google Cloud" e "ElevenLabs" têm voz natural, mas exigem chave própria.
+                        </small>
+                    </div>
+
+                    <div id="voiceConfigBrowserFields" class="d-none">
+                        <small class="text-muted d-block mb-3">O provedor "Navegador" não precisa de chave — a leitura acontece direto no navegador do usuário.</small>
+                    </div>
+
+                    <div id="voiceConfigKeyWrapper" class="mb-2">
+                        <label class="form-label fw-semibold">Chave de API</label>
+                        <div class="input-group">
+                            <input type="password" name="api_key" id="voiceConfigApiKey" class="form-control" autocomplete="off" placeholder="Cole sua chave aqui...">
+                            <button type="button" class="btn btn-outline-secondary" id="voiceConfigToggleKey" title="Mostrar/Ocultar">
+                                <i class="fas fa-eye" id="voiceConfigToggleKeyIcon"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted" id="voiceConfigKeyHint">A chave é armazenada no banco de dados.</small>
+                    </div>
+
+                    <div id="voiceConfigElevenlabsFields" class="d-none">
+                        <div class="row g-3 mb-2">
+                            <div class="col-12">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnRefreshVoiceConfigVoices">
+                                    <i class="fas fa-rotate me-1"></i> Buscar vozes com a chave acima
+                                </button>
+                                <div id="voiceConfigVoicesStatus" class="small mt-1"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Voz Feminina (padrão)</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="voiceConfigVoiceFemale" name="elevenlabs_voice_id_female">
+                                        <option value="">Clique em "Buscar vozes"</option>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary voice-config-preview-btn" data-select="voiceConfigVoiceFemale" title="Ouvir prévia" disabled>
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Voz Masculina (padrão)</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="voiceConfigVoiceMale" name="elevenlabs_voice_id_male">
+                                        <option value="">Clique em "Buscar vozes"</option>
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary voice-config-preview-btn" data-select="voiceConfigVoiceMale" title="Ouvir prévia" disabled>
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mb-2">
+                            Chave em <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank">elevenlabs.io</a> — precisa
+                            das permissões "Text to Speech" e "Voices: Read".
+                        </small>
+                    </div>
+
+                    <div class="p-3 border rounded-3 bg-light">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="fw-semibold small"><i class="fas fa-volume-high me-1 text-success"></i>Testar Voz</div>
+                            <select id="voiceConfigTestGender" class="form-select form-select-sm w-auto">
+                                <option value="female">Feminina</option>
+                                <option value="male">Masculina</option>
+                            </select>
+                            <button type="button" id="btnTestVoiceConfig" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-vial me-1"></i> Testar agora
+                            </button>
+                        </div>
+                        <div id="voiceConfigTestResult" class="mt-2 d-none">
+                            <div id="voiceConfigTestResultInner" class="alert mb-0 py-2 small"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary-custom"><i class="fas fa-save me-1"></i> Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function getCsrf() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+
+    function wireToggleKey(btnId, inputId, iconId) {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+        if (!btn || !input) return;
+        btn.addEventListener('click', function () {
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        });
+    }
+
+    function wireActivateSwitches(selector, activateUrlTpl) {
+        document.querySelectorAll(selector).forEach(function (sw) {
+            sw.addEventListener('change', async function () {
+                if (!sw.checked) { sw.checked = true; return; }
+                const configId = sw.dataset.configId;
+                sw.disabled = true;
+                try {
+                    const resp = await fetch(activateUrlTpl.replace('999999', configId), {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await resp.json();
+                    if (data.ok) {
+                        window.location.reload();
+                    } else {
+                        sw.disabled = false;
+                        sw.checked = false;
+                    }
+                } catch (err) {
+                    sw.disabled = false;
+                    sw.checked = false;
+                }
+            });
+        });
+    }
+
+    function wireRevealButtons(selector, revealUrlTpl) {
+        document.querySelectorAll(selector).forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const codeEl = btn.parentElement.querySelector('code');
+                const icon = btn.querySelector('i');
+                if (!codeEl) return;
+                if (btn.dataset.revealed === '1') {
+                    codeEl.textContent = codeEl.dataset.masked;
+                    icon.classList.replace('fa-eye-slash', 'fa-eye');
+                    btn.dataset.revealed = '0';
+                    return;
+                }
+                const configId = btn.dataset.configId;
+                btn.disabled = true;
+                try {
+                    const resp = await fetch(revealUrlTpl.replace('999999', configId), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const data = await resp.json();
+                    if (data.ok) {
+                        codeEl.textContent = data.api_key;
+                        icon.classList.replace('fa-eye', 'fa-eye-slash');
+                        btn.dataset.revealed = '1';
+                    }
+                } catch (err) {
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
+    }
+
+    // === Modal: Provedor de Busca ===
+    const searchModalEl = document.getElementById('searchConfigModal');
+    const searchModal = searchModalEl ? new bootstrap.Modal(searchModalEl) : null;
+    const searchForm = document.getElementById('searchConfigForm');
+    const searchNameInput = document.getElementById('searchConfigName');
+    const searchProviderSelect = document.getElementById('searchConfigProvider');
+    const searchEngineIdInput = document.getElementById('searchConfigEngineId');
+    const searchApiKeyInput = document.getElementById('searchConfigApiKey');
+    const searchGoogleFields = document.getElementById('searchConfigGoogleFields');
+    const searchTavilyFields = document.getElementById('searchConfigTavilyFields');
+    const searchTestResult = document.getElementById('searchConfigTestResult');
+    const searchTestResultInner = document.getElementById('searchConfigTestResultInner');
+    let _editingSearchConfigId = null;
+
+    function updateSearchProviderFields() {
+        const isGoogle = searchProviderSelect.value === 'google';
+        searchGoogleFields.classList.toggle('d-none', !isGoogle);
+        searchTavilyFields.classList.toggle('d-none', isGoogle);
+    }
+    if (searchProviderSelect) searchProviderSelect.addEventListener('change', updateSearchProviderFields);
+
+    window.openSearchConfigModal = function (editBtn) {
+        searchTestResult.classList.add('d-none');
+        searchForm.reset();
+        if (editBtn instanceof HTMLElement) {
+            _editingSearchConfigId = editBtn.dataset.configId;
+            document.getElementById('searchConfigModalTitle').textContent = 'Editar configuração de busca';
+            searchNameInput.value = editBtn.dataset.configName || '';
+            searchProviderSelect.value = editBtn.dataset.configProvider || 'google';
+            searchEngineIdInput.value = editBtn.dataset.configEngineId || '';
+            searchApiKeyInput.value = '';
+            searchApiKeyInput.placeholder = 'Deixe em branco para manter a chave atual';
+            searchForm.action = "{% url 'search_provider_config_update' 999999 %}".replace('999999', _editingSearchConfigId);
+        } else {
+            _editingSearchConfigId = null;
+            document.getElementById('searchConfigModalTitle').textContent = 'Nova configuração de busca';
+            searchProviderSelect.value = 'google';
+            searchApiKeyInput.placeholder = 'Cole sua chave aqui...';
+            searchForm.action = "{% url 'search_provider_config_create' %}";
+        }
+        updateSearchProviderFields();
+        searchModal.show();
+    };
+
+    wireToggleKey('searchConfigToggleKey', 'searchConfigApiKey', 'searchConfigToggleKeyIcon');
+
+    const btnTestSearchConfig = document.getElementById('btnTestSearchConfig');
+    if (btnTestSearchConfig) {
+        btnTestSearchConfig.addEventListener('click', async function () {
+            btnTestSearchConfig.disabled = true;
+            btnTestSearchConfig.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
+            searchTestResult.classList.add('d-none');
+            try {
+                const resp = await fetch("{% url 'search_integration_test' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({
+                        provider: searchProviderSelect.value,
+                        google_api_key: searchApiKeyInput.value,
+                        engine_id: searchEngineIdInput.value,
+                        tavily_api_key: searchApiKeyInput.value,
+                    }),
+                });
+                const data = await resp.json();
+                searchTestResult.classList.remove('d-none');
+                if (data.ok) {
+                    searchTestResultInner.className = 'alert alert-success mb-0 py-2 small';
+                    searchTestResultInner.innerHTML = `<i class="fas fa-check-circle me-1"></i> ${data.message}`;
+                } else {
+                    searchTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                    searchTestResultInner.innerHTML = `<i class="fas fa-times-circle me-1"></i> ${data.error}`;
+                }
+            } catch (err) {
+                searchTestResult.classList.remove('d-none');
+                searchTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                searchTestResultInner.innerHTML = 'Erro inesperado ao testar.';
+            } finally {
+                btnTestSearchConfig.disabled = false;
+                btnTestSearchConfig.innerHTML = '<i class="fas fa-vial me-1"></i> Testar agora';
+            }
+        });
+    }
+
+    wireActivateSwitches('.search-config-activate-switch', "{% url 'search_provider_config_activate' 999999 %}");
+    wireRevealButtons('.search-config-reveal-btn', "{% url 'search_provider_config_reveal' 999999 %}");
+
+    // === Modal: Provedor de Voz ===
+    const voiceModalEl = document.getElementById('voiceConfigModal');
+    const voiceModal = voiceModalEl ? new bootstrap.Modal(voiceModalEl) : null;
+    const voiceForm = document.getElementById('voiceConfigForm');
+    const voiceNameInput = document.getElementById('voiceConfigName');
+    const voiceProviderSelect = document.getElementById('voiceConfigProvider');
+    const voiceApiKeyInput = document.getElementById('voiceConfigApiKey');
+    const voiceKeyWrapper = document.getElementById('voiceConfigKeyWrapper');
+    const voiceBrowserFields = document.getElementById('voiceConfigBrowserFields');
+    const voiceElevenlabsFields = document.getElementById('voiceConfigElevenlabsFields');
+    const voiceFemaleSelect = document.getElementById('voiceConfigVoiceFemale');
+    const voiceMaleSelect = document.getElementById('voiceConfigVoiceMale');
+    const voiceTestResult = document.getElementById('voiceConfigTestResult');
+    const voiceTestResultInner = document.getElementById('voiceConfigTestResultInner');
+    let _editingVoiceConfigId = null;
+    let _pendingVoiceFemale = '';
+    let _pendingVoiceMale = '';
+
+    function updateVoiceProviderFields() {
+        const provider = voiceProviderSelect.value;
+        voiceBrowserFields.classList.toggle('d-none', provider !== 'browser');
+        voiceKeyWrapper.classList.toggle('d-none', provider === 'browser');
+        voiceElevenlabsFields.classList.toggle('d-none', provider !== 'elevenlabs');
+    }
+    if (voiceProviderSelect) voiceProviderSelect.addEventListener('change', updateVoiceProviderFields);
+
+    window.openVoiceConfigModal = function (editBtn) {
+        voiceTestResult.classList.add('d-none');
+        voiceForm.reset();
+        if (editBtn instanceof HTMLElement) {
+            _editingVoiceConfigId = editBtn.dataset.configId;
+            document.getElementById('voiceConfigModalTitle').textContent = 'Editar configuração de voz';
+            voiceNameInput.value = editBtn.dataset.configName || '';
+            voiceProviderSelect.value = editBtn.dataset.configProvider || 'browser';
+            voiceApiKeyInput.value = '';
+            voiceApiKeyInput.placeholder = 'Deixe em branco para manter a chave atual';
+            _pendingVoiceFemale = editBtn.dataset.configVoiceFemale || '';
+            _pendingVoiceMale = editBtn.dataset.configVoiceMale || '';
+            voiceForm.action = "{% url 'voice_provider_config_update' 999999 %}".replace('999999', _editingVoiceConfigId);
+        } else {
+            _editingVoiceConfigId = null;
+            document.getElementById('voiceConfigModalTitle').textContent = 'Nova configuração de voz';
+            voiceProviderSelect.value = 'browser';
+            voiceApiKeyInput.placeholder = 'Cole sua chave aqui...';
+            _pendingVoiceFemale = '';
+            _pendingVoiceMale = '';
+            voiceForm.action = "{% url 'voice_provider_config_create' %}";
+        }
+        updateVoiceProviderFields();
+        voiceModal.show();
+    };
+
+    wireToggleKey('voiceConfigToggleKey', 'voiceConfigApiKey', 'voiceConfigToggleKeyIcon');
+
+    function fillVoiceSelect(select, voices, preselectId) {
+        select.innerHTML = '';
+        const blankOpt = document.createElement('option');
+        blankOpt.value = '';
+        blankOpt.textContent = '— Nenhuma (usa o padrão do provedor) —';
+        select.appendChild(blankOpt);
+        const genderLabel = { female: 'Feminina', male: 'Masculina' };
+        voices.forEach(function (v) {
+            const opt = document.createElement('option');
+            opt.value = v.voice_id;
+            const tag = genderLabel[v.gender] ? ' (' + genderLabel[v.gender] + ')' : '';
+            opt.textContent = v.name + tag;
+            opt.dataset.previewUrl = v.preview_url || '';
+            select.appendChild(opt);
+        });
+        if (preselectId) select.value = preselectId;
+    }
+
+    function updateVoicePreviewButtons(scopeSelector) {
+        document.querySelectorAll(scopeSelector).forEach(function (btn) {
+            const sel = document.getElementById(btn.dataset.select) || btn.parentElement.querySelector('select');
+            const opt = sel && sel.options[sel.selectedIndex];
+            btn.disabled = !(opt && opt.dataset.previewUrl);
+        });
+    }
+
+    const btnRefreshVoiceConfigVoices = document.getElementById('btnRefreshVoiceConfigVoices');
+    const voiceConfigVoicesStatus = document.getElementById('voiceConfigVoicesStatus');
+    if (btnRefreshVoiceConfigVoices) {
+        btnRefreshVoiceConfigVoices.addEventListener('click', function () {
+            voiceConfigVoicesStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando vozes...';
+            fetch("{% url 'ai_chat_elevenlabs_voices' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok) {
+                        voiceConfigVoicesStatus.innerHTML = `<span class="text-danger">${data.error}</span>`;
+                        return;
+                    }
+                    fillVoiceSelect(voiceFemaleSelect, data.data, _pendingVoiceFemale);
+                    fillVoiceSelect(voiceMaleSelect, data.data, _pendingVoiceMale);
+                    updateVoicePreviewButtons('.voice-config-preview-btn');
+                    voiceConfigVoicesStatus.innerHTML = `<span class="text-success">${data.data.length} vozes encontradas.</span>`;
+                })
+                .catch(function () {
+                    voiceConfigVoicesStatus.innerHTML = '<span class="text-danger">Erro inesperado ao buscar vozes.</span>';
+                });
+        });
+    }
+    [voiceFemaleSelect, voiceMaleSelect].forEach(function (sel) {
+        if (sel) sel.addEventListener('change', function () { updateVoicePreviewButtons('.voice-config-preview-btn'); });
+    });
+    document.querySelectorAll('.voice-config-preview-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const sel = document.getElementById(btn.dataset.select);
+            const opt = sel && sel.options[sel.selectedIndex];
+            const url = opt && opt.dataset.previewUrl;
+            if (url) new Audio(url).play();
+        });
+    });
+
+    const btnTestVoiceConfig = document.getElementById('btnTestVoiceConfig');
+    if (btnTestVoiceConfig) {
+        let _testAudio = null;
+        btnTestVoiceConfig.addEventListener('click', async function () {
+            const provider = voiceProviderSelect.value;
+            const voiceGender = document.getElementById('voiceConfigTestGender').value;
+            if (provider === 'browser') {
+                voiceTestResult.classList.remove('d-none');
+                voiceTestResultInner.className = 'alert alert-warning mb-0 py-2 small';
+                voiceTestResultInner.innerHTML = 'O provedor "Navegador" não passa pelo servidor — teste direto no Chat IA.';
+                return;
+            }
+            const elevenlabsVoiceId = voiceGender === 'male' ? (voiceMaleSelect.value || '') : (voiceFemaleSelect.value || '');
+            btnTestVoiceConfig.disabled = true;
+            btnTestVoiceConfig.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testando...';
+            voiceTestResult.classList.add('d-none');
+            try {
+                const resp = await fetch("{% url 'tts_integration_test' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({
+                        provider: provider, voice_gender: voiceGender,
+                        google_api_key: voiceApiKeyInput.value,
+                        elevenlabs_api_key: voiceApiKeyInput.value,
+                        elevenlabs_voice_id: elevenlabsVoiceId,
+                    }),
+                });
+                voiceTestResult.classList.remove('d-none');
+                const contentType = resp.headers.get('Content-Type') || '';
+                if (resp.ok && contentType.includes('audio')) {
+                    const blob = await resp.blob();
+                    if (_testAudio) _testAudio.pause();
+                    _testAudio = new Audio(URL.createObjectURL(blob));
+                    _testAudio.play();
+                    voiceTestResultInner.className = 'alert alert-success mb-0 py-2 small';
+                    voiceTestResultInner.innerHTML = '<i class="fas fa-check-circle me-1"></i> Tocando o áudio de teste...';
+                } else {
+                    const data = await resp.json();
+                    voiceTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                    voiceTestResultInner.innerHTML = `<i class="fas fa-times-circle me-1"></i> ${data.error}`;
+                }
+            } catch (err) {
+                voiceTestResult.classList.remove('d-none');
+                voiceTestResultInner.className = 'alert alert-danger mb-0 py-2 small';
+                voiceTestResultInner.innerHTML = 'Erro inesperado ao testar.';
+            } finally {
+                btnTestVoiceConfig.disabled = false;
+                btnTestVoiceConfig.innerHTML = '<i class="fas fa-vial me-1"></i> Testar agora';
+            }
+        });
+    }
+
+    wireActivateSwitches('.voice-config-activate-switch', "{% url 'voice_provider_config_activate' 999999 %}");
+    wireRevealButtons('.voice-config-reveal-btn', "{% url 'voice_provider_config_reveal' 999999 %}");
+
+    // === Modo de Voz (per_user x universal) ===
+    const voiceModeRadios = document.querySelectorAll('input[name="voice_selection_mode"]');
+    const universalVoiceFields = document.getElementById('universalVoiceFields');
+    voiceModeRadios.forEach(function (radio) {
+        radio.addEventListener('change', function () {
+            if (universalVoiceFields) universalVoiceFields.classList.toggle('d-none', radio.value !== 'universal' || !radio.checked);
+        });
+    });
+
+    const btnRefreshUniversalVoices = document.getElementById('btnRefreshUniversalVoices');
+    const universalVoiceSelect = document.getElementById('id_universal_elevenlabs_voice_id');
+    if (btnRefreshUniversalVoices && universalVoiceSelect) {
+        const currentUniversalVoice = "{{ system_settings.universal_elevenlabs_voice_id|default:''|escapejs }}";
+        const previewBtn = document.querySelector('.universal-voice-preview-btn');
+        btnRefreshUniversalVoices.addEventListener('click', function () {
+            fetch("{% url 'ai_chat_elevenlabs_voices' %}", { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok) return;
+                    fillVoiceSelect(universalVoiceSelect, data.data, currentUniversalVoice);
+                    if (previewBtn) previewBtn.disabled = false;
+                });
+        });
+        universalVoiceSelect.addEventListener('change', function () {
+            const opt = universalVoiceSelect.options[universalVoiceSelect.selectedIndex];
+            if (previewBtn) previewBtn.disabled = !(opt && opt.dataset.previewUrl);
+        });
+        if (previewBtn) {
+            previewBtn.addEventListener('click', function () {
+                const opt = universalVoiceSelect.options[universalVoiceSelect.selectedIndex];
+                const url = opt && opt.dataset.previewUrl;
+                if (url) new Audio(url).play();
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

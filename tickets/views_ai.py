@@ -257,6 +257,8 @@ class AIChatView(LoginRequiredMixin, View):
                 _list_changed["value"] = True
             elif tool_name == "delete_ticket" and result.get("ok"):
                 _list_changed["value"] = True
+            elif tool_name == "reorder_ticket_card" and result.get("ok"):
+                _list_changed["value"] = True
             elif tool_name == "open_private_chat" and result.get("ok"):
                 _open_private_chat["value"] = {
                     "thread_id": data.get("thread_id"),
@@ -451,11 +453,17 @@ class AITTSView(LoginRequiredMixin, View):
         if not text:
             return JsonResponse({"ok": False, "error": "Texto vazio."}, status=400)
 
-        profile = getattr(request.user, 'profile', None)
-        voice_gender = getattr(profile, 'tts_voice_gender', 'female') or 'female'
-        # Se o usuário escolheu uma voz específica da ElevenLabs no próprio perfil,
-        # ela tem prioridade sobre o padrão por gênero configurado pelo admin.
-        elevenlabs_voice_id = (getattr(profile, 'elevenlabs_voice_id', '') or '').strip() or None
+        if settings_obj.voice_selection_mode == 'universal':
+            # Super Admin decidiu que todos usam a mesma voz — ignora a
+            # preferência pessoal de cada usuário em Meu Perfil.
+            voice_gender = settings_obj.universal_tts_voice_gender or 'female'
+            elevenlabs_voice_id = (settings_obj.universal_elevenlabs_voice_id or '').strip() or None
+        else:
+            profile = getattr(request.user, 'profile', None)
+            voice_gender = getattr(profile, 'tts_voice_gender', 'female') or 'female'
+            # Se o usuário escolheu uma voz específica da ElevenLabs no próprio perfil,
+            # ela tem prioridade sobre o padrão por gênero configurado pelo admin.
+            elevenlabs_voice_id = (getattr(profile, 'elevenlabs_voice_id', '') or '').strip() or None
 
         from .ai_tools import tts_synthesize
         from django.http import HttpResponse

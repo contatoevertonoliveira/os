@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, AIProviderConfig, Notification, ClientHub, Equipment, TicketType, ProblemType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
+from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSettings, AIProviderConfig, SearchProviderConfig, VoiceProviderConfig, Notification, ClientHub, Equipment, TicketType, ProblemType, TechnicianTravel, TravelSegment, DailyChecklist, DailyChecklistItem, ChecklistTemplate, ChecklistTemplateItem, ChecklistTemplateItemOption, ContactPerson, ContactClient, ContactJumper, TicketStatus
 
 
 class ContactClientForm(forms.ModelForm):
@@ -827,6 +827,47 @@ class AIProviderConfigForm(forms.ModelForm):
         # Na edição, a chave não é obrigatória (deixar em branco mantém a atual)
         if self.instance and self.instance.pk:
             self.fields['api_key'].required = False
+
+
+class SearchProviderConfigForm(forms.ModelForm):
+    class Meta:
+        model = SearchProviderConfig
+        fields = ['name', 'provider', 'api_key', 'google_search_engine_id']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Google principal'}),
+            'provider': forms.Select(attrs={'class': 'form-select'}),
+            'api_key': forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off', 'placeholder': 'Cole sua chave aqui...'}, render_value=False),
+            'google_search_engine_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: a1b2c3d4e5f6g7h8i'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['api_key'].required = False
+
+
+class VoiceProviderConfigForm(forms.ModelForm):
+    class Meta:
+        model = VoiceProviderConfig
+        fields = ['name', 'provider', 'api_key', 'elevenlabs_voice_id_female', 'elevenlabs_voice_id_male']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: ElevenLabs principal'}),
+            'provider': forms.Select(attrs={'class': 'form-select'}),
+            'api_key': forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'off', 'placeholder': 'Cole sua chave aqui...'}, render_value=False),
+            'elevenlabs_voice_id_female': forms.Select(attrs={'class': 'form-select'}),
+            'elevenlabs_voice_id_male': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['api_key'].required = False
+        # Os selects de voz são <select> comuns (CharField, sem choices fixas) —
+        # as opções são populadas via JS (busca na API da ElevenLabs), igual ao
+        # mesmo padrão já usado em profile.html.
+        self.fields['elevenlabs_voice_id_female'].required = False
+        self.fields['elevenlabs_voice_id_male'].required = False
+
 
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True

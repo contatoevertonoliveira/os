@@ -260,7 +260,7 @@
 
     // Resposta por voz (Text-to-Speech): provedor decidido pelo admin (Configurações →
     // Integrações); ativação e voz preferida são preferência de cada usuário (Meu Perfil).
-    const TTS_PROVIDER = "{{ system_settings.tts_provider|default:'browser' }}";
+    const TTS_PROVIDER = "{{ active_voice_config.provider|default:'browser' }}";
     const TTS_ENABLED_DEFAULT = {{ user.profile.tts_enabled|yesno:"true,false" }};
     const TTS_VOICE_GENDER = "{{ user.profile.tts_voice_gender|default:'female' }}";
 

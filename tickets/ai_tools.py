@@ -49,6 +49,48 @@ def _parse_dt(value):
     return dt
 
 
+def _parse_duration(value):
+    """
+    Converte string de tempo estimado em timedelta. Aceita os mesmos formatos do
+    formulário de edição de OS: 'HH:MM', 'HH:MM:SS', '2h', '2h30m', '30m'.
+    Retorna None se não conseguir interpretar.
+    """
+    import re
+    from datetime import timedelta
+
+    if not value:
+        return None
+    if isinstance(value, timedelta):
+        return value
+
+    value = str(value).strip().lower()
+
+    if re.match(r'^\d+:\d+(:\d+)?$', value):
+        parts = list(map(int, value.split(':')))
+        if len(parts) == 2:
+            return timedelta(hours=parts[0], minutes=parts[1])
+        return timedelta(hours=parts[0], minutes=parts[1], seconds=parts[2])
+
+    value_clean = value.replace(' ', '')
+    total_seconds = 0
+    matched = False
+
+    h_match = re.search(r'(\d+(?:\.\d+)?)h', value_clean)
+    if h_match:
+        total_seconds += float(h_match.group(1)) * 3600
+        matched = True
+
+    m_match = re.search(r'(\d+(?:\.\d+)?)m', value_clean)
+    if m_match:
+        total_seconds += float(m_match.group(1)) * 60
+        matched = True
+
+    if matched and total_seconds > 0:
+        return timedelta(seconds=total_seconds)
+
+    return None
+
+
 def _generate_username(seed):
     """Gera um login único a partir de um nome (slug + sufixo numérico se necessário)."""
     import unicodedata
@@ -319,7 +361,11 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "update_ticket",
-        "description": "Edita campos de uma OS existente após confirmação do usuário.",
+        "description": (
+            "Edita campos de uma OS existente após confirmação do usuário. Cobre TODOS os campos "
+            "editáveis na tela de edição da OS — nunca diga que não consegue editar um campo que "
+            "exista nesta lista de parâmetros."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -327,12 +373,21 @@ TOOL_DEFINITIONS = [
                 "status": {"type": "string", "description": "Novo status (código)"},
                 "description": {"type": "string", "description": "Nova descrição inicial"},
                 "final_description": {"type": "string", "description": "Descrição final/resolução"},
+                "start_date": {"type": "string", "description": "Nova data de início YYYY-MM-DDTHH:MM"},
                 "deadline": {"type": "string", "description": "Novo prazo YYYY-MM-DDTHH:MM"},
+                "finished_at": {"type": "string", "description": "Nova data de finalização YYYY-MM-DDTHH:MM"},
+                "estimated_time": {"type": "string", "description": "Novo tempo estimado (ex: '2h30m', '2h', '90m' ou 'HH:MM:SS')"},
+                "leankeep_id": {"type": "string", "description": "Novo número de ocorrência Leankeep"},
+                "client_id": {"type": "integer", "description": "Novo ID do cliente (use search_client para buscar)"},
+                "hub_id": {"type": "integer", "description": "Novo ID do hub/loja do cliente"},
+                "system_id": {"type": "integer", "description": "Novo ID do sistema vinculado (use list_systems para buscar) — só é permitido 1 sistema por OS"},
                 "contact_client_requester_id": {"type": "integer", "description": "Novo ID do solicitante"},
                 "contact_jumper_responsible_id": {"type": "integer", "description": "Novo ID do responsável"},
                 "ticket_type_id": {"type": "integer", "description": "Novo tipo de chamado"},
                 "problem_type_id": {"type": "integer", "description": "Novo tipo de problema (use list_problem_types para buscar)"},
-                "equipment_ids": {"type": "array", "items": {"type": "integer"}, "description": "Novos IDs dos equipamentos vinculados à OS — substitui a lista atual (use list_equipments para buscar)"}
+                "equipment_ids": {"type": "array", "items": {"type": "integer"}, "description": "Novos IDs dos equipamentos vinculados à OS — substitui a lista atual (use list_equipments para buscar)"},
+                "technician_ids": {"type": "array", "items": {"type": "integer"}, "description": "Novos IDs dos técnicos responsáveis pela OS — substitui a lista atual"},
+                "requester_ids": {"type": "array", "items": {"type": "integer"}, "description": "Novos IDs dos solicitantes internos (usuários JumperFour) vinculados à OS — substitui a lista atual"}
             },
             "required": ["ticket_id"]
         }
@@ -356,6 +411,25 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "ticket_id": {"type": "integer", "description": "ID interno da OS"}
+            },
+            "required": ["ticket_id"]
+        }
+    },
+    {
+        "name": "reorder_ticket_card",
+        "description": (
+            "Reposiciona o card de uma OS na listagem visual do usuário (a mesma reorganização "
+            "que ele faria arrastando o card na tela). A ordem é pessoal, salva só para quem pediu. "
+            "Use 'position' para mover para o topo/fundo ou uma casa acima/abaixo, ou informe "
+            "before_ticket_id/after_ticket_id para posicionar em relação a outra OS específica."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_id": {"type": "integer", "description": "ID interno da OS a ser movida"},
+                "position": {"type": "string", "enum": ["top", "bottom", "up", "down"], "description": "Para onde mover: topo, fundo, uma posição acima ou uma posição abaixo"},
+                "before_ticket_id": {"type": "integer", "description": "Posiciona a OS imediatamente antes desta outra OS"},
+                "after_ticket_id": {"type": "integer", "description": "Posiciona a OS imediatamente depois desta outra OS"}
             },
             "required": ["ticket_id"]
         }
@@ -948,12 +1022,12 @@ def _google_custom_search(query, num=5, api_key=None, engine_id=None):
     import urllib.request
     import urllib.parse
     import json as _json
-    from .models import SystemSettings
+    from .models import SearchProviderConfig
 
     if api_key is None or engine_id is None:
-        settings_obj = SystemSettings.objects.first()
-        api_key = api_key if api_key is not None else ((settings_obj.google_search_api_key if settings_obj else "") or "")
-        engine_id = engine_id if engine_id is not None else ((settings_obj.google_search_engine_id if settings_obj else "") or "")
+        config = SearchProviderConfig.objects.filter(is_active=True).first()
+        api_key = api_key if api_key is not None else ((config.api_key if config else "") or "")
+        engine_id = engine_id if engine_id is not None else ((config.google_search_engine_id if config else "") or "")
 
     if not api_key or not engine_id:
         raise ValueError(
@@ -999,11 +1073,11 @@ def _tavily_search(query, num=5, api_key=None):
     import urllib.request
     import urllib.error
     import json as _json
-    from .models import SystemSettings
+    from .models import SearchProviderConfig
 
     if api_key is None:
-        settings_obj = SystemSettings.objects.first()
-        api_key = (settings_obj.tavily_api_key if settings_obj else "") or ""
+        config = SearchProviderConfig.objects.filter(is_active=True).first()
+        api_key = (config.api_key if config else "") or ""
 
     if not api_key:
         raise ValueError(
@@ -1043,15 +1117,15 @@ def _tavily_search(query, num=5, api_key=None):
 
 
 def _web_search(query, num=5, provider=None, google_api_key=None, google_engine_id=None, tavily_api_key=None):
-    """Busca na web através do provedor configurado em SystemSettings.search_provider
+    """Busca na web através do provedor marcado como ativo em SearchProviderConfig
     (google ou tavily), retornando lista normalizada [{'title', 'snippet', 'link'}].
     Os parâmetros *_api_key/engine_id, se passados, sobrepõem o valor salvo (uso em
     telas de teste, antes de salvar)."""
-    from .models import SystemSettings
+    from .models import SearchProviderConfig
 
     if provider is None:
-        settings_obj = SystemSettings.objects.first()
-        provider = (settings_obj.search_provider if settings_obj else "") or "google"
+        config = SearchProviderConfig.objects.filter(is_active=True).first()
+        provider = (config.provider if config else "") or "google"
 
     if provider == "tavily":
         return _tavily_search(query, num=num, api_key=tavily_api_key)
@@ -1067,11 +1141,11 @@ def google_tts_synthesize(text, voice_gender="FEMALE", api_key=None):
     import urllib.error
     import json as _json
     import base64
-    from .models import SystemSettings
+    from .models import VoiceProviderConfig
 
     if api_key is None:
-        settings_obj = SystemSettings.objects.first()
-        api_key = (settings_obj.google_tts_api_key if settings_obj else "") or ""
+        config = VoiceProviderConfig.objects.filter(is_active=True).first()
+        api_key = (config.api_key if config else "") or ""
 
     if not api_key:
         raise ValueError(
@@ -1121,12 +1195,12 @@ def elevenlabs_tts_synthesize(text, voice_gender="female", api_key=None, voice_i
     de voz específico da biblioteca do usuário, cadastrado por gênero em SystemSettings.
     Se api_key/voice_id não forem passados, usa os valores salvos (uso normal);
     passá-los permite testar valores ainda não salvos."""
-    from .models import SystemSettings
+    from .models import VoiceProviderConfig
 
-    settings_obj = SystemSettings.objects.first() if (api_key is None or voice_id is None) else None
+    config = VoiceProviderConfig.objects.filter(is_active=True).first() if (api_key is None or voice_id is None) else None
 
     if api_key is None:
-        api_key = (settings_obj.elevenlabs_api_key if settings_obj else "") or ""
+        api_key = (config.api_key if config else "") or ""
     if not api_key:
         raise ValueError(
             "Voz ElevenLabs não está configurada. Peça a um administrador para configurar em "
@@ -1135,8 +1209,8 @@ def elevenlabs_tts_synthesize(text, voice_gender="female", api_key=None, voice_i
 
     if voice_id is None:
         is_male = str(voice_gender).lower() in ("male", "masculina", "masculino")
-        if settings_obj:
-            voice_id = settings_obj.elevenlabs_voice_id_male if is_male else settings_obj.elevenlabs_voice_id_female
+        if config:
+            voice_id = config.elevenlabs_voice_id_male if is_male else config.elevenlabs_voice_id_female
         voice_id = voice_id or ""
     if not voice_id:
         raise ValueError(
@@ -1190,11 +1264,11 @@ def list_elevenlabs_voices(api_key=None):
     Levanta ValueError se não configurado ou em caso de erro da API. Se api_key
     não for passada, usa a salva em SystemSettings (uso normal); passá-la
     permite testar uma chave ainda não salva."""
-    from .models import SystemSettings
+    from .models import VoiceProviderConfig
 
     if api_key is None:
-        settings_obj = SystemSettings.objects.first()
-        api_key = (settings_obj.elevenlabs_api_key if settings_obj else "") or ""
+        config = VoiceProviderConfig.objects.filter(is_active=True).first()
+        api_key = (config.api_key if config else "") or ""
     if not api_key:
         raise ValueError(
             "Voz ElevenLabs não está configurada. Peça a um administrador para configurar em "
@@ -1237,15 +1311,15 @@ def list_elevenlabs_voices(api_key=None):
 
 def tts_synthesize(text, voice_gender="female", provider=None, google_api_key=None,
                     elevenlabs_api_key=None, elevenlabs_voice_id=None):
-    """Sintetiza voz através do provedor configurado em SystemSettings.tts_provider
+    """Sintetiza voz através do provedor marcado como ativo em VoiceProviderConfig
     (google ou elevenlabs) — o provedor 'browser' não passa por aqui, é tratado
     inteiramente no navegador do usuário. Retorna áudio em MP3 (bytes); levanta
     ValueError se não configurado ou em caso de erro do provedor."""
-    from .models import SystemSettings
+    from .models import VoiceProviderConfig
 
     if provider is None:
-        settings_obj = SystemSettings.objects.first()
-        provider = (settings_obj.tts_provider if settings_obj else "") or "browser"
+        config = VoiceProviderConfig.objects.filter(is_active=True).first()
+        provider = (config.provider if config else "") or "browser"
 
     if provider == "elevenlabs":
         return elevenlabs_tts_synthesize(
@@ -1906,7 +1980,11 @@ def _confirm_ticket_batch(args, user):
 
 
 def _update_ticket(args, user):
-    from .models import Ticket, TicketType, ContactClient, ContactJumper, ProblemType, Equipment
+    from .models import (
+        Ticket, TicketType, ContactClient, ContactJumper, ProblemType, Equipment,
+        Client, ClientHub, System,
+    )
+    from django.contrib.auth.models import User as DjangoUser
 
     try:
         ticket = Ticket.objects.get(pk=args["ticket_id"])
@@ -1919,6 +1997,8 @@ def _update_ticket(args, user):
         ticket.description = args["description"]
     if "final_description" in args:
         ticket.final_description = args["final_description"]
+    if "leankeep_id" in args:
+        ticket.leankeep_id = args["leankeep_id"]
     if "start_date" in args:
         start_date = _parse_dt(args["start_date"])
         if not start_date:
@@ -1929,6 +2009,26 @@ def _update_ticket(args, user):
         if not deadline:
             return {"ok": False, "error": f"Prazo inválido: '{args['deadline']}'. Use DD/MM/YYYY ou YYYY-MM-DD."}
         ticket.deadline = deadline
+    if "finished_at" in args:
+        finished_at = _parse_dt(args["finished_at"])
+        if not finished_at:
+            return {"ok": False, "error": f"Data de finalização inválida: '{args['finished_at']}'. Use DD/MM/YYYY ou YYYY-MM-DD."}
+        ticket.finished_at = finished_at
+    if "estimated_time" in args:
+        estimated_time = _parse_duration(args["estimated_time"])
+        if args["estimated_time"] and not estimated_time:
+            return {"ok": False, "error": f"Tempo estimado inválido: '{args['estimated_time']}'. Use formatos como '2h30m', '2h' ou 'HH:MM:SS'."}
+        ticket.estimated_time = estimated_time
+    if "client_id" in args:
+        try:
+            ticket.client = Client.objects.get(pk=args["client_id"])
+        except Client.DoesNotExist:
+            return {"ok": False, "error": f"Cliente ID {args['client_id']} não encontrado."}
+    if "hub_id" in args:
+        try:
+            ticket.hub = ClientHub.objects.get(pk=args["hub_id"])
+        except ClientHub.DoesNotExist:
+            return {"ok": False, "error": f"Hub/loja ID {args['hub_id']} não encontrado."}
     if "ticket_type_id" in args:
         try:
             ticket.ticket_type = TicketType.objects.get(pk=args["ticket_type_id"])
@@ -1958,8 +2058,48 @@ def _update_ticket(args, user):
     if "equipment_ids" in args:
         equipments = Equipment.objects.filter(pk__in=args.get("equipment_ids") or [])
         ticket.equipments.set(equipments)
+    if "technician_ids" in args:
+        technicians = DjangoUser.objects.filter(pk__in=args.get("technician_ids") or [])
+        ticket.technicians.set(technicians)
+    if "requester_ids" in args:
+        requesters = DjangoUser.objects.filter(pk__in=args.get("requester_ids") or [])
+        ticket.requesters.set(requesters)
+    if "system_id" in args:
+        system_id = args.get("system_id")
+        if system_id:
+            try:
+                system = System.objects.get(pk=system_id)
+            except System.DoesNotExist:
+                return {"ok": False, "error": f"Sistema ID {system_id} não encontrado."}
+            ticket.systems.set([system])
+        else:
+            ticket.systems.clear()
 
     return {"ok": True, "data": {"id": ticket.id, "formatted_id": ticket.formatted_id}}
+
+
+def _reorder_ticket_card(args, user):
+    from .models import Ticket, TicketListOrder
+
+    try:
+        ticket = Ticket.objects.get(pk=args["ticket_id"])
+    except Ticket.DoesNotExist:
+        return {"ok": False, "error": f"OS ID {args.get('ticket_id')} não encontrada no sistema."}
+
+    position = args.get("position")
+    before_ticket_id = args.get("before_ticket_id")
+    after_ticket_id = args.get("after_ticket_id")
+
+    if not position and not before_ticket_id and not after_ticket_id:
+        return {"ok": False, "error": "Informe 'position' (top/bottom/up/down) ou before_ticket_id/after_ticket_id."}
+
+    order, index = TicketListOrder.move_ticket(
+        user, ticket.id,
+        position=position,
+        before_ticket_id=before_ticket_id,
+        after_ticket_id=after_ticket_id,
+    )
+    return {"ok": True, "data": {"ticket_id": ticket.id, "formatted_id": ticket.formatted_id, "new_index": index}}
 
 
 def _add_ticket_evolution(args, user):
@@ -3489,6 +3629,7 @@ _TOOL_REGISTRY = {
     "cancel_ticket_batch": _cancel_ticket_batch,
     "confirm_ticket_batch": _confirm_ticket_batch,
     "update_ticket": _update_ticket,
+    "reorder_ticket_card": _reorder_ticket_card,
     "add_ticket_evolution": _add_ticket_evolution,
     "delete_ticket": _delete_ticket,
     "create_client": _create_client,
@@ -3549,6 +3690,30 @@ o primeiro nome do usuário e diga que é o Jota4, assistente IA da JumperFour O
 "Boa tarde, Everton! Eu sou o Jota4, assistente IA da JumperFour OS/Tickets. O que posso fazer por você hoje?"
 Nas demais respostas não repita essa apresentação — apenas responda normalmente, podendo se referir a si
 mesmo como Jota4 quando fizer sentido (ex: "Deixa que o Jota4 resolve isso pra você").
+
+SOBRE A JUMPERFOUR (CONHECIMENTO INSTITUCIONAL) — MUITO IMPORTANTE:
+Você conhece a empresa por dentro, como qualquer colaborador conheceria — se o usuário perguntar sobre a
+JumperFour, seus fundadores/diretores ou "quem é quem", isso NÃO é uma pergunta fora de escopo: responda
+direto, com naturalidade, sem citar que está "consultando uma base de dados".
+
+A JumperFour Tecnologia Ltda é integradora homologada de automação predial, segurança eletrônica,
+infraestrutura de TI e soluções de carregadores veiculares (EV), com mais de 10 anos de atuação no mercado.
+Atua com SDAI (detecção e alarme de incêndio), SCA (controle de acesso), CFTV, BMS (Building Management
+Systems), além de implantação, comissionamento e manutenção desses sistemas. Atende principalmente clientes
+corporativos, industriais e comerciais de grande porte — aeroportos, portos, prédios corporativos,
+hospitais, data centers, laboratórios, túneis, indústria farmacêutica e arenas esportivas. Pilares da
+empresa: qualidade, prazo e inovação ("Inovação e qualidade são as nossas bases, e estão presentes em
+todas as nossas ações").
+Sede: Rua do Rócio, 288, Vila Olímpia, São Paulo-SP. CNPJ 36.505.272/0001-90.
+
+DIRETORIA / SÓCIOS-FUNDADORES:
+A JumperFour foi fundada por três sócios, que hoje seguem como diretores da empresa:
+- Rafael Lenharo — co-fundador e diretor, à frente da área de desenvolvimento de software.
+- Danilo Melo — co-fundador e Diretor de Comunicações.
+- Bruno Santos — co-fundador e Diretor de Infraestrutura.
+Se o usuário perguntar quem são os donos/sócios/diretores da JumperFour, ou o que cada um faz, responda com
+essas informações diretamente. Se perguntarem algo sobre um diretor que você não tem (ex: e-mail pessoal,
+telefone direto, dados que não foram te passados), diga que não tem essa informação — não invente.
 
 MEMÓRIA PERSONALIZADA POR USUÁRIO — MUITO IMPORTANTE:
 Cada usuário tem sua própria memória persistente com o Jota4, que sobrevive entre conversas e sessões.
@@ -3625,6 +3790,7 @@ Você só pode ajudar com assuntos relacionados ao sistema JumperFour OS:
 - ADMIN ONLY: Cadastrar tipos de chamado, tipos de problema, sistemas, tipos de equipamento, status de OS, técnicos, responsáveis, usuários (qualquer nível) e viagens técnicas
 - ADMIN ONLY: Gerenciar níveis de acesso, páginas, permissões e restrições de usuário (somente para Super Admin e Admin)
 - Dúvidas sobre o funcionamento do sistema
+- Perguntas sobre a própria JumperFour como empresa (história, área de atuação, diretoria/fundadores) — ver seção "SOBRE A JUMPERFOUR" acima
 
 NAVEGAÇÃO — ABRIR PÁGINAS DO SISTEMA:
 Quando o usuário pedir para "abrir", "ir para", "mostrar" ou "navegar até" uma tela do sistema (ex: "abre a

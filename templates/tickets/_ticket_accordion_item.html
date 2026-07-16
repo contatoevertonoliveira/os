@@ -1,6 +1,9 @@
-<div class="accordion-item border-0 mb-2 shadow-sm">
+<div class="accordion-item border-0 mb-2 shadow-sm" data-ticket-id="{{ ticket.id }}">
     <h2 class="accordion-header" id="heading{{ ticket.id }}">
         <div class="d-flex align-items-stretch">
+            <span class="ticket-drag-handle" title="Arraste para reorganizar" aria-label="Arraste para reorganizar">
+                <i class="fas fa-grip-vertical"></i>
+            </span>
             <button
                     id="ticketAccordionButton{{ ticket.id }}"
                     class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-open{% endif %}"

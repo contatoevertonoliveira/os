@@ -1,4 +1,4 @@
-from .models import SystemSettings, Notification, ChecklistTemplate, AppPage, RoleLevel, RolePagePermission
+from .models import SystemSettings, Notification, ChecklistTemplate, AppPage, RoleLevel, RolePagePermission, SearchProviderConfig, VoiceProviderConfig
 from django.db.utils import OperationalError, ProgrammingError
 
 def system_settings(request):
@@ -8,11 +8,18 @@ def system_settings(request):
             settings = SystemSettings.objects.create()
     except Exception:
         settings = None
-        
+
     context = {}
     if settings:
         context['system_settings'] = settings
         context['session_timeout_minutes'] = settings.session_timeout_minutes
+
+    try:
+        context['active_search_config'] = SearchProviderConfig.objects.filter(is_active=True).first()
+        context['active_voice_config'] = VoiceProviderConfig.objects.filter(is_active=True).first()
+    except (OperationalError, ProgrammingError):
+        context['active_search_config'] = None
+        context['active_voice_config'] = None
 
     if request.user.is_authenticated:
         unread = Notification.objects.filter(recipient=request.user, is_read=False).order_by('-created_at')
@@ -72,6 +79,7 @@ def system_settings(request):
             'notification_list',
             'notification_monitor',
             'settings',
+            'settings_integrations',
             'permissions',
         }
 
@@ -87,7 +95,7 @@ def system_settings(request):
         ui_url_names = sidebar_url_names | feature_url_names
 
         allowed_url_names = set(ui_url_names)
-        admin_only_url_names = {'settings', 'permissions', 'user_list', 'notification_monitor'}
+        admin_only_url_names = {'settings', 'settings_integrations', 'permissions', 'user_list', 'notification_monitor'}
 
         if role_code not in {'admin', 'super_admin'}:
             allowed_url_names -= admin_only_url_names

@@ -470,7 +470,10 @@ class TicketListView(LoginRequiredMixin, ListView):
             status_order=Subquery(ticket_status_order)
         )
 
-        return queryset.order_by('status_order', '-updated_at')
+        queryset = queryset.order_by('status_order', '-updated_at')
+
+        from .models import TicketListOrder
+        return TicketListOrder.apply_saved_order(self.request.user, queryset)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1942,42 +1945,20 @@ class SettingsView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         tab = request.POST.get('_tab', '')
 
         if tab == 'ai':
-            # Nesta aba só fica o liga/desliga geral — qual provedor/modelo/chave
-            # está em uso é gerenciado pela lista de AIProviderConfig (ver views
-            # AIProviderConfig* abaixo).
+            # Chave geral (liga/desliga Chat IA + Voz para todos os usuários) — só
+            # o Super Admin pode mexer nisso, mesmo que a request chegue direto no
+            # POST (a tela já esconde o formulário para Admin comum).
+            if request.user.profile.role != 'super_admin':
+                from django.core.exceptions import PermissionDenied
+                raise PermissionDenied
             obj = self.object
             obj.ai_enabled = request.POST.get('ai_enabled') == 'on'
             obj.save(update_fields=['ai_enabled'])
             messages.success(request, "Configurações de IA atualizadas com sucesso!")
             return redirect(reverse_lazy('settings') + '?tab=ai')
 
-        if tab == 'integrations':
-            obj = self.object
-            obj.search_provider = request.POST.get('search_provider', obj.search_provider)
-            obj.google_search_engine_id = request.POST.get('google_search_engine_id', '').strip()
-            obj.tts_provider = request.POST.get('tts_provider', obj.tts_provider)
-            # Só atualiza as chaves se o usuário digitou algo (evita limpar por acidente)
-            new_google_key = request.POST.get('google_search_api_key', '').strip()
-            if new_google_key:
-                obj.google_search_api_key = new_google_key
-            new_tavily_key = request.POST.get('tavily_api_key', '').strip()
-            if new_tavily_key:
-                obj.tavily_api_key = new_tavily_key
-            new_google_tts_key = request.POST.get('google_tts_api_key', '').strip()
-            if new_google_tts_key:
-                obj.google_tts_api_key = new_google_tts_key
-            new_elevenlabs_key = request.POST.get('elevenlabs_api_key', '').strip()
-            if new_elevenlabs_key:
-                obj.elevenlabs_api_key = new_elevenlabs_key
-            obj.elevenlabs_voice_id_female = request.POST.get('elevenlabs_voice_id_female', '').strip()
-            obj.elevenlabs_voice_id_male = request.POST.get('elevenlabs_voice_id_male', '').strip()
-            obj.save(update_fields=[
-                'search_provider', 'google_search_api_key', 'google_search_engine_id', 'tavily_api_key',
-                'tts_provider', 'google_tts_api_key',
-                'elevenlabs_api_key', 'elevenlabs_voice_id_female', 'elevenlabs_voice_id_male',
-            ])
-            messages.success(request, "Configurações de Integrações atualizadas com sucesso!")
-            return redirect(reverse_lazy('settings') + '?tab=integrations')
+        # A aba "Integrações" saiu daqui — agora é a tela própria /settings/integrations/
+        # (IntegrationsSettingsView), com cadastro em lista pra Busca e Voz.
 
         return super().post(request, *args, **kwargs)
 
@@ -2078,6 +2059,207 @@ class AIProviderConfigRevealView(LoginRequiredMixin, View):
         if not profile or profile.role != 'super_admin':
             return JsonResponse({"ok": False, "error": "Apenas Super Admin pode visualizar a chave completa."}, status=403)
         config = get_object_or_404(AIProviderConfig, pk=pk)
+        resp = JsonResponse({"ok": True, "api_key": config.api_key})
+        resp['Cache-Control'] = 'no-store'
+        return resp
+
+
+class IntegrationsSettingsView(LoginRequiredMixin, View):
+    """
+    GET/POST /settings/integrations/ — tela própria (não uma aba de Settings) pra
+    caber no sistema de permissões por página: por padrão só Super Admin acessa
+    (ver AppPage/RolePagePermission criados na migration 0098), mas pode ser
+    liberada pra outros níveis depois, normalmente, pela tela de Permissões.
+    """
+    template_name = 'settings_integrations.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not hasattr(request.user, 'profile') or request.user.profile.role not in ['admin', 'super_admin']:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_object(self):
+        obj, _ = SystemSettings.objects.get_or_create(pk=1)
+        return obj
+
+    def get(self, request):
+        context = {
+            'system_settings': self.get_object(),
+            'search_provider_configs': SearchProviderConfig.objects.all(),
+            'voice_provider_configs': VoiceProviderConfig.objects.all(),
+            'search_provider_config_form': SearchProviderConfigForm(),
+            'voice_provider_config_form': VoiceProviderConfigForm(),
+        }
+        return render(request, self.template_name, context)
+
+    def post(self, request):
+        # Única ação de POST direto nesta tela (fora dos modais/CRUD): salvar o
+        # modo de seleção de voz (livre por usuário x universal).
+        obj = self.get_object()
+        obj.voice_selection_mode = request.POST.get('voice_selection_mode', 'per_user')
+        obj.universal_tts_voice_gender = request.POST.get('universal_tts_voice_gender', 'female')
+        obj.universal_elevenlabs_voice_id = request.POST.get('universal_elevenlabs_voice_id', '').strip()
+        obj.save(update_fields=['voice_selection_mode', 'universal_tts_voice_gender', 'universal_elevenlabs_voice_id'])
+        messages.success(request, "Modo de voz atualizado com sucesso!")
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class SearchProviderConfigCreateView(LoginRequiredMixin, View):
+    """POST /settings/search-config/create/ — cadastra uma nova configuração de busca na lista."""
+
+    def post(self, request):
+        _require_settings_admin(request)
+        form = SearchProviderConfigForm(request.POST)
+        if form.is_valid():
+            config = form.save(commit=False)
+            if not SearchProviderConfig.objects.exists():
+                config.is_active = True
+            config.save()
+            messages.success(request, f'Configuração de busca "{config.name}" cadastrada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível cadastrar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class SearchProviderConfigUpdateView(LoginRequiredMixin, View):
+    """POST /settings/search-config/<pk>/update/ — edita uma configuração de busca existente."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(SearchProviderConfig, pk=pk)
+        old_api_key = config.api_key
+        form = SearchProviderConfigForm(request.POST, instance=config)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            if not (request.POST.get('api_key') or '').strip():
+                updated.api_key = old_api_key
+            updated.save()
+            messages.success(request, f'Configuração de busca "{updated.name}" atualizada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível salvar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class SearchProviderConfigDeleteView(LoginRequiredMixin, View):
+    """POST /settings/search-config/<pk>/delete/ — remove uma configuração de busca da lista."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(SearchProviderConfig, pk=pk)
+        was_active = config.is_active
+        name = config.name
+        config.delete()
+        if was_active:
+            fallback = SearchProviderConfig.objects.first()
+            if fallback:
+                fallback.is_active = True
+                fallback.save(update_fields=['is_active'])
+        messages.success(request, f'Configuração de busca "{name}" removida.')
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class SearchProviderConfigActivateView(LoginRequiredMixin, View):
+    """POST /settings/search-config/<pk>/activate/ — marca esta configuração como a ativa."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(SearchProviderConfig, pk=pk)
+        config.is_active = True
+        config.save()
+        return JsonResponse({"ok": True, "active_id": config.id})
+
+
+class SearchProviderConfigRevealView(LoginRequiredMixin, View):
+    """GET /settings/search-config/<pk>/reveal/ — retorna a chave de API completa.
+    Restrito a Super Admin."""
+
+    def get(self, request, pk):
+        profile = getattr(request.user, 'profile', None)
+        if not profile or profile.role != 'super_admin':
+            return JsonResponse({"ok": False, "error": "Apenas Super Admin pode visualizar a chave completa."}, status=403)
+        config = get_object_or_404(SearchProviderConfig, pk=pk)
+        resp = JsonResponse({"ok": True, "api_key": config.api_key})
+        resp['Cache-Control'] = 'no-store'
+        return resp
+
+
+class VoiceProviderConfigCreateView(LoginRequiredMixin, View):
+    """POST /settings/voice-config/create/ — cadastra uma nova configuração de voz na lista."""
+
+    def post(self, request):
+        _require_settings_admin(request)
+        form = VoiceProviderConfigForm(request.POST)
+        if form.is_valid():
+            config = form.save(commit=False)
+            if not VoiceProviderConfig.objects.exists():
+                config.is_active = True
+            config.save()
+            messages.success(request, f'Configuração de voz "{config.name}" cadastrada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível cadastrar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class VoiceProviderConfigUpdateView(LoginRequiredMixin, View):
+    """POST /settings/voice-config/<pk>/update/ — edita uma configuração de voz existente."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(VoiceProviderConfig, pk=pk)
+        old_api_key = config.api_key
+        form = VoiceProviderConfigForm(request.POST, instance=config)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            if not (request.POST.get('api_key') or '').strip():
+                updated.api_key = old_api_key
+            updated.save()
+            messages.success(request, f'Configuração de voz "{updated.name}" atualizada com sucesso!')
+        else:
+            messages.error(request, "Não foi possível salvar: verifique os campos informados.")
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class VoiceProviderConfigDeleteView(LoginRequiredMixin, View):
+    """POST /settings/voice-config/<pk>/delete/ — remove uma configuração de voz da lista."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(VoiceProviderConfig, pk=pk)
+        was_active = config.is_active
+        name = config.name
+        config.delete()
+        if was_active:
+            fallback = VoiceProviderConfig.objects.first()
+            if fallback:
+                fallback.is_active = True
+                fallback.save(update_fields=['is_active'])
+        messages.success(request, f'Configuração de voz "{name}" removida.')
+        return redirect(reverse_lazy('settings_integrations'))
+
+
+class VoiceProviderConfigActivateView(LoginRequiredMixin, View):
+    """POST /settings/voice-config/<pk>/activate/ — marca esta configuração como a ativa."""
+
+    def post(self, request, pk):
+        _require_settings_admin(request)
+        config = get_object_or_404(VoiceProviderConfig, pk=pk)
+        config.is_active = True
+        config.save()
+        return JsonResponse({"ok": True, "active_id": config.id})
+
+
+class VoiceProviderConfigRevealView(LoginRequiredMixin, View):
+    """GET /settings/voice-config/<pk>/reveal/ — retorna a chave de API completa.
+    Restrito a Super Admin."""
+
+    def get(self, request, pk):
+        profile = getattr(request.user, 'profile', None)
+        if not profile or profile.role != 'super_admin':
+            return JsonResponse({"ok": False, "error": "Apenas Super Admin pode visualizar a chave completa."}, status=403)
+        config = get_object_or_404(VoiceProviderConfig, pk=pk)
         resp = JsonResponse({"ok": True, "api_key": config.api_key})
         resp['Cache-Control'] = 'no-store'
         return resp
@@ -3594,6 +3776,33 @@ def ticket_set_creator(request, pk):
             'photo_url': photo_url,
         }
     })
+
+@login_required
+def ticket_reorder(request):
+    """
+    Salva a ordem manual (arrastar e soltar) dos cards de OS na listagem,
+    por usuário. Usado pelo drag-and-drop da lista e também pelo Jota4.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+
+    from .models import TicketListOrder
+
+    try:
+        payload = json.loads(request.POST.get('order') or '[]')
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'Ordem inválida.'}, status=400)
+
+    if not isinstance(payload, list):
+        return JsonResponse({'status': 'error', 'message': 'Ordem inválida.'}, status=400)
+
+    try:
+        ticket_ids = [int(i) for i in payload]
+    except (ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'IDs inválidos.'}, status=400)
+
+    TicketListOrder.save_new_order(request.user, ticket_ids)
+    return JsonResponse({'status': 'ok'})
 
 @login_required
 def mark_all_notifications_read(request):

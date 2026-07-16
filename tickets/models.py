@@ -390,36 +390,18 @@ class SystemSettings(models.Model):
     # que é ortogonal a qual configuração está ativa no momento.
     ai_enabled = models.BooleanField(default=False, verbose_name="Ativar Assistente de IA")
 
-    # === Integrações — Busca na Internet ===
-    # Usado pelo Jota4 (tools search_web / search_company_details) pra pesquisar
-    # informações reais na web (endereços, telefones, contatos, especificações de
-    # equipamento, etc.) — sem isso configurado, a busca retorna erro claro em vez
-    # de fingir que pesquisou. search_provider decide qual das chaves abaixo é usada.
-    SEARCH_PROVIDER_CHOICES = [
-        ('google', 'Google Custom Search'),
-        ('tavily', 'Tavily'),
+    # === Integrações — Voz: livre por usuário ou universal ===
+    # Provedor/chave/vozes padrão em uso ficam em VoiceProviderConfig (mesma lógica
+    # de lista + ativa do AIProviderConfig). Aqui só fica a decisão de QUEM escolhe
+    # a voz: cada usuário (como sempre foi) ou uma única voz pra todos, definida
+    # pelo Super Admin — nesse caso a escolha em Meu Perfil é ignorada.
+    VOICE_SELECTION_MODE_CHOICES = [
+        ('per_user', 'Cada usuário escolhe a própria voz'),
+        ('universal', 'Voz única para todos (definida pelo Super Admin)'),
     ]
-    search_provider = models.CharField(max_length=20, choices=SEARCH_PROVIDER_CHOICES, default='google', verbose_name="Provedor de Busca")
-    google_search_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Google Custom Search)")
-    google_search_engine_id = models.CharField(max_length=100, blank=True, verbose_name="ID do Mecanismo de Busca (cx)")
-    tavily_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Tavily)")
-
-    # === Integrações — Resposta por Voz (Text-to-Speech) ===
-    # 'browser' usa a Web Speech API do navegador do usuário (grátis, mas soa
-    # robotizada). 'google' usa o Google Cloud Text-to-Speech (voz muito mais
-    # natural, exige chave de API própria e cobra por caractere após a cota grátis).
-    TTS_PROVIDER_CHOICES = [
-        ('browser', 'Navegador (gratuito)'),
-        ('google', 'Google Cloud Text-to-Speech'),
-        ('elevenlabs', 'ElevenLabs'),
-    ]
-    tts_provider = models.CharField(max_length=20, choices=TTS_PROVIDER_CHOICES, default='browser', verbose_name="Provedor de Voz (TTS)")
-    google_tts_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (Google Cloud Text-to-Speech)")
-    # ElevenLabs não tem seleção automática de voz por gênero/idioma como o Google —
-    # precisa do ID de uma voz específica da biblioteca do usuário, um pra cada gênero.
-    elevenlabs_api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API (ElevenLabs)")
-    elevenlabs_voice_id_female = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Feminina (ElevenLabs)")
-    elevenlabs_voice_id_male = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Masculina (ElevenLabs)")
+    voice_selection_mode = models.CharField(max_length=20, choices=VOICE_SELECTION_MODE_CHOICES, default='per_user', verbose_name="Modo de Seleção de Voz")
+    universal_tts_voice_gender = models.CharField(max_length=10, choices=UserProfile.TTS_VOICE_GENDER_CHOICES, default='female', verbose_name="Gênero da Voz Universal")
+    universal_elevenlabs_voice_id = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz ElevenLabs Universal")
 
     def __str__(self):
         return "Configurações do Sistema"
@@ -473,6 +455,90 @@ class AIProviderConfig(models.Model):
     class Meta:
         verbose_name = "Configuração de IA"
         verbose_name_plural = "Configurações de IA"
+        ordering = ['-is_active', 'name']
+
+
+class SearchProviderConfig(models.Model):
+    """
+    Uma configuração cadastrada de provedor de busca na internet (nome, provedor,
+    chaves). Podem existir várias; a marcada com is_active=True é a que o Jota4
+    usa no momento (tools search_web / search_company_details) — trocar de
+    provedor vira só ativar outra linha da lista, sem perder as demais.
+    """
+    PROVIDER_CHOICES = [
+        ('google', 'Google Custom Search'),
+        ('tavily', 'Tavily'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='google', verbose_name="Provedor de Busca")
+    api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API")
+    google_search_engine_id = models.CharField(max_length=100, blank=True, verbose_name="ID do Mecanismo de Busca (cx) — só Google")
+    is_active = models.BooleanField(default=False, verbose_name="Ativa (em uso pelo Jota4)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_provider_display()})"
+
+    def masked_api_key(self):
+        if not self.api_key:
+            return ""
+        if len(self.api_key) <= 4:
+            return "•" * len(self.api_key)
+        return "•" * (len(self.api_key) - 4) + self.api_key[-4:]
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            SearchProviderConfig.objects.exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Configuração de Busca"
+        verbose_name_plural = "Configurações de Busca"
+        ordering = ['-is_active', 'name']
+
+
+class VoiceProviderConfig(models.Model):
+    """
+    Uma configuração cadastrada de provedor de voz/TTS (nome, provedor, chaves,
+    vozes padrão por gênero na ElevenLabs). Podem existir várias; a marcada com
+    is_active=True é a que o Jota4 usa no momento — trocar de provedor vira só
+    ativar outra linha da lista, sem perder as demais.
+    """
+    PROVIDER_CHOICES = [
+        ('browser', 'Navegador (gratuito)'),
+        ('google', 'Google Cloud Text-to-Speech'),
+        ('elevenlabs', 'ElevenLabs'),
+    ]
+
+    name = models.CharField(max_length=100, verbose_name="Nome")
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='browser', verbose_name="Provedor de Voz (TTS)")
+    api_key = models.CharField(max_length=200, blank=True, verbose_name="Chave de API")
+    elevenlabs_voice_id_female = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Feminina (ElevenLabs)")
+    elevenlabs_voice_id_male = models.CharField(max_length=100, blank=True, verbose_name="ID da Voz Masculina (ElevenLabs)")
+    is_active = models.BooleanField(default=False, verbose_name="Ativa (em uso pelo Jota4)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_provider_display()})"
+
+    def masked_api_key(self):
+        if not self.api_key:
+            return ""
+        if len(self.api_key) <= 4:
+            return "•" * len(self.api_key)
+        return "•" * (len(self.api_key) - 4) + self.api_key[-4:]
+
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            VoiceProviderConfig.objects.exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Configuração de Voz"
+        verbose_name_plural = "Configurações de Voz"
         ordering = ['-is_active', 'name']
 
 
@@ -1083,6 +1149,132 @@ class TicketFavorite(models.Model):
         unique_together = ('user', 'ticket')
         verbose_name = "Favorito"
         verbose_name_plural = "Favoritos"
+
+class TicketListOrder(models.Model):
+    """
+    Ordem manual dos cards de OS na listagem, definida pelo próprio usuário
+    (arrastar e soltar) ou pelo Jota4 a pedido dele. Um registro por usuário.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='ticket_list_order')
+    order = models.JSONField(default=list, verbose_name="IDs das OS na ordem escolhida")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Ordem da Lista de OS"
+        verbose_name_plural = "Ordens da Lista de OS"
+
+    def __str__(self):
+        return f"Ordem de {self.user.username} ({len(self.order)} OS)"
+
+    @staticmethod
+    def apply_saved_order(user, tickets):
+        """
+        Reordena uma lista de Tickets (já na ordem padrão) de acordo com a ordem
+        salva do usuário. OS que nunca foram reposicionadas mantêm a posição
+        relativa padrão entre si (sort estável), aparecendo depois das que o
+        usuário já organizou manualmente.
+        """
+        if not user or not getattr(user, 'is_authenticated', False):
+            return tickets
+
+        saved = TicketListOrder.objects.filter(user=user).values_list('order', flat=True).first()
+        if not saved:
+            return tickets
+
+        position = {ticket_id: i for i, ticket_id in enumerate(saved)}
+        fallback = len(saved)
+        tickets = list(tickets)
+        tickets.sort(key=lambda t: position.get(t.id, fallback))
+        return tickets
+
+    @staticmethod
+    def save_new_order(user, visible_ids_in_new_order):
+        """
+        Mescla a nova ordem de um subconjunto visível (ex.: lista filtrada) com a
+        ordem completa já salva, preservando a posição relativa das OS que não
+        fazem parte deste subconjunto.
+        """
+        visible_ids_in_new_order = [int(i) for i in visible_ids_in_new_order]
+        visible_set = set(visible_ids_in_new_order)
+
+        existing_obj = TicketListOrder.objects.filter(user=user).first()
+        existing = list(existing_obj.order) if existing_obj else []
+
+        anchor = None
+        remaining = []
+        for ticket_id in existing:
+            if ticket_id in visible_set:
+                if anchor is None:
+                    anchor = len(remaining)
+                continue
+            remaining.append(ticket_id)
+        if anchor is None:
+            anchor = len(remaining)
+
+        new_order = remaining[:anchor] + visible_ids_in_new_order + remaining[anchor:]
+
+        TicketListOrder.objects.update_or_create(user=user, defaults={'order': new_order})
+        return new_order
+
+    @staticmethod
+    def get_full_ordered_ticket_ids():
+        """
+        Ordem padrão (mesma regra da listagem: status_order, depois -updated_at),
+        usada como base para operações de reposicionamento pelo Jota4.
+        """
+        from django.db.models import Subquery, OuterRef
+        ticket_status_order = TicketStatus.objects.filter(
+            code=OuterRef('status')
+        ).values('order')[:1]
+        return list(
+            Ticket.objects.annotate(status_order=Subquery(ticket_status_order))
+            .order_by('status_order', '-updated_at')
+            .values_list('id', flat=True)
+        )
+
+    @staticmethod
+    def move_ticket(user, ticket_id, position=None, before_ticket_id=None, after_ticket_id=None):
+        """
+        Reposiciona uma única OS na ordem salva do usuário (usado pelo Jota4).
+        `position`: 'top', 'bottom', 'up' ou 'down'.
+        Retorna a nova ordem completa (lista de IDs) e o novo índice (0-based) da OS movida.
+        """
+        ticket_id = int(ticket_id)
+
+        existing_obj = TicketListOrder.objects.filter(user=user).first()
+        if existing_obj and existing_obj.order:
+            order = list(existing_obj.order)
+        else:
+            order = TicketListOrder.get_full_ordered_ticket_ids()
+
+        if ticket_id in order:
+            current_index = order.index(ticket_id)
+            order.pop(current_index)
+        else:
+            # OS ainda não apareceu na ordem salva (ex.: criada depois do último drag);
+            # trata como se estivesse no fim, para "up"/"down" fazerem sentido.
+            current_index = len(order)
+
+        if before_ticket_id is not None:
+            before_ticket_id = int(before_ticket_id)
+            target = order.index(before_ticket_id) if before_ticket_id in order else len(order)
+        elif after_ticket_id is not None:
+            after_ticket_id = int(after_ticket_id)
+            target = order.index(after_ticket_id) + 1 if after_ticket_id in order else len(order)
+        elif position == 'top':
+            target = 0
+        elif position == 'bottom':
+            target = len(order)
+        elif position == 'up':
+            target = max(0, current_index - 1)
+        elif position == 'down':
+            target = min(len(order), current_index + 1)
+        else:
+            target = current_index
+
+        order.insert(target, ticket_id)
+        TicketListOrder.objects.update_or_create(user=user, defaults={'order': order})
+        return order, target
 
 class TechnicianTravel(models.Model):
     TRAVEL_STATUS_CHOICES = (

@@ -443,6 +443,49 @@
     }
     #ticketsAccordion .accordion-item { transition: box-shadow 140ms ease; }
 
+    /* ===== Drag handle para reorganizar os cards (aperta e segura, arrasta) ===== */
+    .ticket-drag-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        flex: 0 0 auto;
+        color: #adb5bd;
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .ticket-drag-handle:hover { color: #6c757d; }
+    #ticketsAccordion .accordion-item:hover .ticket-drag-handle { color: #6c757d; }
+    .ticket-drag-handle:active { cursor: grabbing; }
+
+    /* Card "agarrado": some do fluxo normal e passa a seguir o cursor (position: fixed),
+       com cor/sombra bem evidentes para deixar claro que está selecionado pra mover. */
+    .accordion-item.ticket-dragging {
+        box-shadow: 0 1.5rem 3rem rgba(13, 110, 253, 0.5) !important;
+        outline: 2px solid #0d6efd;
+        outline-offset: 1px;
+        background-image:
+            linear-gradient(rgba(13,110,253,0.14), rgba(13,110,253,0.14)),
+            linear-gradient(rgba(255,255,255,0.18), rgba(255,255,255,0.18));
+        transform: scale(1.015) rotate(-0.4deg);
+        pointer-events: none;
+        z-index: 2000;
+        transition: none !important;
+        cursor: grabbing;
+    }
+    .accordion-item.ticket-dragging .ticket-drag-handle { cursor: grabbing; color: #0d6efd; }
+
+    /* Espaço reservado no lugar onde o card vai cair quando soltar */
+    .ticket-drag-placeholder {
+        border: 2px dashed rgba(13, 110, 253, 0.45);
+        border-radius: 10px;
+        background: rgba(13, 110, 253, 0.07);
+        margin-bottom: 0.5rem;
+        box-sizing: border-box;
+    }
+
     /* Faz o header do accordion se comportar como "linha" com colunas */
     .ticket-acc-toggle {
         padding: 0.45rem 0.75rem;
@@ -765,9 +808,12 @@
 
         <div id="ticketsAccordion" class="accordion">
             {% for ticket in tickets %}
-            <div class="accordion-item border-0 mb-2 shadow-sm">
+            <div class="accordion-item border-0 mb-2 shadow-sm" data-ticket-id="{{ ticket.id }}">
                 <h2 class="accordion-header" id="heading{{ ticket.id }}">
                     <div class="d-flex align-items-stretch">
+                        <span class="ticket-drag-handle" title="Arraste para reorganizar" aria-label="Arraste para reorganizar">
+                            <i class="fas fa-grip-vertical"></i>
+                        </span>
                         <button
                                 id="ticketAccordionButton{{ ticket.id }}"
                                 class="accordion-button collapsed ticket-acc-toggle {% if ticket.delete_status == 'pending' %}row-delete-requested{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'open' %}row-delayed{% elif ticket.deadline and ticket.deadline < now and ticket.status == 'in_progress' %}row-delayed{% elif ticket.status == 'finished' %}row-finished{% elif ticket.status == 'pending' %}row-pending{% elif ticket.status == 'canceled' %}row-canceled{% elif ticket.status == 'in_progress' %}row-in-progress{% else %}row-{{ ticket.status }}{% endif %}"
@@ -2302,6 +2348,193 @@
         window.initTooltips = initTooltips;
         window.applyRowBg = applyRowBg;
         applyRowBg();
+
+        // === Reorganizar cards de OS: aperta e segura no "grip" e arrasta pra cima/baixo ===
+        // Delegação de eventos no container (não precisa re-bindar após refresh via AJAX,
+        // inserção de nova OS ou reorganização pedida ao Jota4).
+        (function initTicketDragReorder() {
+            const PRESS_DELAY_MS = 150;
+            const CANCEL_THRESHOLD_PX = 8;
+
+            let pressTimer = null;
+            let dragEl = null;
+            let placeholder = null;
+            let dragging = false;
+            let startX = 0;
+            let startY = 0;
+            let livePointerX = 0;
+            let livePointerY = 0;
+            let grabOffsetX = 0;
+            let grabOffsetY = 0;
+            let cardWidth = 0;
+            let rafScheduled = false;
+            let lastClientY = 0;
+
+            function dragCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return '';
+            }
+
+            function clearPressTimer() {
+                if (pressTimer) {
+                    clearTimeout(pressTimer);
+                    pressTimer = null;
+                }
+            }
+
+            // "Agarra" o card: ele sai do fluxo normal (position: fixed) e passa a
+            // seguir o cursor. Um placeholder fica no lugar dele reservando o espaço
+            // e indicando onde vai cair quando soltar.
+            function beginDrag(item, pointerX, pointerY) {
+                const rect = item.getBoundingClientRect();
+
+                placeholder = document.createElement('div');
+                placeholder.className = 'ticket-drag-placeholder';
+                placeholder.style.height = rect.height + 'px';
+                item.parentNode.insertBefore(placeholder, item);
+
+                grabOffsetX = pointerX - rect.left;
+                grabOffsetY = pointerY - rect.top;
+                cardWidth = rect.width;
+
+                item.style.position = 'fixed';
+                item.style.top = rect.top + 'px';
+                item.style.left = rect.left + 'px';
+                item.style.width = cardWidth + 'px';
+                item.style.margin = '0';
+
+                dragging = true;
+                dragEl = item;
+                dragEl.classList.add('ticket-dragging');
+                document.body.style.userSelect = 'none';
+            }
+
+            // Segue o cursor nos dois eixos — o ponto exato do card onde o usuário
+            // "agarrou" fica sempre grudado no mouse, mesmo com deslocamento lateral.
+            function followCursor(clientX, clientY) {
+                dragEl.style.left = (clientX - grabOffsetX) + 'px';
+                dragEl.style.top = (clientY - grabOffsetY) + 'px';
+            }
+
+            // Move o placeholder (não o card) para onde ele cairia se soltasse agora,
+            // comparando o ponteiro com o meio de cada card vizinho.
+            function repositionPlaceholder(clientY) {
+                const siblings = Array.from(accordionEl.querySelectorAll(':scope > .accordion-item'))
+                    .filter(el => el !== dragEl);
+                for (const sib of siblings) {
+                    const rect = sib.getBoundingClientRect();
+                    const mid = rect.top + rect.height / 2;
+                    if (clientY < mid) {
+                        if (sib !== placeholder.nextSibling) accordionEl.insertBefore(placeholder, sib);
+                        return;
+                    }
+                }
+                if (accordionEl.lastElementChild !== placeholder) accordionEl.appendChild(placeholder);
+            }
+
+            // repositionPlaceholder lê getBoundingClientRect() de todos os cards (caro
+            // com a lista inteira). Rodar isso a cada pointermove cru (que dispara muito
+            // mais rápido que a tela redesenha) atrasa o card em relação ao cursor real —
+            // por isso ele é agrupado por frame, enquanto o "grudar no cursor" continua
+            // instantâneo em todo evento.
+            function scheduleReposition() {
+                if (rafScheduled) return;
+                rafScheduled = true;
+                requestAnimationFrame(function () {
+                    rafScheduled = false;
+                    if (dragging) repositionPlaceholder(lastClientY);
+                });
+            }
+
+            function saveCurrentOrder() {
+                const ids = Array.from(accordionEl.querySelectorAll(':scope > .accordion-item'))
+                    .map(item => item.getAttribute('data-ticket-id'))
+                    .filter(Boolean);
+
+                const fd = new FormData();
+                fd.set('order', JSON.stringify(ids));
+                fetch("{% url 'ticket_reorder' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': dragCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: fd,
+                }).catch(() => {});
+            }
+
+            function endDrag() {
+                clearPressTimer();
+                if (!dragging) return;
+                dragging = false;
+                document.body.style.userSelect = '';
+
+                // O reposicionamento do placeholder é agrupado por frame (scheduleReposition);
+                // se soltar muito rápido, pode não ter rodado ainda. Força a posição final
+                // aqui antes de encaixar, senão o card pode cair fora do lugar visto.
+                if (placeholder) repositionPlaceholder(lastClientY);
+
+                // Encaixa o card exatamente onde o placeholder está e limpa os estilos
+                // de "seguir o cursor".
+                if (placeholder && placeholder.parentNode) {
+                    placeholder.parentNode.insertBefore(dragEl, placeholder);
+                    placeholder.remove();
+                }
+                placeholder = null;
+
+                dragEl.style.position = '';
+                dragEl.style.top = '';
+                dragEl.style.left = '';
+                dragEl.style.width = '';
+                dragEl.style.margin = '';
+                dragEl.classList.remove('ticket-dragging');
+                dragEl = null;
+
+                saveCurrentOrder();
+            }
+
+            accordionEl.addEventListener('pointerdown', function (e) {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                const handle = e.target.closest && e.target.closest('.ticket-drag-handle');
+                if (!handle) return;
+                const item = handle.closest('.accordion-item');
+                if (!item) return;
+
+                startX = livePointerX = e.clientX;
+                startY = livePointerY = e.clientY;
+                const pointerId = e.pointerId;
+                clearPressTimer();
+                pressTimer = setTimeout(function () {
+                    // Usa a posição MAIS RECENTE do cursor (não a de quando o dedo/mouse
+                    // encostou) — durante o PRESS_DELAY_MS o usuário já pode ter se
+                    // movido, e usar uma posição velha faz o card "nascer" longe do
+                    // cursor assim que é agarrado.
+                    beginDrag(item, livePointerX, livePointerY);
+                    try { item.setPointerCapture(pointerId); } catch (err) {}
+                }, PRESS_DELAY_MS);
+            });
+
+            accordionEl.addEventListener('pointermove', function (e) {
+                livePointerX = e.clientX;
+                livePointerY = e.clientY;
+
+                if (!dragging) {
+                    if (pressTimer && (Math.abs(e.clientX - startX) > CANCEL_THRESHOLD_PX || Math.abs(e.clientY - startY) > CANCEL_THRESHOLD_PX)) {
+                        clearPressTimer();
+                    }
+                    return;
+                }
+                e.preventDefault();
+                followCursor(e.clientX, e.clientY);
+                lastClientY = e.clientY;
+                scheduleReposition();
+            });
+
+            accordionEl.addEventListener('pointerup', endDrag);
+            accordionEl.addEventListener('pointercancel', endDrag);
+        })();
 
         // Submit inline (AJAX) - substitui o conteúdo do card com o HTML retornado
         accordionEl.addEventListener('submit', async function (e) {

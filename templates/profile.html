@@ -194,6 +194,19 @@
                                     <small class="text-muted d-block mt-1"><i class="fas fa-lock me-1"></i> O Chat IA está desativado para o seu usuário — fale com o administrador.</small>
                                 {% endif %}
                             </div>
+                            {% if system_settings.voice_selection_mode == 'universal' %}
+                            <div class="col-12">
+                                <small class="text-muted d-block mt-1">
+                                    <i class="fas fa-lock me-1"></i> A voz é definida pelo administrador para todos os usuários.
+                                </small>
+                            </div>
+                            {% comment %}
+                            tts_voice_gender é obrigatório no form (sem blank=True no modelo) — mesmo
+                            escondido do usuário aqui, precisa continuar sendo enviado no POST, senão
+                            o salvamento falha com "campo obrigatório" sem nenhuma mensagem visível.
+                            {% endcomment %}
+                            <input type="hidden" name="tts_voice_gender" value="{{ user.profile.tts_voice_gender|default:'female' }}">
+                            {% else %}
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold text-muted mb-1">Voz preferida</label>
                                 {% render_field form.tts_voice_gender class="form-select form-select-sm" %}
@@ -203,7 +216,7 @@
                                     escolhida direto no Chat IA.
                                 </small>
                             </div>
-                            {% if system_settings.tts_provider == 'elevenlabs' %}
+                            {% if active_voice_config.provider == 'elevenlabs' %}
                             <div class="col-md-6">
                                 <label class="form-label small fw-bold text-muted mb-1">Voz ElevenLabs</label>
                                 <div class="input-group input-group-sm">
@@ -218,6 +231,7 @@
                                     Escolha uma voz específica da biblioteca ElevenLabs e clique no play para ouvir uma prévia.
                                 </small>
                             </div>
+                            {% endif %}
                             {% endif %}
                         </div>
 
