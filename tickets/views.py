@@ -2114,9 +2114,21 @@ class IntegrationsSettingsView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
     def post(self, request):
-        # Única ação de POST direto nesta tela (fora dos modais/CRUD): salvar o
-        # modo de seleção de voz (livre por usuário x universal).
         obj = self.get_object()
+        action = request.POST.get('_action', 'voice_mode')
+
+        if action == 'voice_master':
+            # Chave geral de Voz e Áudio — só o Super Admin pode mexer, mesmo que a
+            # request chegue direto no POST (mesma regra do ai_enabled em Settings).
+            if request.user.profile.role != 'super_admin':
+                from django.core.exceptions import PermissionDenied
+                raise PermissionDenied
+            obj.voice_globally_enabled = request.POST.get('voice_globally_enabled') == 'on'
+            obj.save(update_fields=['voice_globally_enabled'])
+            messages.success(request, "Voz e áudio " + ("ativados" if obj.voice_globally_enabled else "desativados") + " com sucesso!")
+            return redirect(reverse_lazy('settings_integrations'))
+
+        # Salvar o modo de seleção de voz (livre por usuário x universal).
         obj.voice_selection_mode = request.POST.get('voice_selection_mode', 'per_user')
         obj.universal_tts_voice_gender = request.POST.get('universal_tts_voice_gender', 'female')
         obj.universal_elevenlabs_voice_id = request.POST.get('universal_elevenlabs_voice_id', '').strip()
@@ -3395,14 +3407,41 @@ class PermissionsView(AdminRequiredMixin, TemplateView):
         return redirect('permissions')
 
 # Notification Views
+def _send_read_receipt(notification):
+    if not notification.read_receipt_requested or notification.read_receipt_notified or not notification.sender_id:
+        return
+    if notification.sender_id == notification.recipient_id:
+        return
+    Notification.objects.create(
+        recipient=notification.sender,
+        sender=notification.recipient,
+        title='Confirmação de leitura',
+        message=f"{notification.recipient.get_full_name() or notification.recipient.username} confirmou a leitura da mensagem: \"{notification.title}\"",
+        notification_type='message',
+    )
+    notification.read_receipt_notified = True
+
 class NotificationListView(LoginRequiredMixin, ListView):
     model = Notification
     template_name = 'notifications/notification_list.html'
     context_object_name = 'notifications'
     paginate_by = 20
 
+    def get_tab(self):
+        tab = self.request.GET.get('tab')
+        return 'sent' if tab == 'sent' else 'inbox'
+
     def get_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user)
+        if self.get_tab() == 'sent':
+            return Notification.objects.filter(sender=self.request.user, deleted_by_sender=False).select_related('recipient')
+        return Notification.objects.filter(recipient=self.request.user, deleted_by_recipient=False).select_related('sender')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['active_tab'] = self.get_tab()
+        context['urgency_choices'] = Notification.URGENCY_CHOICES
+        context['active_users'] = User.objects.filter(is_active=True).exclude(pk=self.request.user.pk).order_by('first_name', 'username')
+        return context
 
 @login_required
 def mark_notification_read(request, pk):
@@ -3411,9 +3450,59 @@ def mark_notification_read(request, pk):
         if not notification.is_read:
             notification.is_read = True
             notification.read_at = timezone.now()
+            _send_read_receipt(notification)
             notification.save()
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
+
+@login_required
+def notification_edit(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+    notification = get_object_or_404(Notification, pk=pk, sender=request.user, notification_type='message')
+
+    title = (request.POST.get('title') or '').strip()
+    message = (request.POST.get('message') or '').strip()
+    urgency = request.POST.get('urgency') or 'medium'
+    if urgency not in dict(Notification.URGENCY_CHOICES):
+        urgency = 'medium'
+    read_receipt_requested = request.POST.get('read_receipt_requested') in ('on', 'true', '1', 'True')
+
+    if not title or not message:
+        return JsonResponse({'status': 'error', 'message': 'Título e mensagem são obrigatórios.'}, status=400)
+
+    notification.title = title
+    notification.message = message
+    notification.urgency = urgency
+    notification.read_receipt_requested = read_receipt_requested
+    notification.save(update_fields=['title', 'message', 'urgency', 'read_receipt_requested'])
+
+    return JsonResponse({
+        'status': 'ok',
+        'id': notification.id,
+        'title': notification.title,
+        'message': notification.message,
+        'urgency': notification.urgency,
+        'urgency_display': notification.get_urgency_display(),
+        'read_receipt_requested': notification.read_receipt_requested,
+    })
+
+@login_required
+def notification_delete(request, pk):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Método inválido.'}, status=405)
+    notification = Notification.objects.filter(pk=pk).filter(Q(sender=request.user) | Q(recipient=request.user)).first()
+    if not notification:
+        return JsonResponse({'status': 'error', 'message': 'Mensagem não encontrada.'}, status=404)
+
+    if notification.sender_id == request.user.id:
+        notification.deleted_by_sender = True
+        notification.save(update_fields=['deleted_by_sender'])
+    if notification.recipient_id == request.user.id:
+        notification.deleted_by_recipient = True
+        notification.save(update_fields=['deleted_by_recipient'])
+
+    return JsonResponse({'status': 'ok'})
 
 @login_required
 def load_hubs(request):
@@ -3825,7 +3914,14 @@ def ticket_reorder(request):
 @login_required
 def mark_all_notifications_read(request):
     if request.method == 'POST':
-        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=timezone.now())
+        unread = Notification.objects.filter(recipient=request.user, is_read=False).select_related('sender', 'recipient')
+        now = timezone.now()
+        for notification in unread.filter(read_receipt_requested=True, read_receipt_notified=False):
+            notification.is_read = True
+            notification.read_at = now
+            _send_read_receipt(notification)
+            notification.save(update_fields=['is_read', 'read_at', 'read_receipt_notified'])
+        unread.filter(is_read=False).update(is_read=True, read_at=now)
         return JsonResponse({'status': 'ok'})
     return JsonResponse({'status': 'error'}, status=400)
 
@@ -3931,9 +4027,14 @@ class NotificationMonitorView(AdminRequiredMixin, ListView):
 class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
     model = Notification
     form_class = SendMessageForm
-    template_name = 'notifications/send_message_form.html'
-    success_url = reverse_lazy('dashboard')
+    success_url = reverse_lazy('notification_list')
     success_message = "Mensagem enviada com sucesso!"
+
+    def get(self, request, *args, **kwargs):
+        return redirect(self.success_url)
+
+    def is_ajax(self):
+        return self.request.headers.get('X-Requested-With') == 'XMLHttpRequest'
 
     def form_valid(self, form):
         recipient = form.cleaned_data.get('recipient')
@@ -3941,16 +4042,18 @@ class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
         group = form.cleaned_data.get('group')
         title = form.cleaned_data.get('title')
         message = form.cleaned_data.get('message')
+        urgency = form.cleaned_data.get('urgency') or 'medium'
+        read_receipt_requested = form.cleaned_data.get('read_receipt_requested')
         sender = self.request.user
 
         recipients = set()
 
         if recipient:
             recipients.add(recipient)
-        
+
         if send_to_all:
             recipients.update(User.objects.filter(is_active=True).exclude(pk=sender.pk))
-        
+
         if group:
             if group == 'admin':
                 recipients.update(User.objects.filter(is_active=True, profile__role__in=['admin', 'super_admin']).exclude(pk=sender.pk))
@@ -3967,17 +4070,28 @@ class SendMessageView(LoginRequiredMixin, SuccessMessageMixin, CreateView):
                 sender=sender,
                 title=title,
                 message=message,
-                notification_type='message'
+                notification_type='message',
+                urgency=urgency,
+                read_receipt_requested=read_receipt_requested,
             ))
-        
+
         if notifications:
             Notification.objects.bulk_create(notifications)
+            if self.is_ajax():
+                return JsonResponse({'status': 'ok', 'count': len(notifications)})
             messages.success(self.request, f"Mensagem enviada para {len(notifications)} destinatários.")
         else:
-             messages.warning(self.request, "Nenhum destinatário encontrado.")
+            if self.is_ajax():
+                return JsonResponse({'status': 'error', 'message': 'Nenhum destinatário encontrado.'}, status=400)
+            messages.warning(self.request, "Nenhum destinatário encontrado.")
 
         return redirect(self.success_url)
-        
+
+    def form_invalid(self, form):
+        if self.is_ajax():
+            return JsonResponse({'status': 'error', 'errors': form.errors.get_json_data()}, status=400)
+        return super().form_invalid(form)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = "Nova Mensagem"

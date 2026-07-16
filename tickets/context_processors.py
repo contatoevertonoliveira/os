@@ -22,7 +22,7 @@ def system_settings(request):
         context['active_voice_config'] = None
 
     if request.user.is_authenticated:
-        unread = Notification.objects.filter(recipient=request.user, is_read=False).order_by('-created_at')
+        unread = Notification.objects.filter(recipient=request.user, is_read=False, deleted_by_recipient=False).order_by('-created_at')
         context['unread_notifications'] = unread
         context['unread_notifications_count'] = unread.count()
         

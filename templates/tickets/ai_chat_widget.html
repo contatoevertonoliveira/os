@@ -254,14 +254,18 @@
     let _isOpen        = localStorage.getItem('aiChatOpen') === '1';
     let _historyLoaded = false;
 
+    // Chave geral (Configurações → Integrações, só Super Admin): desliga voz e
+    // áudio para todos de uma vez, mesmo que a preferência individual esteja ativa.
+    const VOICE_GLOBALLY_ENABLED = {{ system_settings.voice_globally_enabled|yesno:"true,false" }};
+
     // Preferência do usuário (Meu Perfil): escuta contínua por voz do "Jota4"
-    const WAKE_WORD_ENABLED = {{ user.profile.voice_wakeword_enabled|yesno:"true,false" }};
+    const WAKE_WORD_ENABLED = VOICE_GLOBALLY_ENABLED && {{ user.profile.voice_wakeword_enabled|yesno:"true,false" }};
     const CURRENT_USER_FIRST_NAME = "{{ user.first_name|default:user.username|escapejs }}".split(' ')[0];
 
     // Resposta por voz (Text-to-Speech): provedor decidido pelo admin (Configurações →
     // Integrações); ativação e voz preferida são preferência de cada usuário (Meu Perfil).
     const TTS_PROVIDER = "{{ active_voice_config.provider|default:'browser' }}";
-    const TTS_ENABLED_DEFAULT = {{ user.profile.tts_enabled|yesno:"true,false" }};
+    const TTS_ENABLED_DEFAULT = VOICE_GLOBALLY_ENABLED && {{ user.profile.tts_enabled|yesno:"true,false" }};
     const TTS_VOICE_GENDER = "{{ user.profile.tts_voice_gender|default:'female' }}";
 
     // ── Redimensionamento do painel ───────────────────────────────────────
@@ -716,7 +720,7 @@
     let _mediaRecorder = null;
     let _audioChunks = [];
 
-    if (!SpeechRecognitionAPI || !navigator.mediaDevices || !window.MediaRecorder) {
+    if (!VOICE_GLOBALLY_ENABLED || !SpeechRecognitionAPI || !navigator.mediaDevices || !window.MediaRecorder) {
         micBtn.style.display = 'none';
     } else {
         _recognition = new SpeechRecognitionAPI();
@@ -820,7 +824,7 @@
     }
 
     window.aiChatToggleMic = function () {
-        if (!SpeechRecognitionAPI) return;
+        if (!VOICE_GLOBALLY_ENABLED || !SpeechRecognitionAPI) return;
         if (_isListening) stopListening();
         else startListening();
     };
@@ -1349,7 +1353,9 @@
                 btn.style.opacity = '.4';
                 btn.style.cursor = 'not-allowed';
                 btn.innerHTML = '<i class="fas fa-volume-xmark"></i>';
-                btn.title = 'Ative "Respostas do Jota4 em voz alta" em Meu Perfil para usar esse recurso';
+                btn.title = VOICE_GLOBALLY_ENABLED
+                    ? 'Ative "Respostas do Jota4 em voz alta" em Meu Perfil para usar esse recurso'
+                    : 'Voz e áudio foram desativados pelo administrador';
             } else {
                 btn.disabled = false;
                 btn.style.opacity = '1';

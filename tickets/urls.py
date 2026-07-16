@@ -31,6 +31,7 @@ from .views import (
     ShiftHandoverEntryCreateView, ShiftHandoverEntryDeleteView, ShiftHandoverEntryEditView,
     ShiftHandoverUsersView, ShiftHandoverEntryNotifyView, ShiftHandoverEntryAcknowledgeView, ShiftHandoverPendingAlertsView,
     NotificationListView, SendMessageView, NotificationMonitorView, mark_notification_read, mark_all_notifications_read,
+    notification_edit, notification_delete,
     load_hubs, ChecklistDailyView, ChecklistPDFView,
     TicketsDailyReportPDFView, TicketsWeeklyReportPDFView, TicketsMonthlyReportPDFView,
     ChecklistConfigView, ChecklistTemplateCreateView, ChecklistTemplateUpdateView, ChecklistTemplateDeleteView, ChecklistItemCreateView, ChecklistItemUpdateView, ChecklistItemDeleteView,
@@ -234,6 +235,8 @@ urlpatterns = [
     path('notifications/send/', SendMessageView.as_view(), name='send_message'),
     path('notifications/<int:pk>/read/', mark_notification_read, name='mark_notification_read'),
     path('notifications/read-all/', mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/<int:pk>/edit/', notification_edit, name='notification_edit'),
+    path('notifications/<int:pk>/delete/', notification_delete, name='notification_delete'),
 
     # IA Chat
     path('ai/chat/', AIChatView.as_view(), name='ai_chat'),

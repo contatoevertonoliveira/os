@@ -390,6 +390,11 @@ class SystemSettings(models.Model):
     # que é ortogonal a qual configuração está ativa no momento.
     ai_enabled = models.BooleanField(default=False, verbose_name="Ativar Assistente de IA")
 
+    # Liga/desliga só a parte de voz e áudio (escuta por wake-word, ditado por voz
+    # e respostas faladas/TTS) para todos os usuários, mantendo o Chat IA por texto
+    # funcionando normalmente — diferente do ai_enabled acima, que desliga tudo.
+    voice_globally_enabled = models.BooleanField(default=True, verbose_name="Ativar Voz e Áudio (geral)")
+
     # === Integrações — Voz: livre por usuário ou universal ===
     # Provedor/chave/vozes padrão em uso ficam em VoiceProviderConfig (mesma lógica
     # de lista + ativa do AIProviderConfig). Aqui só fica a decisão de QUEM escolhe
@@ -1418,19 +1423,31 @@ class Notification(models.Model):
         ('assignment', 'Atribuição de Tarefa'),
     )
 
+    URGENCY_CHOICES = (
+        ('high', 'Alto'),
+        ('medium', 'Médio'),
+        ('low', 'Baixo'),
+    )
+
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications', verbose_name="Destinatário")
     sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications', verbose_name="Remetente")
-    
+
     title = models.CharField(max_length=200, verbose_name="Título")
     message = models.TextField(verbose_name="Mensagem")
-    
+
     notification_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='alert')
-    
+    urgency = models.CharField(max_length=10, choices=URGENCY_CHOICES, default='medium', verbose_name="Urgência")
+    read_receipt_requested = models.BooleanField(default=False, verbose_name="Solicitar confirmação de leitura")
+    read_receipt_notified = models.BooleanField(default=False, verbose_name="Confirmação de leitura já enviada")
+
     related_ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
-    
+
     is_read = models.BooleanField(default=False, verbose_name="Lida")
     read_at = models.DateTimeField(null=True, blank=True, verbose_name="Lida em")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    deleted_by_sender = models.BooleanField(default=False)
+    deleted_by_recipient = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']

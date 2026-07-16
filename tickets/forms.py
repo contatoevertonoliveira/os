@@ -1095,16 +1095,22 @@ class UserManagementForm(forms.ModelForm):
         return user
 
 class SendMessageForm(forms.ModelForm):
-    recipient = forms.ModelChoiceField(queryset=User.objects.all(), required=False, label="Destinatário", widget=forms.Select(attrs={'class': 'form-select select2'}))
+    recipient = forms.ModelChoiceField(queryset=User.objects.filter(is_active=True).order_by('first_name', 'username'), required=False, label="Destinatário", widget=forms.Select(attrs={'class': 'form-select'}))
     send_to_all = forms.BooleanField(required=False, label="Enviar para todos (Público)", widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
     group = forms.ChoiceField(choices=[('', 'Selecione um grupo (opcional)'), ('technician', 'Técnicos'), ('client', 'Clientes'), ('admin', 'Administradores')], required=False, label="Enviar para Grupo", widget=forms.Select(attrs={'class': 'form-select'}))
 
     class Meta:
         model = Notification
-        fields = ['recipient', 'title', 'message']
+        fields = ['recipient', 'title', 'message', 'urgency', 'read_receipt_requested']
         widgets = {
             'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Assunto'}),
             'message': forms.Textarea(attrs={'class': 'form-control', 'rows': 5, 'placeholder': 'Escreva sua mensagem...'}),
+            'urgency': forms.Select(attrs={'class': 'form-select'}),
+            'read_receipt_requested': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+        labels = {
+            'urgency': 'Urgência',
+            'read_receipt_requested': 'Solicitar confirmação de leitura',
         }
 
     def clean(self):

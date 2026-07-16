@@ -99,6 +99,40 @@
     </div>
 </div>
 
+<!-- Chave Geral de Voz e Áudio -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-microphone-lines me-2 text-danger"></i>Chave Geral — Voz e Áudio</h6>
+    </div>
+    <div class="card-body">
+        {% if user.profile.role == 'super_admin' %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="_action" value="voice_master">
+            <div class="form-check form-switch d-flex align-items-center gap-3">
+                <input type="checkbox" class="form-check-input" role="switch" id="id_voice_globally_enabled"
+                       name="voice_globally_enabled" {% if system_settings.voice_globally_enabled %}checked{% endif %}
+                       onchange="this.form.requestSubmit()">
+                <label class="form-check-label fw-semibold fs-6" for="id_voice_globally_enabled">
+                    Ativar Voz e Áudio no Chat IA (liga/desliga geral)
+                </label>
+            </div>
+            <small class="text-muted d-block">
+                Desliga a escuta por voz (wake-word "Jota4"), o ditado por voz e as respostas faladas (TTS)
+                para TODOS os usuários de uma vez, independente da preferência individual em Meu Perfil. O
+                Chat IA por texto continua funcionando normalmente. Só o Super Admin pode alterar isso.
+            </small>
+        </form>
+        {% else %}
+        <p class="text-muted small mb-0">
+            <i class="fas fa-lock me-1"></i>
+            Esta chave geral (liga/desliga Voz e Áudio no Chat IA para todos os usuários) só pode ser
+            alterada por um Super Admin.
+        </p>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Provedores de Voz -->
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">

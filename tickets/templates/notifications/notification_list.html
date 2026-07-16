@@ -4,21 +4,38 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="h3 text-gray-800"><i class="fas fa-bell me-2"></i>Notificações</h2>
         <div>
-            <a href="{% url 'send_message' %}" class="btn btn-primary btn-sm">
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newMessageModal">
                 <i class="fas fa-paper-plane me-2"></i>Nova Mensagem
-            </a>
+            </button>
+            {% if active_tab == 'inbox' %}
             <button id="markAllRead" class="btn btn-outline-secondary btn-sm ms-2">
                 <i class="fas fa-check-double me-2"></i>Marcar todas como lidas
             </button>
+            {% endif %}
         </div>
     </div>
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'inbox' %}active{% endif %}" href="?tab=inbox">
+                <i class="fas fa-inbox me-1"></i>Recebidas
+                {% if unread_notifications_count > 0 %}<span class="badge bg-danger rounded-pill ms-1">{{ unread_notifications_count }}</span>{% endif %}
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'sent' %}active{% endif %}" href="?tab=sent">
+                <i class="fas fa-paper-plane me-1"></i>Enviadas
+            </a>
+        </li>
+    </ul>
 
     <div class="card shadow mb-4">
         <div class="card-body">
             {% if notifications %}
                 <div class="list-group list-group-flush">
                     {% for notification in notifications %}
-                        <div class="list-group-item list-group-item-action {% if not notification.is_read %}bg-light border-start border-primary border-4{% endif %}" id="notification-{{ notification.id }}">
+                        {% if active_tab == 'inbox' %}
+                        <div class="list-group-item list-group-item-action {% if not notification.is_read %}bg-light border-start border-4 {% if notification.urgency == 'high' %}border-danger{% elif notification.urgency == 'low' %}border-secondary{% else %}border-warning{% endif %}{% endif %}" id="notification-{{ notification.id }}">
                             <div class="d-flex w-100 justify-content-between align-items-center">
                                 <h5 class="mb-1">
                                     {% if notification.notification_type == 'message' %}
@@ -29,6 +46,9 @@
                                         <i class="fas fa-info-circle text-info me-2"></i>
                                     {% endif %}
                                     {{ notification.title }}
+                                    {% if notification.urgency == 'high' %}<span class="badge bg-danger ms-2">Alto</span>
+                                    {% elif notification.urgency == 'low' %}<span class="badge bg-secondary ms-2">Baixo</span>
+                                    {% else %}<span class="badge bg-warning text-dark ms-2">Médio</span>{% endif %}
                                 </h5>
                                 <small class="text-muted">{{ notification.created_at|date:"d/m/Y H:i" }}</small>
                             </div>
@@ -40,42 +60,210 @@
                                         <a href="{% url 'ticket_list' %}?period=all&open={{ notification.related_ticket.pk }}" class="btn btn-sm btn-info text-white me-2">Ver Ticket</a>
                                     {% endif %}
                                     {% if not notification.is_read %}
-                                        <button class="btn btn-sm btn-outline-primary mark-read-btn" data-id="{{ notification.id }}">Marcar como lida</button>
+                                        <button class="btn btn-sm btn-outline-primary mark-read-btn me-2" data-id="{{ notification.id }}">Marcar como lida</button>
                                     {% else %}
-                                        <span class="badge bg-secondary">Lida</span>
+                                        <span class="badge bg-secondary me-2">Lida</span>
                                     {% endif %}
+                                    <button class="btn btn-sm btn-outline-danger delete-notification-btn" data-id="{{ notification.id }}">Excluir</button>
                                 </div>
                             </div>
                         </div>
+                        {% else %}
+                        <div class="list-group-item" id="notification-{{ notification.id }}">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <h5 class="mb-1">
+                                    {{ notification.title }}
+                                    <span class="badge notif-urgency-badge {% if notification.urgency == 'high' %}bg-danger{% elif notification.urgency == 'low' %}bg-secondary{% else %}bg-warning text-dark{% endif %} ms-2">{{ notification.get_urgency_display }}</span>
+                                </h5>
+                                <small class="text-muted">{{ notification.created_at|date:"d/m/Y H:i" }}</small>
+                            </div>
+                            <p class="mb-1 notif-message-text">{{ notification.message|linebreaksbr }}</p>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <small class="text-muted">Para: {{ notification.recipient.get_full_name|default:notification.recipient.username }}</small>
+                                    <br>
+                                    {% if notification.is_read %}
+                                        <small class="text-success"><i class="fas fa-check-double me-1"></i>Lida em {{ notification.read_at|date:"d/m/Y H:i" }}</small>
+                                    {% else %}
+                                        <small class="text-muted"><i class="fas fa-check me-1"></i>Não lida</small>
+                                    {% endif %}
+                                    {% if notification.read_receipt_requested %}
+                                        <small class="text-muted ms-2">
+                                            <i class="fas fa-receipt me-1"></i>Confirmação {% if notification.read_receipt_notified %}<span class="text-success">confirmada</span>{% else %}<span class="text-warning">pendente</span>{% endif %}
+                                        </small>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-secondary edit-notification-btn me-2"
+                                            data-id="{{ notification.id }}"
+                                            data-title="{{ notification.title }}"
+                                            data-message="{{ notification.message }}"
+                                            data-urgency="{{ notification.urgency }}"
+                                            data-receipt="{{ notification.read_receipt_requested|yesno:'1,0' }}">
+                                        <i class="fas fa-pen me-1"></i>Editar
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger delete-notification-btn" data-id="{{ notification.id }}">
+                                        <i class="fas fa-trash me-1"></i>Excluir
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                     {% endfor %}
                 </div>
-                
+
                 <!-- Pagination -->
                 {% if is_paginated %}
                 <nav aria-label="Page navigation" class="mt-4">
                     <ul class="pagination justify-content-center">
                         {% if page_obj.has_previous %}
-                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&tab={{ active_tab }}">Anterior</a></li>
                         {% endif %}
                         <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
                         {% if page_obj.has_next %}
-                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&tab={{ active_tab }}">Próxima</a></li>
                         {% endif %}
                     </ul>
                 </nav>
                 {% endif %}
-                
+
             {% else %}
                 <div class="text-center py-5 text-muted">
                     <i class="fas fa-bell-slash fa-3x mb-3"></i>
-                    <p>Nenhuma notificação encontrada.</p>
+                    <p>{% if active_tab == 'sent' %}Nenhuma mensagem enviada.{% else %}Nenhuma notificação encontrada.{% endif %}</p>
                 </div>
             {% endif %}
         </div>
     </div>
 </div>
 
+<!-- Modal: Nova Mensagem -->
+<div class="modal fade" id="newMessageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="newMessageForm">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-paper-plane me-2"></i>Nova Mensagem</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="newMessageError" class="alert alert-danger d-none"></div>
+
+                    <div class="form-check form-switch mb-3 p-3 bg-light rounded border">
+                        <input class="form-check-input" type="checkbox" name="send_to_all" id="sendToAllSwitch" style="margin-left: -2.5em; margin-right: 1em;">
+                        <label class="form-check-label fw-bold" for="sendToAllSwitch" style="margin-left: 0.5em;">Enviar para todos (Público)</label>
+                    </div>
+
+                    <div class="row mb-3" id="recipientSection">
+                        <div class="col-md-6">
+                            <label for="recipientSelect" class="form-label">Destinatário Específico</label>
+                            <select id="recipientSelect" name="recipient" class="form-select">
+                                <option value="">Selecione um usuário</option>
+                                {% for u in active_users %}
+                                    <option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="groupSelect" class="form-label">Ou Enviar para Grupo</label>
+                            <select id="groupSelect" name="group" class="form-select">
+                                <option value="">Selecione um grupo (opcional)</option>
+                                <option value="technician">Técnicos</option>
+                                <option value="client">Clientes</option>
+                                <option value="admin">Administradores</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="urgencySelect" class="form-label">Urgência</label>
+                            <select id="urgencySelect" name="urgency" class="form-select">
+                                {% for value, label in urgency_choices %}
+                                    <option value="{{ value }}" {% if value == 'medium' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="read_receipt_requested" id="readReceiptCheck">
+                                <label class="form-check-label" for="readReceiptCheck">Solicitar confirmação de leitura</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="messageTitle" class="form-label">Assunto</label>
+                        <input type="text" class="form-control" name="title" id="messageTitle" placeholder="Assunto da mensagem" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="messageBody" class="form-label">Mensagem</label>
+                        <textarea class="form-control" name="message" id="messageBody" rows="5" placeholder="Escreva sua mensagem aqui..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="newMessageSubmitBtn">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Editar Mensagem -->
+<div class="modal fade" id="editMessageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="editMessageForm">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-pen me-2"></i>Editar Mensagem</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="editMessageError" class="alert alert-danger d-none"></div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editUrgencySelect" class="form-label">Urgência</label>
+                            <select id="editUrgencySelect" name="urgency" class="form-select">
+                                {% for value, label in urgency_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="read_receipt_requested" id="editReadReceiptCheck">
+                                <label class="form-check-label" for="editReadReceiptCheck">Solicitar confirmação de leitura</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editMessageTitle" class="form-label">Assunto</label>
+                        <input type="text" class="form-control" name="title" id="editMessageTitle" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="editMessageBody" class="form-label">Mensagem</label>
+                        <textarea class="form-control" name="message" id="editMessageBody" rows="5" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="editMessageSubmitBtn">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+function csrfToken() {
+    return '{{ csrf_token }}';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Mark single as read
     document.querySelectorAll('.mark-read-btn').forEach(btn => {
@@ -84,17 +272,16 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(`/notifications/${id}/read/`, {
                 method: 'POST',
                 headers: {
-                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-CSRFToken': csrfToken(),
                     'Content-Type': 'application/json'
                 }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'ok') {
-                    // Update UI
                     const item = document.getElementById(`notification-${id}`);
-                    item.classList.remove('bg-light', 'border-start', 'border-primary', 'border-4');
-                    this.replaceWith(document.createRange().createContextualFragment('<span class="badge bg-secondary">Lida</span>'));
+                    item.classList.remove('bg-light', 'border-start', 'border-4', 'border-danger', 'border-warning', 'border-secondary');
+                    this.replaceWith(document.createRange().createContextualFragment('<span class="badge bg-secondary me-2">Lida</span>'));
                 }
             });
         });
@@ -108,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 fetch('{% url "mark_all_notifications_read" %}', {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-CSRFToken': csrfToken(),
                         'Content-Type': 'application/json'
                     }
                 })
@@ -119,6 +306,141 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             }
+        });
+    }
+
+    // Delete (soft-delete: recipient or sender copy)
+    document.querySelectorAll('.delete-notification-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if (!confirm('Excluir esta mensagem da sua caixa?')) return;
+            const id = this.dataset.id;
+            fetch(`/notifications/${id}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken(),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    const item = document.getElementById(`notification-${id}`);
+                    if (item) item.remove();
+                } else {
+                    alert(data.message || 'Erro ao excluir mensagem.');
+                }
+            });
+        });
+    });
+
+    // === Nova Mensagem ===
+    const newMessageModalEl = document.getElementById('newMessageModal');
+    const newMessageModal = (newMessageModalEl && window.bootstrap) ? new bootstrap.Modal(newMessageModalEl) : null;
+    const newMessageForm = document.getElementById('newMessageForm');
+    const newMessageError = document.getElementById('newMessageError');
+    const sendToAllSwitch = document.getElementById('sendToAllSwitch');
+    const recipientSection = document.getElementById('recipientSection');
+
+    function toggleRecipientFields() {
+        if (sendToAllSwitch.checked) {
+            recipientSection.style.opacity = '0.5';
+            recipientSection.style.pointerEvents = 'none';
+        } else {
+            recipientSection.style.opacity = '1';
+            recipientSection.style.pointerEvents = 'auto';
+        }
+    }
+    if (sendToAllSwitch) {
+        sendToAllSwitch.addEventListener('change', toggleRecipientFields);
+    }
+
+    if (newMessageForm) {
+        newMessageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            newMessageError.classList.add('d-none');
+            const submitBtn = document.getElementById('newMessageSubmitBtn');
+            submitBtn.disabled = true;
+            fetch("{% url 'send_message' %}", {
+                method: 'POST',
+                body: new FormData(newMessageForm),
+                headers: {
+                    'X-CSRFToken': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                submitBtn.disabled = false;
+                if (ok && data.status === 'ok') {
+                    newMessageModal.hide();
+                    window.location.href = '?tab=sent';
+                } else {
+                    let msg = data.message || 'Corrija os erros do formulário.';
+                    if (data.errors) {
+                        msg = Object.values(data.errors).map(errs => errs.map(e => e.message || e).join(' ')).join(' ');
+                    }
+                    newMessageError.textContent = msg;
+                    newMessageError.classList.remove('d-none');
+                }
+            })
+            .catch(() => {
+                submitBtn.disabled = false;
+                newMessageError.textContent = 'Erro ao enviar mensagem.';
+                newMessageError.classList.remove('d-none');
+            });
+        });
+    }
+
+    // === Editar Mensagem ===
+    const editMessageModalEl = document.getElementById('editMessageModal');
+    const editMessageModal = (editMessageModalEl && window.bootstrap) ? new bootstrap.Modal(editMessageModalEl) : null;
+    const editMessageForm = document.getElementById('editMessageForm');
+    const editMessageError = document.getElementById('editMessageError');
+    let editingId = null;
+
+    document.querySelectorAll('.edit-notification-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            editingId = this.dataset.id;
+            document.getElementById('editMessageTitle').value = this.dataset.title || '';
+            document.getElementById('editMessageBody').value = this.dataset.message || '';
+            document.getElementById('editUrgencySelect').value = this.dataset.urgency || 'medium';
+            document.getElementById('editReadReceiptCheck').checked = this.dataset.receipt === '1';
+            editMessageError.classList.add('d-none');
+            if (editMessageModal) editMessageModal.show();
+        });
+    });
+
+    if (editMessageForm) {
+        editMessageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!editingId) return;
+            editMessageError.classList.add('d-none');
+            const submitBtn = document.getElementById('editMessageSubmitBtn');
+            submitBtn.disabled = true;
+            fetch(`/notifications/${editingId}/edit/`, {
+                method: 'POST',
+                body: new FormData(editMessageForm),
+                headers: {
+                    'X-CSRFToken': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json().then(data => ({ ok: response.ok, data })))
+            .then(({ ok, data }) => {
+                submitBtn.disabled = false;
+                if (ok && data.status === 'ok') {
+                    editMessageModal.hide();
+                    location.reload();
+                } else {
+                    editMessageError.textContent = data.message || 'Erro ao salvar alterações.';
+                    editMessageError.classList.remove('d-none');
+                }
+            })
+            .catch(() => {
+                submitBtn.disabled = false;
+                editMessageError.textContent = 'Erro ao salvar alterações.';
+                editMessageError.classList.remove('d-none');
+            });
         });
     }
 });
