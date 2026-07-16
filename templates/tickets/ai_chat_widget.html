@@ -852,6 +852,7 @@
     let _wakeRecognition   = null;
     let _wakeListening     = false;
     let _wakeSuspended     = false; // pausada de propósito (gravação manual em andamento)
+    let _wakeBlocked       = false; // navegador negou/bloqueou o microfone de vez — para de tentar reiniciar sozinho
     let _wakeCaptureActive = false;
     let _wakeCaptureText   = '';
     let _wakeCaptureTimer  = null;
@@ -878,7 +879,7 @@
 
     function _startWakeListening() {
         if (!WAKE_WORD_ENABLED || !SpeechRecognitionAPI || !navigator.mediaDevices) return;
-        if (_wakeListening || _isListening || _wakeSuspended) return;
+        if (_wakeListening || _isListening || _wakeSuspended || _wakeBlocked) return;
         try {
             _wakeRecognition = new SpeechRecognitionAPI();
             _wakeRecognition.lang = 'pt-BR';
@@ -913,13 +914,24 @@
             };
             _wakeRecognition.onerror = (e) => {
                 console.warn('[AI Chat] Escuta por voz (wake-word):', e.error);
+                // 'not-allowed'/'service-not-allowed' = permissão de microfone negada ou
+                // bloqueada pelo navegador — isso nunca vai se resolver sozinho, e como
+                // o onend abaixo reinicia automaticamente, sem essa trava vira um loop
+                // infinito (start -> erro -> end -> start de novo a cada ~500ms, pra
+                // sempre) que fica consumindo recursos do navegador em segundo plano
+                // até travar/derrubar a aba. Para de tentar até a próxima vez que a
+                // escuta for ligada manualmente (ex: reabrir o Chat IA).
+                if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                    _wakeBlocked = true;
+                }
             };
             _wakeRecognition.onend = () => {
                 _wakeListening = false;
                 _setWakeIndicator(false);
                 // Reinicia sozinho pra manter a escuta contínua, a menos que tenha
-                // sido pausada de propósito (gravação manual em andamento).
-                if (WAKE_WORD_ENABLED && !_wakeSuspended) {
+                // sido pausada de propósito (gravação manual em andamento) ou o
+                // microfone tenha sido negado/bloqueado (ver onerror acima).
+                if (WAKE_WORD_ENABLED && !_wakeSuspended && !_wakeBlocked) {
                     setTimeout(_startWakeListening, 500);
                 }
             };
