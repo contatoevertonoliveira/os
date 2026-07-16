@@ -958,6 +958,21 @@ class TicketDeleteView(LoginRequiredMixin, DeleteView):
         messages.success(self.request, "Ordem de Serviço excluída com sucesso!")
         return super().form_valid(form)
 
+
+def _auto_progress_open_status(form):
+    """
+    Se a OS estava "Em Aberto" antes desta edição e o usuário não escolheu outro
+    status na tela (deixou "Em Aberto" mesmo), qualquer alteração salva já avança
+    automaticamente para "Em Andamento" — evita ficar com OS esquecidas em aberto
+    só porque ninguém trocou o status manualmente. Se o usuário escolheu outro
+    status explicitamente, prevalece o dele. Muta form.instance in-place; chamar
+    antes de form.save().
+    """
+    old_status = Ticket.objects.filter(pk=form.instance.pk).values_list('status', flat=True).first()
+    if old_status == 'open' and form.instance.status == 'open':
+        form.instance.status = 'in_progress'
+
+
 class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     model = Ticket
     form_class = TicketModalForm
@@ -974,9 +989,11 @@ class TicketModalView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
         return context
 
     def form_valid(self, form):
+        _auto_progress_open_status(form)
+
         # Save the ticket changes first
         self.object = form.save()
-        
+
         # Auto-assign current user to technicians if they are a technician/standard and not already assigned
         user = self.request.user
         if hasattr(user, 'profile') and user.profile.role in ['technician', 'standard']:
@@ -1091,6 +1108,7 @@ class TicketInlineView(TicketModalView):
     def form_valid(self, form):
         # Reaproveita a regra da modal, mas sem redirect ao "fechar".
         # Aqui o frontend decide se vai recolher o card.
+        _auto_progress_open_status(form)
         self.object = form.save()
 
         user = self.request.user

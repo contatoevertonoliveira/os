@@ -436,6 +436,10 @@ class TicketForm(forms.ModelForm):
         from .models import TicketStatus
         status_qs = TicketStatus.objects.filter(is_active=True).order_by('order', 'name')
         self.fields['status'].choices = [('', 'Selecione o status')] + [(s.code, s.name) for s in status_qs]
+        # Toda OS nova já nasce "Em Aberto" — o usuário pode mudar antes de salvar, mas
+        # não precisa escolher manualmente todo santo dia.
+        if not self.instance.pk:
+            self.initial['status'] = 'open'
         self.fields['start_date'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['deadline'].input_formats = ('%Y-%m-%dT%H:%M',)
         self.fields['systems'].queryset = System.objects.all()

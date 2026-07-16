@@ -1991,6 +1991,8 @@ def _update_ticket(args, user):
     except Ticket.DoesNotExist:
         return {"ok": False, "error": f"OS ID {args.get('ticket_id')} não encontrada no sistema."}
 
+    old_status = ticket.status
+
     if "status" in args:
         ticket.status = args["status"]
     if "description" in args:
@@ -2049,6 +2051,12 @@ def _update_ticket(args, user):
             ticket.problem_type = ProblemType.objects.get(pk=args["problem_type_id"])
         except ProblemType.DoesNotExist:
             return {"ok": False, "error": f"Tipo de problema ID {args['problem_type_id']} não encontrado."}
+
+    # Se a OS estava "Em Aberto" antes desta edição e ninguém pediu explicitamente
+    # outro status (incluindo manter "Em Aberto"), qualquer alteração já avança
+    # automaticamente para "Em Andamento" — mesma regra da edição pela tela.
+    if old_status == 'open' and ticket.status == 'open':
+        ticket.status = 'in_progress'
 
     try:
         ticket.save()
