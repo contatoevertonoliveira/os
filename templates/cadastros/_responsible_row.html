@@ -1,0 +1,13 @@
+<tr data-id="{{ item.id }}">
+    <td class="fw-bold">{{ item.first_name|default:item.username }}</td>
+    <td>{{ item.email|default:"-" }}</td>
+    <td>{{ item.profile.fixed_client.name|default:"-" }}</td>
+    <td class="text-end">
+        <a href="#" class="btn btn-sm btn-outline-primary" title="Editar" onclick="event.preventDefault(); openResponsibleEditModal({{ item.id }});">
+            <i class="fas fa-edit"></i>
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmDelete('{% url 'responsible_delete' item.id %}', '{{ item.first_name|default:item.username|escapejs }}')">
+            <i class="fas fa-trash"></i>
+        </button>
+    </td>
+</tr>

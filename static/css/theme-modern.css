@@ -1,0 +1,783 @@
+/* ==========================================================================
+   JumperFour — Skin Moderna (Manual de Marca 2026)
+   Ativada via atributo html[data-theme="modern"]. Não afeta o tema clássico.
+   Paleta: Azul Metálico #032b34 · Verde Limão #a6e17d · Cinza Claro #e1e1e1
+           Azul Acinzentado #2a3842 · Verde Fosco #338f5c · Verde Metálico #395a31
+   Tipografia: Sora
+   ========================================================================== */
+
+html[data-theme="modern"] {
+    --jf-navy: #032b34;
+    --jf-navy-light: #0b4353;
+    --jf-navy-2: #2a3842;
+    --jf-lime: #a6e17d;
+    --jf-lime-dark: #8ccb5e;
+    --jf-green: #338f5c;
+    --jf-green-dark: #276b45;
+    --jf-green-deep: #395a31;
+    --jf-gray: #e1e1e1;
+    --jf-surface: #ffffff;
+    --jf-surface-alt: #f2f6f4;
+    --jf-border: #dde6e2;
+    --jf-text: #14262b;
+    --jf-text-muted: #5c7175;
+
+    /* Remapeia as variáveis já usadas pelo layout atual (base.html) */
+    --primary-color: var(--jf-green);
+    --secondary-color: var(--jf-lime);
+    --warning-color: #f5b942;
+    --muted-color: #9fb3ae;
+    --sidebar-bg: var(--jf-navy);
+    --tertiary-color: var(--jf-navy);
+    --light-bg: var(--jf-surface-alt);
+
+    /* Remapeia variáveis do Bootstrap 5.3 (cascata automática p/ todas as páginas) */
+    --bs-body-bg: var(--jf-surface-alt);
+    --bs-body-color: var(--jf-text);
+    --bs-body-font-family: 'Sora', 'Poppins', sans-serif;
+    --bs-primary: var(--jf-green);
+    --bs-primary-rgb: 51, 143, 92;
+    --bs-secondary: var(--jf-navy-2);
+    --bs-secondary-rgb: 42, 56, 66;
+    --bs-success: var(--jf-green);
+    --bs-success-rgb: 51, 143, 92;
+    --bs-border-color: var(--jf-border);
+    --bs-border-color-translucent: rgba(3, 43, 52, 0.1);
+    --bs-link-color: var(--jf-green-dark);
+    --bs-link-color-rgb: 39, 107, 69;
+    --bs-link-hover-color: var(--jf-navy);
+    --bs-emphasis-color: var(--jf-navy);
+    --bs-card-bg: var(--jf-surface);
+    --bs-card-border-color: var(--jf-border);
+    --bs-tertiary-bg: var(--jf-surface-alt);
+    --bs-secondary-bg: var(--jf-surface-alt);
+}
+
+html[data-theme="modern"] body {
+    font-family: 'Sora', 'Poppins', sans-serif;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(166, 225, 125, 0.10) 0%, transparent 42%),
+        radial-gradient(circle at 0% 100%, rgba(3, 43, 52, 0.05) 0%, transparent 40%),
+        var(--jf-surface-alt);
+}
+
+html[data-theme="modern"] h1, html[data-theme="modern"] h2,
+html[data-theme="modern"] h3, html[data-theme="modern"] h4,
+html[data-theme="modern"] h5, html[data-theme="modern"] h6 {
+    font-family: 'Sora', sans-serif;
+    font-weight: 700;
+    color: var(--jf-navy);
+}
+
+/* Scrollbar */
+html[data-theme="modern"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-theme="modern"] ::-webkit-scrollbar-track { background: var(--jf-surface-alt); }
+html[data-theme="modern"] ::-webkit-scrollbar-thumb { background: var(--jf-green); border-radius: 10px; }
+html[data-theme="modern"] ::-webkit-scrollbar-thumb:hover { background: var(--jf-green-dark); }
+
+/* ---------------------------------------------------------------------
+   Sidebar
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .sidebar {
+    background: linear-gradient(200deg, var(--jf-navy) 0%, var(--jf-navy-light) 55%, var(--jf-navy) 100%);
+    box-shadow: 6px 0 30px rgba(3, 43, 52, 0.35);
+    border-right: 1px solid rgba(166, 225, 125, 0.08);
+}
+
+html[data-theme="modern"] .sidebar-header {
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid rgba(166, 225, 125, 0.12);
+}
+
+html[data-theme="modern"] .sidebar-brand img {
+    filter: drop-shadow(0 0 10px rgba(166, 225, 125, 0.35));
+}
+
+html[data-theme="modern"] .sidebar-menu li a {
+    color: #c9d8d4;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+}
+
+html[data-theme="modern"] .sidebar-menu li a:hover {
+    background: rgba(166, 225, 125, 0.08);
+    color: var(--jf-lime);
+}
+
+html[data-theme="modern"] .sidebar-menu li a.active {
+    background: linear-gradient(90deg, rgba(166, 225, 125, 0.18) 0%, rgba(166, 225, 125, 0.03) 100%) !important;
+    color: var(--jf-lime) !important;
+    border-left: 3px solid var(--jf-lime) !important;
+    font-weight: 700;
+    box-shadow: none;
+}
+
+html[data-theme="modern"] .sidebar-submenu {
+    background: rgba(0, 0, 0, 0.22);
+}
+
+html[data-theme="modern"] .sidebar-submenu li a:hover {
+    background: rgba(166, 225, 125, 0.06);
+}
+
+html[data-theme="modern"] .sidebar-header-sm {
+    color: rgba(166, 225, 125, 0.55) !important;
+    letter-spacing: 1.5px;
+}
+
+html[data-theme="modern"] .user-profile-footer {
+    background: rgba(0, 0, 0, 0.22);
+    border-top: 1px solid rgba(166, 225, 125, 0.12);
+}
+
+html[data-theme="modern"] .user-avatar {
+    border-color: rgba(166, 225, 125, 0.4);
+}
+
+html[data-theme="modern"] .user-info:hover { color: var(--jf-lime); }
+html[data-theme="modern"] .user-role { color: #93a8a3; }
+
+html[data-theme="modern"] .logout-btn:hover {
+    background: rgba(231, 76, 60, 0.15);
+    color: #ff6b5b;
+}
+
+html[data-theme="modern"] .sidebar-toggle-btn {
+    background: rgba(166, 225, 125, 0.12);
+}
+html[data-theme="modern"] .sidebar-toggle-btn:hover {
+    background: var(--jf-lime);
+    color: var(--jf-navy);
+}
+
+html[data-theme="modern"] .sidebar.collapsed .sidebar-submenu,
+html[data-theme="modern"].sidebar-collapsed .sidebar-submenu {
+    background: var(--jf-navy-light);
+}
+
+/* ---------------------------------------------------------------------
+   Switch de tema (flutuante, visível em todas as páginas)
+   --------------------------------------------------------------------- */
+.jf-theme-switcher {
+    position: fixed;
+    top: 18px;
+    right: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    height: 34px;
+    border-radius: 20px 0 0 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(3, 43, 52, 0.12);
+    border-right: none;
+    box-shadow: -4px 4px 16px rgba(3, 43, 52, 0.12);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    user-select: none;
+    overflow: hidden;
+    transition: box-shadow 0.3s ease;
+}
+
+.jf-theme-switcher:hover,
+.jf-theme-switcher:focus-within {
+    box-shadow: -6px 6px 22px rgba(3, 43, 52, 0.18);
+}
+
+/* Conteúdo fica recolhido (largura 0) e desliza para fora ao passar o mouse */
+.jf-theme-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 0;
+    transition: max-width 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+}
+
+.jf-theme-switcher:hover .jf-theme-content,
+.jf-theme-switcher:focus-within .jf-theme-content {
+    max-width: 220px;
+    opacity: 1;
+    padding: 0 6px 0 14px;
+}
+
+/* Aba fixa com a seta, sempre visível (mesma linguagem visual do botão de recolher a sidebar) */
+.jf-theme-handle {
+    width: 26px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #495057;
+    pointer-events: none;
+}
+
+.jf-theme-handle i {
+    font-size: 0.75rem;
+    transition: transform 0.3s ease;
+}
+
+.jf-theme-switcher:hover .jf-theme-handle i,
+.jf-theme-switcher:focus-within .jf-theme-handle i {
+    transform: rotate(180deg);
+}
+
+.jf-theme-content .form-check-input {
+    width: 2.4em;
+    height: 1.3em;
+    cursor: pointer;
+    background-color: #ced4da;
+    border-color: #ced4da;
+}
+
+.jf-theme-content .form-check-input:checked {
+    background-color: #338f5c;
+    border-color: #338f5c;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23a6e17d'/%3e%3c/svg%3e");
+}
+
+.jf-theme-content .form-check-input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(51, 143, 92, 0.25);
+}
+
+.jf-theme-content i {
+    font-size: 0.85rem;
+    color: #338f5c;
+    width: 14px;
+    text-align: center;
+}
+
+html[data-theme="modern"] .jf-theme-switcher {
+    background: rgba(3, 43, 52, 0.9);
+    border-color: rgba(166, 225, 125, 0.25);
+    color: var(--jf-gray);
+    box-shadow: -4px 4px 20px rgba(3, 43, 52, 0.4);
+}
+
+html[data-theme="modern"] .jf-theme-switcher:hover,
+html[data-theme="modern"] .jf-theme-switcher:focus-within {
+    box-shadow: -6px 6px 26px rgba(3, 43, 52, 0.5);
+}
+
+html[data-theme="modern"] .jf-theme-content i,
+html[data-theme="modern"] .jf-theme-handle {
+    color: var(--jf-lime);
+}
+
+/* ---------------------------------------------------------------------
+   Cabeçalho de páginas (título + ícone de destaque, reutilizável)
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .page-title-icon {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%);
+    color: var(--jf-lime);
+    font-size: 1.1rem;
+    box-shadow: 0 6px 16px rgba(3, 43, 52, 0.2);
+}
+
+/* ---------------------------------------------------------------------
+   Cards genéricos
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .card {
+    border: 1px solid var(--jf-border);
+}
+
+html[data-theme="modern"] .card-custom {
+    border: 1px solid var(--jf-border);
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(3, 43, 52, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+html[data-theme="modern"] .card-custom:hover {
+    box-shadow: 0 10px 28px rgba(3, 43, 52, 0.12);
+}
+
+html[data-theme="modern"] .card-custom[role="button"]:hover {
+    cursor: pointer;
+}
+
+html[data-theme="modern"] .card.border-primary,
+html[data-theme="modern"] .border-primary {
+    border-color: var(--jf-green) !important;
+}
+
+html[data-theme="modern"] .text-primary {
+    color: var(--jf-green-dark) !important;
+}
+
+html[data-theme="modern"] .bg-primary {
+    background-color: var(--jf-green) !important;
+}
+
+html[data-theme="modern"] .bg-light {
+    background-color: var(--jf-surface-alt) !important;
+}
+
+html[data-theme="modern"] .bg-dark {
+    background-color: var(--jf-navy) !important;
+}
+
+/* ---------------------------------------------------------------------
+   Dashboard
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] {
+    --primary-gradient: linear-gradient(135deg, #032b34 0%, #0b4353 100%);
+    --danger-gradient: linear-gradient(135deg, #e0574a 0%, #b6402f 100%);
+    --warning-gradient: linear-gradient(135deg, #f5b942 0%, #d99420 100%);
+    --success-gradient: linear-gradient(135deg, #338f5c 0%, #275f40 100%);
+}
+
+html[data-theme="modern"] .dashboard-header {
+    background: var(--jf-surface);
+    border: 1px solid var(--jf-border);
+    position: relative;
+    overflow: hidden;
+}
+
+html[data-theme="modern"] .dashboard-header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--jf-navy) 0%, var(--jf-lime) 45%, transparent 85%);
+}
+
+html[data-theme="modern"] .dashboard-header::after {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 140px;
+    height: 140px;
+    background: var(--jf-lime);
+    opacity: 0.12;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* Ícone de destaque ao lado do título do dashboard */
+html[data-theme="modern"] .dash-title-icon {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%);
+    color: var(--jf-lime);
+    font-size: 1.25rem;
+    box-shadow: 0 6px 16px rgba(3, 43, 52, 0.25);
+}
+
+/* Filtros do topo (período, cliente, colaborador) */
+html[data-theme="modern"] .dash-filters {
+    background: var(--jf-surface-alt);
+    border: 1px solid var(--jf-border);
+    border-radius: 30px;
+    padding: 4px 10px;
+}
+
+html[data-theme="modern"] .dash-filter-sep {
+    opacity: 0.4;
+}
+
+html[data-theme="modern"] .dash-filters .btn-dark.dropdown-toggle {
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%);
+    border: none;
+    border-radius: 20px;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+html[data-theme="modern"] .dash-filters .btn-dark.dropdown-toggle:hover {
+    background: linear-gradient(135deg, var(--jf-navy-light) 0%, var(--jf-navy) 100%);
+}
+
+html[data-theme="modern"] .dash-filters .form-select {
+    border: none;
+    background-color: transparent;
+    font-weight: 500;
+    color: var(--jf-navy);
+}
+html[data-theme="modern"] .dash-filters .form-select:hover {
+    background-color: rgba(51, 143, 92, 0.08);
+    border-radius: 16px;
+}
+
+html[data-theme="modern"] .dash-filters .btn-outline-secondary {
+    color: var(--jf-green-dark);
+    border-color: var(--jf-green);
+    border-radius: 20px;
+}
+html[data-theme="modern"] .dash-filters .btn-outline-secondary:hover {
+    background: var(--jf-green);
+    border-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .dropdown-item:hover {
+    background-color: rgba(166, 225, 125, 0.15);
+}
+
+html[data-theme="modern"] .card-dashboard {
+    border: 1px solid rgba(3, 43, 52, 0.06);
+    position: relative;
+}
+
+/* Traço diagonal no topo dos cards de estatística, ecoando o "salto" do logo */
+html[data-theme="modern"] .card-dashboard::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--jf-lime) 0%, rgba(166, 225, 125, 0) 70%);
+    z-index: 2;
+}
+
+html[data-theme="modern"] .chart-card {
+    background: var(--jf-surface);
+    border: 1px solid var(--jf-border);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+html[data-theme="modern"] .chart-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 30px rgba(3, 43, 52, 0.10);
+    cursor: zoom-in;
+}
+
+/* Barra de título vertical, encostada na lateral do card */
+html[data-theme="modern"] .chart-vtitle {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    width: 46px;
+    flex: 0 0 46px;
+    background: linear-gradient(180deg, var(--jf-navy) 0%, var(--jf-navy-light) 100%);
+    padding: 18px 0;
+    position: relative;
+}
+
+html[data-theme="modern"] .chart-vtitle i {
+    color: var(--jf-lime);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+html[data-theme="modern"] .chart-vtitle span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    color: var(--jf-gray);
+    font-family: 'Sora', sans-serif;
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+html[data-theme="modern"] .chart-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+html[data-theme="modern"] .chart-header {
+    border-bottom: 1px solid var(--jf-border);
+    color: var(--jf-navy);
+    justify-content: flex-start;
+    padding: 0.85rem 1.25rem;
+}
+
+html[data-theme="modern"] .chart-header > span {
+    display: none;
+}
+
+/* Badges de filtro ocupam o espaço que sobrou do título (agora na barra vertical) */
+html[data-theme="modern"] .chart-header .card-chart-badge-wrapper {
+    flex-basis: auto;
+    text-align: left;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    order: 1;
+}
+
+html[data-theme="modern"] .chart-header .filter-badge,
+html[data-theme="modern"] .chart-header .filter-badge-period {
+    margin: 0;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+}
+
+/* Botão de ação sempre encostado à direita, com ou sem badges presentes */
+html[data-theme="modern"] .chart-header > button {
+    margin-left: auto;
+    order: 2;
+}
+
+html[data-theme="modern"] .chart-header .btn-link {
+    color: var(--jf-text-muted);
+}
+html[data-theme="modern"] .chart-header .btn-link:hover {
+    color: var(--jf-green-dark);
+}
+
+/* Gráfico maior e mais robusto dentro do card, aproveitando o espaço da antiga linha de badges */
+html[data-theme="modern"] .chart-canvas-wrap {
+    height: 440px !important;
+}
+
+/* Feixe de luz ao passar o mouse (cards de gráfico, do dashboard e cards genéricos) */
+html[data-theme="modern"] .chart-card,
+html[data-theme="modern"] .card-dashboard,
+html[data-theme="modern"] .card-custom {
+    position: relative;
+}
+html[data-theme="modern"] .chart-card::after,
+html[data-theme="modern"] .card-dashboard::after,
+html[data-theme="modern"] .card-custom::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 35%;
+    height: 100%;
+    background: linear-gradient(115deg, transparent 0%, rgba(166, 225, 125, 0.28) 50%, transparent 100%);
+    transform: skewX(-20deg);
+    transition: left 0.75s ease;
+    pointer-events: none;
+    z-index: 6;
+}
+html[data-theme="modern"] .chart-card:hover::after,
+html[data-theme="modern"] .card-custom:hover::after,
+html[data-theme="modern"] .card-dashboard:hover::after {
+    left: 130%;
+}
+
+/* Botões utilitários do topo do dashboard (Compartilhar / Exportar) */
+html[data-theme="modern"] .dashboard-header .btn-light.border {
+    background: var(--jf-surface);
+    border-color: var(--jf-border) !important;
+    color: var(--jf-navy);
+}
+html[data-theme="modern"] .dashboard-header .btn-light.border:hover {
+    background: var(--jf-navy);
+    border-color: var(--jf-navy) !important;
+    color: #fff;
+}
+
+/* Dropdown de período (btn-dark) */
+html[data-theme="modern"] .dashboard-header .btn-dark {
+    background: var(--jf-navy);
+    border-color: var(--jf-navy);
+}
+html[data-theme="modern"] .dashboard-header .btn-dark:hover {
+    background: var(--jf-navy-light);
+    border-color: var(--jf-navy-light);
+}
+
+/* Auto-refresh switch */
+html[data-theme="modern"] #autoRefreshToggle:checked {
+    background-color: var(--jf-green);
+    border-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .filter-badge {
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%);
+}
+
+html[data-theme="modern"] .filter-badge-period {
+    background: linear-gradient(135deg, var(--jf-green) 0%, var(--jf-green-dark) 100%);
+}
+
+/* ---------------------------------------------------------------------
+   Botões
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .btn-primary-custom {
+    background: linear-gradient(135deg, var(--jf-green) 0%, var(--jf-green-dark) 100%);
+    border-color: var(--jf-green-dark);
+    color: #fff;
+}
+html[data-theme="modern"] .btn-primary-custom:hover {
+    background: linear-gradient(135deg, var(--jf-green-dark) 0%, var(--jf-green-deep) 100%);
+    border-color: var(--jf-green-deep);
+}
+
+html[data-theme="modern"] .btn-primary {
+    background: linear-gradient(135deg, var(--jf-green) 0%, var(--jf-green-dark) 100%);
+    border-color: var(--jf-green-dark);
+}
+html[data-theme="modern"] .btn-primary:hover,
+html[data-theme="modern"] .btn-primary:focus {
+    background: linear-gradient(135deg, var(--jf-green-dark) 0%, var(--jf-green-deep) 100%);
+    border-color: var(--jf-green-deep);
+}
+
+html[data-theme="modern"] .btn-outline-primary {
+    color: var(--jf-green-dark);
+    border-color: var(--jf-green);
+}
+html[data-theme="modern"] .btn-outline-primary:hover {
+    background: var(--jf-green);
+    border-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .btn-dark {
+    background: var(--jf-navy);
+    border-color: var(--jf-navy);
+}
+
+html[data-theme="modern"] .btn-link { color: var(--jf-green-dark); }
+
+/* ---------------------------------------------------------------------
+   Badges & status
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .badge-open { background-color: #2f7ea8; }
+html[data-theme="modern"] .badge-in_progress { background-color: #d99420; }
+html[data-theme="modern"] .badge-pending { background-color: #c0392b; }
+html[data-theme="modern"] .badge-finished { background-color: var(--jf-green); }
+html[data-theme="modern"] .badge-canceled { background-color: #6b7a7d; }
+
+html[data-theme="modern"] .row-open, html[data-theme="modern"] .row-open > td { background-color: #ffffff !important; }
+html[data-theme="modern"] .row-pending, html[data-theme="modern"] .row-pending > td { background-color: rgba(245, 185, 66, 0.16) !important; }
+html[data-theme="modern"] .row-finished, html[data-theme="modern"] .row-finished > td { background-color: rgba(51, 143, 92, 0.14) !important; }
+html[data-theme="modern"] .row-canceled, html[data-theme="modern"] .row-canceled > td { background-color: rgba(108, 117, 125, 0.14) !important; }
+html[data-theme="modern"] .row-in-progress, html[data-theme="modern"] .row-in-progress > td { background-color: rgba(42, 56, 66, 0.10) !important; }
+html[data-theme="modern"] .row-delayed, html[data-theme="modern"] .row-delayed > td { background-color: rgba(224, 87, 74, 0.16) !important; }
+
+/* ---------------------------------------------------------------------
+   Tabelas, formulários, modais, dropdowns, paginação, alertas
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] .table {
+    --bs-table-border-color: var(--jf-border);
+}
+
+html[data-theme="modern"] .table-hover {
+    --bs-table-hover-bg: rgba(51, 143, 92, 0.07);
+}
+
+html[data-theme="modern"] .table thead th {
+    background: var(--jf-surface-alt);
+    color: var(--jf-navy);
+    border-bottom: 2px solid var(--jf-border);
+    font-weight: 700;
+}
+
+html[data-theme="modern"] .form-control,
+html[data-theme="modern"] .form-select {
+    border-color: var(--jf-border);
+    background-color: var(--jf-surface);
+}
+
+html[data-theme="modern"] .form-control:focus,
+html[data-theme="modern"] .form-select:focus,
+html[data-theme="modern"] input:focus,
+html[data-theme="modern"] textarea:focus,
+html[data-theme="modern"] select:focus {
+    background-color: #fff !important;
+    border-color: var(--jf-green) !important;
+    box-shadow: 0 0 0 0.25rem rgba(51, 143, 92, 0.2) !important;
+}
+
+html[data-theme="modern"] .form-check-input:checked {
+    background-color: var(--jf-green);
+    border-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .modal-content {
+    border: 1px solid var(--jf-border);
+    border-radius: 16px;
+}
+
+html[data-theme="modern"] .modal-header.bg-gradient-primary,
+html[data-theme="modern"] .bg-gradient-primary {
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%) !important;
+}
+
+html[data-theme="modern"] .dropdown-menu {
+    border: 1px solid var(--jf-border);
+    box-shadow: 0 10px 30px rgba(3, 43, 52, 0.12);
+}
+
+html[data-theme="modern"] .dropdown-item.active,
+html[data-theme="modern"] .dropdown-item:active {
+    background-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .page-link {
+    color: var(--jf-green-dark);
+}
+html[data-theme="modern"] .page-item.active .page-link {
+    background-color: var(--jf-green);
+    border-color: var(--jf-green);
+}
+
+html[data-theme="modern"] .nav-tabs .nav-link.active {
+    color: var(--jf-navy);
+    border-bottom: 2px solid var(--jf-lime);
+    font-weight: 700;
+}
+
+html[data-theme="modern"] .alert-primary {
+    background-color: rgba(51, 143, 92, 0.12);
+    border-color: rgba(51, 143, 92, 0.2);
+    color: var(--jf-green-dark);
+}
+
+html[data-theme="modern"] .toast {
+    border-radius: 12px;
+}
+
+/* ---------------------------------------------------------------------
+   Clientes — Modal de Detalhes (substitui o amarelo hardcoded da marca antiga)
+   --------------------------------------------------------------------- */
+html[data-theme="modern"] #clientDetailModal .modal-content {
+    background: var(--jf-surface) !important;
+}
+
+html[data-theme="modern"] #clientDetailModal .modal-header {
+    background: linear-gradient(135deg, var(--jf-navy) 0%, var(--jf-navy-2) 100%) !important;
+}
+
+html[data-theme="modern"] #clientDetailModal .modal-header .text-dark {
+    color: #fff !important;
+}
+
+html[data-theme="modern"] #clientDetailModal .text-black-50 {
+    color: rgba(255, 255, 255, 0.65) !important;
+}
+
+html[data-theme="modern"] #clientDetailModal .modal-header .rounded-circle {
+    background: rgba(166, 225, 125, 0.2) !important;
+    color: var(--jf-lime) !important;
+}
+
+html[data-theme="modern"] #clientDetailModal .bg-white {
+    background-color: var(--jf-surface) !important;
+    border: 1px solid var(--jf-border);
+}
+
+/* Ícone de acento reutilizável em títulos de modais escuras (bg-dark) */
+html[data-theme="modern"] .jf-modal-icon-accent {
+    color: var(--jf-lime);
+}

@@ -1,0 +1,23 @@
+{% load widget_tweaks %}
+<div class="modal-header">
+    <h5 class="modal-title fw-bold">
+        <i class="fas {{ modal_icon|default:'fa-tag' }} me-2 jf-modal-icon-accent"></i>{{ modal_title }}
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form id="simpleNameForm" method="post" action="{{ form_action }}" novalidate>
+    {% csrf_token %}
+    <div class="modal-body">
+        <div class="mb-1">
+            <label for="{{ form.name.id_for_label }}" class="form-label small fw-bold mb-1">Nome</label>
+            {% render_field form.name class="form-control" placeholder="Digite o nome..." %}
+            <div class="text-danger small">{{ form.name.errors }}</div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
+            <i class="fas fa-save me-2"></i>Salvar
+        </button>
+    </div>
+</form>

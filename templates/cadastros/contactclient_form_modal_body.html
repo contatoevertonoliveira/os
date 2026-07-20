@@ -1,0 +1,103 @@
+{% load widget_tweaks %}
+<div class="modal-header">
+    <h5 class="modal-title fw-bold">
+        <i class="fas fa-address-book me-2 jf-modal-icon-accent"></i>{% if contact %}Editar Contato do Cliente{% else %}Novo Contato do Cliente{% endif %}
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form id="contactClientForm" method="post" action="{{ form_action }}" novalidate>
+    {% csrf_token %}
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="{{ form.client.id_for_label }}" class="form-label small fw-bold mb-1">Cliente</label>
+                {% render_field form.client class="form-select" id="contactClientClientSelect" %}
+                <div class="text-danger small">{{ form.client.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.hub.id_for_label }}" class="form-label small fw-bold mb-1">Hub/Loja (opcional)</label>
+                {% render_field form.hub class="form-select" id="contactClientHubSelect" %}
+                <div class="text-danger small">{{ form.hub.errors }}</div>
+            </div>
+            <div class="col-12">
+                <label for="{{ form.name.id_for_label }}" class="form-label small fw-bold mb-1">Nome</label>
+                {% render_field form.name class="form-control" placeholder="Nome do contato" %}
+                <div class="text-danger small">{{ form.name.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.email.id_for_label }}" class="form-label small fw-bold mb-1">Email</label>
+                {% render_field form.email class="form-control" placeholder="email@exemplo.com" %}
+                <div class="text-danger small">{{ form.email.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.phone.id_for_label }}" class="form-label small fw-bold mb-1">Telefone</label>
+                {% render_field form.phone id="contactClientPhoneInput" %}
+                <div class="text-danger small">{{ form.phone.errors }}</div>
+            </div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    {% render_field form.is_active class="form-check-input" %}
+                    <label class="form-check-label small fw-bold" for="{{ form.is_active.id_for_label }}">Ativo</label>
+                </div>
+                <div class="text-danger small">{{ form.is_active.errors }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
+            <i class="fas fa-save me-2"></i>Salvar
+        </button>
+    </div>
+</form>
+<script>
+    (function() {
+        const allHubs = [
+            {% for hub in hubs %}
+            {id: "{{ hub.id }}", name: "{{ hub.name|escapejs }}", client_id: "{{ hub.client_id }}"},
+            {% endfor %}
+        ];
+        const clientSelect = document.getElementById('contactClientClientSelect');
+        const hubSelect = document.getElementById('contactClientHubSelect');
+
+        if (clientSelect && hubSelect) {
+            function filterHubs(preserveSelection) {
+                const selectedClientId = clientSelect.value;
+                const currentHubId = preserveSelection ? hubSelect.value : null;
+
+                hubSelect.innerHTML = '<option value="">Nenhum (cliente inteiro)</option>';
+                if (!selectedClientId) return;
+
+                allHubs
+                    .filter(h => h.client_id === selectedClientId)
+                    .forEach(hub => {
+                        const option = document.createElement('option');
+                        option.value = hub.id;
+                        option.textContent = hub.name;
+                        if (hub.id === currentHubId) option.selected = true;
+                        hubSelect.appendChild(option);
+                    });
+            }
+
+            const initialHubId = hubSelect.value;
+            filterHubs(false);
+            if (initialHubId) hubSelect.value = initialHubId;
+
+            clientSelect.addEventListener('change', function() {
+                filterHubs(false);
+            });
+        }
+
+        const phoneInput = document.getElementById('contactClientPhoneInput');
+        if (phoneInput) {
+            phoneInput.addEventListener('blur', function(e) {
+                const numbers = e.target.value.replace(/\D/g, '');
+                if (numbers.length === 11) {
+                    e.target.value = numbers.replace(/^(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                } else if (numbers.length === 10) {
+                    e.target.value = numbers.replace(/^(\d{2})(\d{4})(\d{4})/, '($1)$2-$3');
+                }
+            });
+        }
+    })();
+</script>

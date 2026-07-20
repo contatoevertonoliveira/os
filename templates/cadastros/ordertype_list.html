@@ -2,11 +2,14 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Tipos de Chamados</h1>
+    <div class="d-flex align-items-center gap-3">
+        <div class="page-title-icon" style="display:none;"><i class="fas fa-list"></i></div>
+        <h1 class="h2 mb-0">Tipos de Chamados</h1>
+    </div>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="{% url 'ordertype_create' %}" class="btn btn-primary-custom">
+        <button type="button" id="openOrderTypeCreateBtn" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Tipo
-        </a>
+        </button>
     </div>
 </div>
 
@@ -20,26 +23,11 @@
                         <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="orderTypeTableBody">
                     {% for item in ordertypes %}
-                    <tr style="cursor: pointer;"
-                        data-id="{{ item.id }}"
-                        data-name="{{ item.name }}"
-                        ondblclick="openOrderTypeModal(this)">
-                        <td>{{ item.name }}</td>
-                        <td>
-                            <a href="{% url 'ordertype_update' item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {% if request.user.profile.role in 'admin,super_admin' %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'ordertype_delete' item.id %}', '{{ item.name|escapejs }}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            {% endif %}
-                        </td>
-                    </tr>
+                        {% include 'cadastros/_ordertype_row.html' with item=item %}
                     {% empty %}
-                    <tr>
+                    <tr id="orderTypeEmptyRow">
                         <td colspan="2" class="text-center py-4">Nenhum tipo cadastrado.</td>
                     </tr>
                     {% endfor %}
@@ -54,7 +42,7 @@
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="orderTypeDetailModalLabel">Detalhes do Tipo de Ordem</h5>
+                <h5 class="modal-title" id="orderTypeDetailModalLabel"><i class="fas fa-list me-2 jf-modal-icon-accent"></i>Detalhes do Tipo de Ordem</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -65,23 +53,122 @@
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+                <button type="button" id="modalEditBtn" class="btn btn-primary">Editar</button>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-    function openOrderTypeModal(row) {
-        const id = row.getAttribute('data-id');
-        const name = row.getAttribute('data-name');
+<!-- Order Type Create/Edit Modal (carregado via AJAX, sem navegar para outra página) -->
+<div class="modal fade" id="orderTypeFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" id="orderTypeFormModalContent">
+            <!-- injetado via JS -->
+        </div>
+    </div>
+</div>
 
-        document.getElementById('modalName').textContent = name;
-        document.getElementById('modalEditLink').href = "/ordertypes/" + id + "/edit/";
+<script>
+    let currentOrderTypeId = null;
+
+    function openOrderTypeModal(row) {
+        currentOrderTypeId = row.getAttribute('data-id');
+        document.getElementById('modalName').textContent = row.getAttribute('data-name');
 
         const modal = new bootstrap.Modal(document.getElementById('orderTypeDetailModal'));
         modal.show();
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const createBtn = document.getElementById('openOrderTypeCreateBtn');
+        const detailModalEl = document.getElementById('orderTypeDetailModal');
+        const formModalEl = document.getElementById('orderTypeFormModal');
+        const formModalContent = document.getElementById('orderTypeFormModalContent');
+        const modalEditBtn = document.getElementById('modalEditBtn');
+
+        if (!formModalEl || !formModalContent) return;
+
+        const formModal = new bootstrap.Modal(formModalEl, { backdrop: 'static' });
+        const detailModal = detailModalEl ? bootstrap.Modal.getOrCreateInstance(detailModalEl) : null;
+
+        function modalFormUrl(pk) {
+            return pk ? `/ordertypes/modal/${pk}/` : '/ordertypes/modal/';
+        }
+
+        async function loadFormModal(pk) {
+            formModalContent.innerHTML = `
+                <div class="text-center p-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small mt-2">Carregando formulário...</div>
+                </div>
+            `;
+            formModal.show();
+            const resp = await fetch(modalFormUrl(pk), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            formModalContent.innerHTML = await resp.text();
+        }
+
+        window.openOrderTypeEditModal = function(pk) {
+            if (detailModal) detailModal.hide();
+            loadFormModal(pk);
+        };
+
+        if (createBtn) {
+            createBtn.addEventListener('click', function() { loadFormModal(null); });
+        }
+
+        if (modalEditBtn) {
+            modalEditBtn.addEventListener('click', function() {
+                if (currentOrderTypeId) window.openOrderTypeEditModal(currentOrderTypeId);
+            });
+        }
+
+        formModalContent.addEventListener('submit', async function(e) {
+            const form = e.target;
+            if (!form || form.id !== 'simpleNameForm') return;
+            e.preventDefault();
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const resp = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (!resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    if (data && data.html) {
+                        formModalContent.innerHTML = data.html;
+                        return;
+                    }
+                    throw new Error('Erro ao salvar tipo de chamado.');
+                }
+
+                const data = await resp.json();
+                if (!data || data.status !== 'success') {
+                    throw new Error((data && data.message) || 'Erro ao salvar tipo de chamado.');
+                }
+
+                const tbody = document.getElementById('orderTypeTableBody');
+                const emptyRow = document.getElementById('orderTypeEmptyRow');
+                if (emptyRow) emptyRow.remove();
+
+                const existingRow = tbody.querySelector(`tr[data-id="${data.id}"]`);
+                if (existingRow) {
+                    existingRow.outerHTML = data.row_html;
+                } else {
+                    tbody.insertAdjacentHTML('afterbegin', data.row_html);
+                }
+
+                formModal.hide();
+            } catch (err) {
+                if (submitBtn) submitBtn.disabled = false;
+                alert(err.message || 'Erro ao salvar tipo de chamado.');
+            }
+        });
+    });
 </script>
 
 {% endblock %}

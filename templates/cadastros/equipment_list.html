@@ -2,11 +2,14 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Equipamentos</h1>
+    <div class="d-flex align-items-center gap-3">
+        <div class="page-title-icon" style="display:none;"><i class="fas fa-tools"></i></div>
+        <h1 class="h2 mb-0">Equipamentos</h1>
+    </div>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="{% url 'equipment_create' %}" class="btn btn-primary-custom">
+        <button type="button" id="openEquipmentCreateBtn" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Equipamento
-        </a>
+        </button>
     </div>
 </div>
 
@@ -21,28 +24,11 @@
                         <th>Ações</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="equipmentTableBody">
                     {% for item in equipments %}
-                    <tr style="cursor: pointer;"
-                        data-id="{{ item.id }}"
-                        data-name="{{ item.name }}"
-                        data-description="{{ item.description|default:'-' }}"
-                        ondblclick="openEquipmentModal(this)">
-                        <td>{{ item.name }}</td>
-                        <td>{{ item.description|default:"-" }}</td>
-                        <td>
-                            <a href="{% url 'equipment_update' item.id %}" class="btn btn-sm btn-outline-primary" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            {% if request.user.profile.role in 'admin,super_admin' %}
-                            <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'equipment_delete' item.id %}', '{{ item.name|escapejs }}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                            {% endif %}
-                        </td>
-                    </tr>
+                        {% include 'cadastros/_equipment_row.html' with item=item %}
                     {% empty %}
-                    <tr>
+                    <tr id="equipmentEmptyRow">
                         <td colspan="3" class="text-center py-4">Nenhum equipamento cadastrado.</td>
                     </tr>
                     {% endfor %}
@@ -57,7 +43,7 @@
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="equipmentDetailModalLabel">Detalhes do Equipamento</h5>
+                <h5 class="modal-title" id="equipmentDetailModalLabel"><i class="fas fa-tools me-2 jf-modal-icon-accent"></i>Detalhes do Equipamento</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -72,26 +58,132 @@
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                <a href="#" id="modalEditLink" class="btn btn-primary">Editar</a>
+                <button type="button" id="modalEditBtn" class="btn btn-primary">Editar</button>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Equipment Create/Edit Modal (carregado via AJAX, sem navegar para outra página) -->
+<div class="modal fade" id="equipmentFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" id="equipmentFormModalContent">
+            <!-- injetado via JS -->
+        </div>
+    </div>
+</div>
+
 <script>
+    let currentEquipmentId = null;
+
     function openEquipmentModal(row) {
-        const id = row.getAttribute('data-id');
+        currentEquipmentId = row.getAttribute('data-id');
         const name = row.getAttribute('data-name');
         const description = row.getAttribute('data-description');
 
         document.getElementById('modalName').textContent = name;
         document.getElementById('modalDescription').textContent = description;
 
-        document.getElementById('modalEditLink').href = "/equipments/" + id + "/edit/";
-
         const modal = new bootstrap.Modal(document.getElementById('equipmentDetailModal'));
         modal.show();
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const createBtn = document.getElementById('openEquipmentCreateBtn');
+        const detailModalEl = document.getElementById('equipmentDetailModal');
+        const formModalEl = document.getElementById('equipmentFormModal');
+        const formModalContent = document.getElementById('equipmentFormModalContent');
+        const modalEditBtn = document.getElementById('modalEditBtn');
+
+        if (!formModalEl || !formModalContent) return;
+
+        const formModal = new bootstrap.Modal(formModalEl, { backdrop: 'static' });
+        const detailModal = detailModalEl ? bootstrap.Modal.getOrCreateInstance(detailModalEl) : null;
+
+        function equipmentModalFormUrl(pk) {
+            return pk ? `/equipments/modal/${pk}/` : '/equipments/modal/';
+        }
+
+        async function loadEquipmentFormModal(pk) {
+            formModalContent.innerHTML = `
+                <div class="text-center p-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="small mt-2">Carregando formulário...</div>
+                </div>
+            `;
+            formModal.show();
+            const resp = await fetch(equipmentModalFormUrl(pk), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const html = await resp.text();
+            formModalContent.innerHTML = html;
+        }
+
+        window.openEquipmentEditModal = function(pk) {
+            if (detailModal) detailModal.hide();
+            loadEquipmentFormModal(pk);
+        };
+
+        if (createBtn) {
+            createBtn.addEventListener('click', function() {
+                loadEquipmentFormModal(null);
+            });
+        }
+
+        if (modalEditBtn) {
+            modalEditBtn.addEventListener('click', function() {
+                if (currentEquipmentId) window.openEquipmentEditModal(currentEquipmentId);
+            });
+        }
+
+        formModalContent.addEventListener('submit', async function(e) {
+            const form = e.target;
+            if (!form || form.id !== 'equipmentForm') return;
+            e.preventDefault();
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const resp = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+
+                if (!resp.ok) {
+                    const data = await resp.json().catch(() => null);
+                    if (data && data.html) {
+                        formModalContent.innerHTML = data.html;
+                        return;
+                    }
+                    throw new Error('Erro ao salvar equipamento.');
+                }
+
+                const data = await resp.json();
+                if (!data || data.status !== 'success') {
+                    throw new Error((data && data.message) || 'Erro ao salvar equipamento.');
+                }
+
+                const rowResp = await fetch(`/equipments/${data.equipment_id}/row/`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                const rowHtml = await rowResp.text();
+
+                const tbody = document.getElementById('equipmentTableBody');
+                const emptyRow = document.getElementById('equipmentEmptyRow');
+                if (emptyRow) emptyRow.remove();
+
+                const existingRow = tbody.querySelector(`tr[data-id="${data.equipment_id}"]`);
+                if (existingRow) {
+                    existingRow.outerHTML = rowHtml;
+                } else {
+                    tbody.insertAdjacentHTML('afterbegin', rowHtml);
+                }
+
+                formModal.hide();
+            } catch (err) {
+                if (submitBtn) submitBtn.disabled = false;
+                alert(err.message || 'Erro ao salvar equipamento.');
+            }
+        });
+    });
 </script>
 
 {% endblock %}

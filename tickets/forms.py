@@ -13,25 +13,54 @@ from .models import UserProfile, Ticket, TicketUpdate, System, Client, SystemSet
 
 
 class ContactClientForm(forms.ModelForm):
+    client = forms.ModelChoiceField(
+        queryset=Client.objects.all().order_by('name'),
+        label="Cliente",
+        required=True,
+        empty_label="Selecione o cliente",
+    )
+    hub = forms.ModelChoiceField(
+        queryset=ClientHub.objects.all().order_by('name'),
+        label="Hub/Loja (opcional)",
+        required=False,
+        empty_label="Nenhum (cliente inteiro)",
+    )
+
     class Meta:
         model = ContactClient
         fields = [
             "name",
             "email",
             "phone",
-            "client_ref_id",
-            "client_name",
-            "hub_ref_id",
-            "hub_name",
             "is_active",
         ]
         widgets = {
             "phone": forms.TextInput(attrs={"class": "form-control phone-mask", "placeholder": "(00) 0000-0000"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            if self.instance.client_ref_id:
+                self.fields['client'].initial = self.instance.client_ref_id
+            if self.instance.hub_ref_id:
+                self.fields['hub'].initial = self.instance.hub_ref_id
+
     def clean_name(self):
         name = self.cleaned_data.get('name', '').strip().upper()
         return name
+
+    def save(self, commit=True):
+        contact = super().save(commit=False)
+        client = self.cleaned_data.get('client')
+        hub = self.cleaned_data.get('hub')
+        contact.client_ref_id = client.id if client else None
+        contact.client_name = client.name if client else ''
+        contact.hub_ref_id = hub.id if hub else None
+        contact.hub_name = hub.name if hub else ''
+        if commit:
+            contact.save()
+        return contact
 
 
 class ContactJumperForm(forms.ModelForm):

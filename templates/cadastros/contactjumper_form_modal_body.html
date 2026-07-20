@@ -1,0 +1,67 @@
+{% load widget_tweaks %}
+<div class="modal-header">
+    <h5 class="modal-title fw-bold">
+        <i class="fas fa-id-card me-2 jf-modal-icon-accent"></i>{% if contact %}Editar Contato JumperFour{% else %}Novo Contato JumperFour{% endif %}
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<form id="contactJumperForm" method="post" action="{{ form_action }}" novalidate>
+    {% csrf_token %}
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-12">
+                <label for="{{ form.name.id_for_label }}" class="form-label small fw-bold mb-1">Nome</label>
+                {% render_field form.name class="form-control" placeholder="Nome do contato" %}
+                <div class="text-danger small">{{ form.name.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.email.id_for_label }}" class="form-label small fw-bold mb-1">Email</label>
+                {% render_field form.email class="form-control" placeholder="email@exemplo.com" %}
+                <div class="text-danger small">{{ form.email.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.phone.id_for_label }}" class="form-label small fw-bold mb-1">Telefone</label>
+                {% render_field form.phone id="contactJumperPhoneInput" %}
+                <div class="text-danger small">{{ form.phone.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.department.id_for_label }}" class="form-label small fw-bold mb-1">Departamento</label>
+                {% render_field form.department class="form-control" placeholder="Ex: Operações" %}
+                <div class="text-danger small">{{ form.department.errors }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="{{ form.role.id_for_label }}" class="form-label small fw-bold mb-1">Cargo/Função</label>
+                {% render_field form.role class="form-control" placeholder="Ex: Coordenador" %}
+                <div class="text-danger small">{{ form.role.errors }}</div>
+            </div>
+            <div class="col-12">
+                <div class="form-check form-switch">
+                    {% render_field form.is_active class="form-check-input" %}
+                    <label class="form-check-label small fw-bold" for="{{ form.is_active.id_for_label }}">Ativo</label>
+                </div>
+                <div class="text-danger small">{{ form.is_active.errors }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary-custom px-4 fw-bold">
+            <i class="fas fa-save me-2"></i>Salvar
+        </button>
+    </div>
+</form>
+<script>
+    (function() {
+        const phoneInput = document.getElementById('contactJumperPhoneInput');
+        if (phoneInput) {
+            phoneInput.addEventListener('blur', function(e) {
+                const numbers = e.target.value.replace(/\D/g, '');
+                if (numbers.length === 11) {
+                    e.target.value = numbers.replace(/^(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                } else if (numbers.length === 10) {
+                    e.target.value = numbers.replace(/^(\d{2})(\d{4})(\d{4})/, '($1)$2-$3');
+                }
+            });
+        }
+    })();
+</script>

@@ -1,0 +1,16 @@
+<tr style="cursor: pointer;"
+    data-id="{{ item.id }}"
+    data-name="{{ item.name }}"
+    ondblclick="openProblemTypeModal(this)">
+    <td>{{ item.name }}</td>
+    <td>
+        <a href="#" class="btn btn-sm btn-outline-primary" title="Editar" onclick="event.stopPropagation(); event.preventDefault(); openProblemTypeEditModal({{ item.id }});">
+            <i class="fas fa-edit"></i>
+        </a>
+        {% if request.user.profile.role == 'admin' or request.user.profile.role == 'super_admin' %}
+        <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'problemtype_delete' item.id %}', '{{ item.name|escapejs }}')">
+            <i class="fas fa-trash"></i>
+        </button>
+        {% endif %}
+    </td>
+</tr>

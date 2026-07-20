@@ -1,0 +1,24 @@
+<tr data-id="{{ item.id }}">
+    <td>{{ item.client_name|default:"-" }}</td>
+    <td>{{ item.hub_name|default:"-" }}</td>
+    <td>{{ item.name }}</td>
+    <td>{{ item.email|default:"-" }}</td>
+    <td>{{ item.phone|default:"-" }}</td>
+    <td>
+        {% if item.is_active %}
+            <span class="badge bg-success">Sim</span>
+        {% else %}
+            <span class="badge bg-secondary">Não</span>
+        {% endif %}
+    </td>
+    <td>
+        <a href="#" class="btn btn-sm btn-outline-primary" title="Editar" onclick="event.preventDefault(); openContactClientEditModal({{ item.id }});">
+            <i class="fas fa-edit"></i>
+        </a>
+        {% if request.user.profile.role in 'admin,super_admin' %}
+        <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="event.stopPropagation(); confirmDelete('{% url 'contactclient_delete' item.id %}', '{{ item.name|escapejs }}')">
+            <i class="fas fa-trash"></i>
+        </button>
+        {% endif %}
+    </td>
+</tr>

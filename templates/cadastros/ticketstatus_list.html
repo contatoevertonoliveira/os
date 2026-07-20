@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h5 mb-0">Status de OS</h1>
+    <div class="d-flex align-items-center gap-3">
+        <div class="page-title-icon" style="display:none;"><i class="fas fa-tag"></i></div>
+        <h1 class="h5 mb-0">Status de OS</h1>
+    </div>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="{% url 'ticketstatus_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Status

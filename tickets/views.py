@@ -22,7 +22,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils.text import slugify
 from django.db.utils import OperationalError, ProgrammingError
-from django.forms import inlineformset_factory
+from django.forms import inlineformset_factory, modelform_factory
 from .models import *
 from .forms import *
 from .api import TicketAPIView  # Re-export for URL compatibility
@@ -1421,11 +1421,96 @@ class EquipmentDeleteView(LoginRequiredMixin, DeleteView):
     model = Equipment
     template_name = 'cadastros/generic_confirm_delete.html'
     success_url = reverse_lazy('equipment_list')
-    
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('equipment_list')
         return context
+
+
+class EquipmentModalFormView(LoginRequiredMixin, View):
+    """
+    Criação/edição de Equipamento via modal (AJAX), sem sair da lista.
+    GET  -> retorna HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id para inserir/atualizar a linha na lista.
+    """
+    template_name = 'cadastros/equipment_form_modal_body.html'
+    form_class = modelform_factory(Equipment, fields=['name', 'description'])
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(Equipment, pk=pk) if pk else None
+        form = self.form_class(instance=instance)
+        return render(request, self.template_name, self._context(form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(Equipment, pk=pk) if pk else None
+        form = self.form_class(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.template_name, self._context(form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        equipment = form.save()
+        return JsonResponse({'status': 'success', 'equipment_id': equipment.id})
+
+    def _context(self, form, instance):
+        pk = instance.pk if instance else None
+        return {
+            'form': form,
+            'equipment': instance,
+            'form_action': reverse('equipment_modal_form_edit', args=[pk]) if pk else reverse('equipment_modal_form'),
+        }
+
+
+class EquipmentRowView(LoginRequiredMixin, View):
+    """Retorna o HTML de 1 linha da tabela de equipamentos (para inserir/atualizar via JS)."""
+    template_name = 'cadastros/_equipment_row.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        equipment = get_object_or_404(Equipment, pk=pk)
+        return render(request, self.template_name, {'item': equipment})
+
+
+class SimpleNameModalFormView(LoginRequiredMixin, View):
+    """
+    View genérica de criação/edição via modal para modelos de cadastro simples
+    com um único campo 'name' (Tipos de Chamados, Tipos de Problema, etc.).
+    Subclasses definem: model, row_template_name, modal_title_new/edit, modal_icon.
+    GET  -> HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id e o HTML da linha atualizada.
+    """
+    model = None
+    row_template_name = None
+    form_modal_template_name = 'cadastros/_simple_name_form_modal_body.html'
+    modal_title_new = "Novo item"
+    modal_title_edit = "Editar item"
+    modal_icon = "fa-tag"
+
+    def get_form_class(self):
+        return modelform_factory(self.model, fields=['name'])
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(self.model, pk=pk) if pk else None
+        form = self.get_form_class()(instance=instance)
+        return render(request, self.form_modal_template_name, self._context(request, form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(self.model, pk=pk) if pk else None
+        form = self.get_form_class()(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.form_modal_template_name, self._context(request, form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        obj = form.save()
+        row_html = render_to_string(self.row_template_name, {'item': obj}, request=request)
+        return JsonResponse({'status': 'success', 'id': obj.id, 'row_html': row_html})
+
+    def _context(self, request, form, instance):
+        return {
+            'form': form,
+            'instance': instance,
+            'modal_title': self.modal_title_edit if instance else self.modal_title_new,
+            'modal_icon': self.modal_icon,
+            'form_action': request.path,
+        }
+
 
 # OrderType Views (Now Managing TicketType as "Tipos de Chamados")
 class OrderTypeListView(LoginRequiredMixin, ListView):
@@ -1469,6 +1554,15 @@ class OrderTypeDeleteView(LoginRequiredMixin, DeleteView):
         context['back_url'] = reverse_lazy('ordertype_list')
         return context
 
+
+class OrderTypeModalFormView(SimpleNameModalFormView):
+    model = TicketType
+    row_template_name = 'cadastros/_ordertype_row.html'
+    modal_title_new = "Novo Tipo de Chamado"
+    modal_title_edit = "Editar Tipo de Chamado"
+    modal_icon = "fa-list"
+
+
 # ProblemType Views
 class ProblemTypeListView(LoginRequiredMixin, ListView):
     model = ProblemType
@@ -1510,6 +1604,15 @@ class ProblemTypeDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('problemtype_list')
         return context
+
+
+class ProblemTypeModalFormView(SimpleNameModalFormView):
+    model = ProblemType
+    row_template_name = 'cadastros/_problemtype_row.html'
+    modal_title_new = "Novo Tipo de Problema"
+    modal_title_edit = "Editar Tipo de Problema"
+    modal_icon = "fa-exclamation-circle"
+
 
 # Technician Views
 class TechnicianListView(LoginRequiredMixin, ListView):
@@ -1617,6 +1720,49 @@ class ResponsibleDeleteView(LoginRequiredMixin, DeleteView):
         return super().form_valid(form)
 
 
+class ResponsibleModalFormView(LoginRequiredMixin, View):
+    """
+    Criação/edição de Responsável via modal (AJAX), sem sair da lista.
+    GET  -> retorna HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id para inserir/atualizar a linha na lista.
+    """
+    template_name = 'cadastros/responsible_form_modal_body.html'
+    form_class = ResponsibleForm
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(User, pk=pk) if pk else None
+        form = self.form_class(instance=instance)
+        return render(request, self.template_name, self._context(form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(User, pk=pk) if pk else None
+        form = self.form_class(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.template_name, self._context(form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        user = form.save()
+        return JsonResponse({'status': 'success', 'responsible_id': user.id})
+
+    def _context(self, form, instance):
+        pk = instance.pk if instance else None
+        return {
+            'form': form,
+            'responsible': instance,
+            'form_action': reverse('responsible_modal_form_edit', args=[pk]) if pk else reverse('responsible_modal_form'),
+        }
+
+
+class ResponsibleRowView(LoginRequiredMixin, View):
+    """Retorna o HTML de 1 linha da tabela de responsáveis (para inserir/atualizar via JS)."""
+    template_name = 'cadastros/_responsible_row.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        responsible = get_object_or_404(
+            User.objects.select_related('profile', 'profile__fixed_client'), pk=pk
+        )
+        return render(request, self.template_name, {'item': responsible})
+
+
 class ContactClientListView(LoginRequiredMixin, ListView):
     model = ContactClient
     template_name = "cadastros/contactclient_list.html"
@@ -1669,6 +1815,48 @@ class ContactClientDeleteView(LoginRequiredMixin, DeleteView):
         return super().form_valid(form)
 
 
+class ContactClientModalFormView(LoginRequiredMixin, View):
+    """
+    Criação/edição de Contato do Cliente via modal (AJAX), sem sair da lista.
+    GET  -> retorna HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id para inserir/atualizar a linha na lista.
+    """
+    template_name = 'cadastros/contactclient_form_modal_body.html'
+    form_class = ContactClientForm
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(ContactClient, pk=pk) if pk else None
+        form = self.form_class(instance=instance)
+        return render(request, self.template_name, self._context(form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(ContactClient, pk=pk) if pk else None
+        form = self.form_class(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.template_name, self._context(form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        contact = form.save()
+        return JsonResponse({'status': 'success', 'contact_id': contact.id})
+
+    def _context(self, form, instance):
+        pk = instance.pk if instance else None
+        return {
+            'form': form,
+            'contact': instance,
+            'form_action': reverse('contactclient_modal_form_edit', args=[pk]) if pk else reverse('contactclient_modal_form'),
+            'hubs': ClientHub.objects.all().order_by('name').values('id', 'name', 'client_id'),
+        }
+
+
+class ContactClientRowView(LoginRequiredMixin, View):
+    """Retorna o HTML de 1 linha da tabela de contatos do cliente (para inserir/atualizar via JS)."""
+    template_name = 'cadastros/_contactclient_row.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        contact = get_object_or_404(ContactClient, pk=pk)
+        return render(request, self.template_name, {'item': contact})
+
+
 class ContactJumperListView(LoginRequiredMixin, ListView):
     model = ContactJumper
     template_name = "cadastros/contactjumper_list.html"
@@ -1719,6 +1907,48 @@ class ContactJumperDeleteView(LoginRequiredMixin, DeleteView):
     def form_valid(self, form):
         messages.success(self.request, "Contato JumperFour excluído com sucesso!")
         return super().form_valid(form)
+
+
+class ContactJumperModalFormView(LoginRequiredMixin, View):
+    """
+    Criação/edição de Contato JumperFour via modal (AJAX), sem sair da lista.
+    GET  -> retorna HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id para inserir/atualizar a linha na lista.
+    """
+    template_name = 'cadastros/contactjumper_form_modal_body.html'
+    form_class = ContactJumperForm
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(ContactJumper, pk=pk) if pk else None
+        form = self.form_class(instance=instance)
+        return render(request, self.template_name, self._context(form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(ContactJumper, pk=pk) if pk else None
+        form = self.form_class(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.template_name, self._context(form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        contact = form.save()
+        return JsonResponse({'status': 'success', 'contact_id': contact.id})
+
+    def _context(self, form, instance):
+        pk = instance.pk if instance else None
+        return {
+            'form': form,
+            'contact': instance,
+            'form_action': reverse('contactjumper_modal_form_edit', args=[pk]) if pk else reverse('contactjumper_modal_form'),
+        }
+
+
+class ContactJumperRowView(LoginRequiredMixin, View):
+    """Retorna o HTML de 1 linha da tabela de contatos JumperFour (para inserir/atualizar via JS)."""
+    template_name = 'cadastros/_contactjumper_row.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        contact = get_object_or_404(ContactJumper, pk=pk)
+        return render(request, self.template_name, {'item': contact})
+
 
 class TravelSegmentCreateView(LoginRequiredMixin, CreateView):
     model = TravelSegment
@@ -1878,6 +2108,48 @@ class SystemDeleteView(LoginRequiredMixin, DeleteView):
         context = super().get_context_data(**kwargs)
         context['back_url'] = reverse_lazy('system_list')
         return context
+
+
+class SystemModalFormView(LoginRequiredMixin, View):
+    """
+    Criação/edição de Sistema via modal (AJAX), sem sair da lista.
+    GET  -> retorna HTML do corpo da modal (form vazio ou preenchido, se pk informado).
+    POST -> salva e retorna JSON com o id para inserir/atualizar a linha na lista.
+    """
+    template_name = 'cadastros/system_form_modal_body.html'
+    form_class = modelform_factory(System, fields=['name', 'color', 'description'])
+
+    def get(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(System, pk=pk) if pk else None
+        form = self.form_class(instance=instance)
+        return render(request, self.template_name, self._context(form, instance))
+
+    def post(self, request, pk=None, *args, **kwargs):
+        instance = get_object_or_404(System, pk=pk) if pk else None
+        form = self.form_class(request.POST, instance=instance)
+        if not form.is_valid():
+            html = render_to_string(self.template_name, self._context(form, instance), request=request)
+            return JsonResponse({'status': 'error', 'html': html}, status=400)
+        system = form.save()
+        return JsonResponse({'status': 'success', 'system_id': system.id})
+
+    def _context(self, form, instance):
+        pk = instance.pk if instance else None
+        return {
+            'form': form,
+            'system': instance,
+            'form_action': reverse('system_modal_form_edit', args=[pk]) if pk else reverse('system_modal_form'),
+        }
+
+
+class SystemRowView(LoginRequiredMixin, View):
+    """Retorna o HTML de 1 linha da tabela de sistemas (para inserir/atualizar via JS)."""
+    template_name = 'cadastros/_system_row.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        system = get_object_or_404(System, pk=pk)
+        return render(request, self.template_name, {'item': system})
+
 
 # TicketStatus Views
 class TicketStatusListView(LoginRequiredMixin, ListView):

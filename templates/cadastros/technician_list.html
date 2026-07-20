@@ -2,7 +2,10 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Técnicos</h1>
+    <div class="d-flex align-items-center gap-3">
+        <div class="page-title-icon" style="display:none;"><i class="fas fa-user-cog"></i></div>
+        <h1 class="h2 mb-0">Técnicos</h1>
+    </div>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="{% url 'technician_create' %}" class="btn btn-primary-custom">
             <i class="fas fa-plus"></i> Novo Técnico
@@ -64,7 +67,7 @@
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="technicianDetailModalLabel">Detalhes do Técnico</h5>
+                <h5 class="modal-title" id="technicianDetailModalLabel"><i class="fas fa-user-cog me-2 jf-modal-icon-accent"></i>Detalhes do Técnico</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">

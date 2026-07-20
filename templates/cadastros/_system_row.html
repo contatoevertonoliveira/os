@@ -1,0 +1,16 @@
+<tr data-id="{{ item.id }}">
+    <td class="fw-bold">{{ item.name }}</td>
+    <td>{{ item.color }}</td>
+    <td><span class="badge" style="background-color: {{ item.color }}" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ item.description|default:'Sem descrição' }}">{{ item.name }}</span></td>
+    <td>{{ item.description|default:"-" }}</td>
+    <td>
+        <a href="#" class="btn btn-sm btn-outline-primary" title="Editar" onclick="event.preventDefault(); openSystemEditModal({{ item.id }});">
+            <i class="fas fa-edit"></i>
+        </a>
+        {% if request.user.profile.role in 'admin,super_admin' %}
+        <button type="button" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="confirmDelete('{% url 'system_delete' item.id %}', '{{ item.name|escapejs }}')">
+            <i class="fas fa-trash"></i>
+        </button>
+        {% endif %}
+    </td>
+</tr>

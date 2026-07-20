@@ -10,14 +10,14 @@ from .views import (
     ticket_status_html,
     TicketPDFView, TicketPDFViewerView, TicketsDailyReportViewerView, TicketPDFStatusView, TicketsDailyReportPDFStatusView,
     ClientListView, ClientCreateView, ClientUpdateView, ClientDeleteView, ClientSearchView, client_quick_update,
-    EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView,
-    OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView,
-    ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView,
+    EquipmentListView, EquipmentCreateView, EquipmentUpdateView, EquipmentDeleteView, EquipmentModalFormView, EquipmentRowView,
+    OrderTypeListView, OrderTypeCreateView, OrderTypeUpdateView, OrderTypeDeleteView, OrderTypeModalFormView,
+    ProblemTypeListView, ProblemTypeCreateView, ProblemTypeUpdateView, ProblemTypeDeleteView, ProblemTypeModalFormView,
     TechnicianListView, TechnicianCreateView, TechnicianUpdateView, TechnicianDeleteView,
-    ResponsibleListView, ResponsibleCreateView, ResponsibleUpdateView, ResponsibleDeleteView,
+    ResponsibleListView, ResponsibleCreateView, ResponsibleUpdateView, ResponsibleDeleteView, ResponsibleModalFormView, ResponsibleRowView,
     TechnicianTravelListView, TechnicianTravelDetailView, TechnicianTravelCreateView, TechnicianTravelUpdateView, TechnicianTravelDeleteView, TechnicianTravelCompleteView,
     TravelSegmentCreateView, TravelSegmentUpdateView, TravelSegmentDeleteView,
-    SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView,
+    SystemListView, SystemCreateView, SystemUpdateView, SystemDeleteView, SystemModalFormView, SystemRowView,
     TicketStatusListView, TicketStatusCreateView, TicketStatusUpdateView, TicketStatusDeleteView,
     UserListView, UserCreateView, UserUpdateView, UserDeleteView,
     UserAccessUpdateView,
@@ -48,8 +48,8 @@ from .views import (
     ticket_delete_request,
     ticket_delete_approve,
     ticket_delete_reject,
-    ContactClientListView, ContactClientCreateView, ContactClientUpdateView, ContactClientDeleteView,
-    ContactJumperListView, ContactJumperCreateView, ContactJumperUpdateView, ContactJumperDeleteView
+    ContactClientListView, ContactClientCreateView, ContactClientUpdateView, ContactClientDeleteView, ContactClientModalFormView, ContactClientRowView,
+    ContactJumperListView, ContactJumperCreateView, ContactJumperUpdateView, ContactJumperDeleteView, ContactJumperModalFormView, ContactJumperRowView
 )
 from .api import TicketAPIView, ClientAPIView, EquipmentAPIView
 
@@ -168,16 +168,23 @@ urlpatterns = [
 
     path('equipments/', EquipmentListView.as_view(), name='equipment_list'),
     path('equipments/new/', EquipmentCreateView.as_view(), name='equipment_create'),
+    path('equipments/modal/', EquipmentModalFormView.as_view(), name='equipment_modal_form'),
+    path('equipments/modal/<int:pk>/', EquipmentModalFormView.as_view(), name='equipment_modal_form_edit'),
     path('equipments/<int:pk>/edit/', EquipmentUpdateView.as_view(), name='equipment_update'),
     path('equipments/<int:pk>/delete/', EquipmentDeleteView.as_view(), name='equipment_delete'),
+    path('equipments/<int:pk>/row/', EquipmentRowView.as_view(), name='equipment_row'),
 
     path('ordertypes/', OrderTypeListView.as_view(), name='ordertype_list'),
     path('ordertypes/new/', OrderTypeCreateView.as_view(), name='ordertype_create'),
+    path('ordertypes/modal/', OrderTypeModalFormView.as_view(), name='ordertype_modal_form'),
+    path('ordertypes/modal/<int:pk>/', OrderTypeModalFormView.as_view(), name='ordertype_modal_form_edit'),
     path('ordertypes/<int:pk>/edit/', OrderTypeUpdateView.as_view(), name='ordertype_update'),
     path('ordertypes/<int:pk>/delete/', OrderTypeDeleteView.as_view(), name='ordertype_delete'),
 
     path('problemtypes/', ProblemTypeListView.as_view(), name='problemtype_list'),
     path('problemtypes/new/', ProblemTypeCreateView.as_view(), name='problemtype_create'),
+    path('problemtypes/modal/', ProblemTypeModalFormView.as_view(), name='problemtype_modal_form'),
+    path('problemtypes/modal/<int:pk>/', ProblemTypeModalFormView.as_view(), name='problemtype_modal_form_edit'),
     path('problemtypes/<int:pk>/edit/', ProblemTypeUpdateView.as_view(), name='problemtype_update'),
     path('problemtypes/<int:pk>/delete/', ProblemTypeDeleteView.as_view(), name='problemtype_delete'),
 
@@ -188,18 +195,27 @@ urlpatterns = [
 
     path('responsibles/', ResponsibleListView.as_view(), name='responsible_list'),
     path('responsibles/new/', ResponsibleCreateView.as_view(), name='responsible_create'),
+    path('responsibles/modal/', ResponsibleModalFormView.as_view(), name='responsible_modal_form'),
+    path('responsibles/modal/<int:pk>/', ResponsibleModalFormView.as_view(), name='responsible_modal_form_edit'),
     path('responsibles/<int:pk>/edit/', ResponsibleUpdateView.as_view(), name='responsible_update'),
     path('responsibles/<int:pk>/delete/', ResponsibleDeleteView.as_view(), name='responsible_delete'),
+    path('responsibles/<int:pk>/row/', ResponsibleRowView.as_view(), name='responsible_row'),
 
     path('contacts/clients/', ContactClientListView.as_view(), name='contactclient_list'),
     path('contacts/clients/new/', ContactClientCreateView.as_view(), name='contactclient_create'),
+    path('contacts/clients/modal/', ContactClientModalFormView.as_view(), name='contactclient_modal_form'),
+    path('contacts/clients/modal/<int:pk>/', ContactClientModalFormView.as_view(), name='contactclient_modal_form_edit'),
     path('contacts/clients/<int:pk>/edit/', ContactClientUpdateView.as_view(), name='contactclient_update'),
     path('contacts/clients/<int:pk>/delete/', ContactClientDeleteView.as_view(), name='contactclient_delete'),
+    path('contacts/clients/<int:pk>/row/', ContactClientRowView.as_view(), name='contactclient_row'),
 
     path('contacts/jumper/', ContactJumperListView.as_view(), name='contactjumper_list'),
     path('contacts/jumper/new/', ContactJumperCreateView.as_view(), name='contactjumper_create'),
+    path('contacts/jumper/modal/', ContactJumperModalFormView.as_view(), name='contactjumper_modal_form'),
+    path('contacts/jumper/modal/<int:pk>/', ContactJumperModalFormView.as_view(), name='contactjumper_modal_form_edit'),
     path('contacts/jumper/<int:pk>/edit/', ContactJumperUpdateView.as_view(), name='contactjumper_update'),
     path('contacts/jumper/<int:pk>/delete/', ContactJumperDeleteView.as_view(), name='contactjumper_delete'),
+    path('contacts/jumper/<int:pk>/row/', ContactJumperRowView.as_view(), name='contactjumper_row'),
 
     path('travels/', TechnicianTravelListView.as_view(), name='travel_list'),
     path('travels/<int:pk>/', TechnicianTravelDetailView.as_view(), name='travel_detail'),
@@ -215,8 +231,11 @@ urlpatterns = [
 
         path('systems/', SystemListView.as_view(), name='system_list'),
     path('systems/new/', SystemCreateView.as_view(), name='system_create'),
+    path('systems/modal/', SystemModalFormView.as_view(), name='system_modal_form'),
+    path('systems/modal/<int:pk>/', SystemModalFormView.as_view(), name='system_modal_form_edit'),
     path('systems/<int:pk>/edit/', SystemUpdateView.as_view(), name='system_update'),
     path('systems/<int:pk>/delete/', SystemDeleteView.as_view(), name='system_delete'),
+    path('systems/<int:pk>/row/', SystemRowView.as_view(), name='system_row'),
 
     path('ticketstatus/', TicketStatusListView.as_view(), name='ticketstatus_list'),
     path('ticketstatus/new/', TicketStatusCreateView.as_view(), name='ticketstatus_create'),

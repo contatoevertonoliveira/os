@@ -125,6 +125,12 @@
     .card-chart-badge-wrapper {
         text-align: center;
         padding: 0.5rem 0;
+        flex-basis: 100%;
+        order: 3;
+    }
+
+    .chart-header > button {
+        order: 2;
     }
 
     .chart-body {
@@ -134,9 +140,12 @@
 </style>
 
 <div class="dashboard-header d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center">
-    <div>
-        <h1 class="h2 fw-bold text-dark mb-1">Dashboard Executivo</h1>
-        <p class="text-muted mb-0">Visão geral dos indicadores de performance</p>
+    <div class="d-flex align-items-center gap-3">
+        <div class="dash-title-icon" style="display:none;"><i class="fas fa-chart-line"></i></div>
+        <div>
+            <h1 class="h2 fw-bold text-dark mb-1">Dashboard Executivo</h1>
+            <p class="text-muted mb-0">Visão geral dos indicadores de performance</p>
+        </div>
     </div>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
@@ -148,7 +157,7 @@
             </button>
         </div>
         <!-- Filtros: Período, Cliente, Colaborador - Inline -->
-        <div class="d-flex align-items-center gap-2" style="flex-wrap: nowrap;">
+        <div class="d-flex align-items-center gap-2 dash-filters" style="flex-wrap: nowrap;">
             <!-- Período -->
             <div class="dropdown">
                 <button type="button" class="btn btn-sm btn-dark shadow-sm dropdown-toggle" id="periodDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -171,7 +180,7 @@
             </div>
 
             <!-- Separador -->
-            <span class="text-muted">|</span>
+            <span class="text-muted dash-filter-sep">|</span>
 
             <!-- Filtro de Cliente -->
             <select id="clientFilter" class="form-select form-select-sm" style="width: 200px; flex-shrink: 0;" onchange="applyFilters()">
@@ -265,81 +274,90 @@ function applyFilters() {
 <div class="row g-4 mb-4">
     <div class="col-md-4">
         <div class="card chart-card">
-            <div class="card-header chart-header">
-                <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
-                <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status')"><i class="fas fa-expand"></i></button>
-            </div>
-            {% if current_client_name or period_label %}
-                <div class="card-chart-badge-wrapper">
-                    {% if period_label %}
-                        <span class="filter-badge-period">
-                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
-                        </span>
+            <div class="chart-vtitle" style="display:none;"><i class="fas fa-chart-pie"></i><span>Distribuição de Status</span></div>
+            <div class="chart-main">
+                <div class="card-header chart-header">
+                    <span><i class="fas fa-chart-pie me-2 text-primary"></i>Distribuição de Status</span>
+                    {% if current_client_name or period_label %}
+                        <div class="card-chart-badge-wrapper">
+                            {% if period_label %}
+                                <span class="filter-badge-period">
+                                    <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                                </span>
+                            {% endif %}
+                            {% if current_client_name %}
+                                <span class="filter-badge">
+                                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                                </span>
+                            {% endif %}
+                        </div>
                     {% endif %}
-                    {% if current_client_name %}
-                        <span class="filter-badge">
-                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                        </span>
-                    {% endif %}
+                    <button class="btn btn-sm btn-link text-muted" onclick="expandChart('statusChart', 'Distribuição de Status', this.closest('.chart-card'))"><i class="fas fa-expand"></i></button>
                 </div>
-            {% endif %}
-            <div class="card-body chart-body">
-                <div style="height: 300px; position: relative;">
-                    <canvas id="statusChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card chart-card">
-            <div class="card-header chart-header">
-                <span><i class="fas fa-server me-2 text-info"></i>Tickets por Sistema</span>
-                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
-            </div>
-            {% if current_client_name or period_label %}
-                <div class="card-chart-badge-wrapper">
-                    {% if period_label %}
-                        <span class="filter-badge-period">
-                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
-                        </span>
-                    {% endif %}
-                    {% if current_client_name %}
-                        <span class="filter-badge">
-                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                        </span>
-                    {% endif %}
-                </div>
-            {% endif %}
-            <div class="card-body chart-body">
-                <div style="height: 300px; position: relative;">
-                    <canvas id="systemChart"></canvas>
+                <div class="card-body chart-body">
+                    <div class="chart-canvas-wrap" style="height: 300px; position: relative;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card chart-card">
-            <div class="card-header chart-header">
-                <span><i class="fas fa-chart-bar me-2 text-primary"></i>OS por Cliente (Mês)</span>
-                <button class="btn btn-sm btn-link text-muted"><i class="fas fa-ellipsis-v"></i></button>
-            </div>
-            {% if current_client_name or period_label %}
-                <div class="card-chart-badge-wrapper">
-                    {% if period_label %}
-                        <span class="filter-badge-period">
-                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
-                        </span>
+            <div class="chart-vtitle" style="display:none;"><i class="fas fa-server"></i><span>Tickets por Sistema</span></div>
+            <div class="chart-main">
+                <div class="card-header chart-header">
+                    <span><i class="fas fa-server me-2 text-info"></i>Tickets por Sistema</span>
+                    {% if current_client_name or period_label %}
+                        <div class="card-chart-badge-wrapper">
+                            {% if period_label %}
+                                <span class="filter-badge-period">
+                                    <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                                </span>
+                            {% endif %}
+                            {% if current_client_name %}
+                                <span class="filter-badge">
+                                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                                </span>
+                            {% endif %}
+                        </div>
                     {% endif %}
-                    {% if current_client_name %}
-                        <span class="filter-badge">
-                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                        </span>
-                    {% endif %}
+                    <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemChart', 'Tickets por Sistema', this.closest('.chart-card'))"><i class="fas fa-expand"></i></button>
                 </div>
-            {% endif %}
-            <div class="card-body chart-body">
-                 <div style="height: 300px; position: relative;">
-                    <canvas id="techChart"></canvas>
+                <div class="card-body chart-body">
+                    <div class="chart-canvas-wrap" style="height: 300px; position: relative;">
+                        <canvas id="systemChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card chart-card">
+            <div class="chart-vtitle" style="display:none;"><i class="fas fa-chart-bar"></i><span>OS por Cliente (Mês)</span></div>
+            <div class="chart-main">
+                <div class="card-header chart-header">
+                    <span><i class="fas fa-chart-bar me-2 text-primary"></i>OS por Cliente (Mês)</span>
+                    {% if current_client_name or period_label %}
+                        <div class="card-chart-badge-wrapper">
+                            {% if period_label %}
+                                <span class="filter-badge-period">
+                                    <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                                </span>
+                            {% endif %}
+                            {% if current_client_name %}
+                                <span class="filter-badge">
+                                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                                </span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    <button class="btn btn-sm btn-link text-muted" onclick="expandChart('techChart', 'OS por Cliente (Mês)', this.closest('.chart-card'))"><i class="fas fa-expand"></i></button>
+                </div>
+                <div class="card-body chart-body">
+                    <div class="chart-canvas-wrap" style="height: 300px; position: relative;">
+                        <canvas id="techChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -350,27 +368,30 @@ function applyFilters() {
 <div class="row g-4 mb-4">
     <div class="col-12">
         <div class="card chart-card">
-            <div class="card-header chart-header">
-                <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
-                <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas')"><i class="fas fa-expand"></i></button>
-            </div>
-            {% if current_client_name or period_label %}
-                <div class="card-chart-badge-wrapper">
-                    {% if period_label %}
-                        <span class="filter-badge-period">
-                            <i class="fas fa-calendar me-1"></i>{{ period_label }}
-                        </span>
+            <div class="chart-vtitle" style="display:none;"><i class="fas fa-heartbeat"></i><span>Saúde dos Sistemas</span></div>
+            <div class="chart-main">
+                <div class="card-header chart-header">
+                    <span><i class="fas fa-heartbeat me-2 text-danger"></i>Saúde dos Sistemas (Resolvidos vs Pendentes)</span>
+                    {% if current_client_name or period_label %}
+                        <div class="card-chart-badge-wrapper">
+                            {% if period_label %}
+                                <span class="filter-badge-period">
+                                    <i class="fas fa-calendar me-1"></i>{{ period_label }}
+                                </span>
+                            {% endif %}
+                            {% if current_client_name %}
+                                <span class="filter-badge">
+                                    <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
+                                </span>
+                            {% endif %}
+                        </div>
                     {% endif %}
-                    {% if current_client_name %}
-                        <span class="filter-badge">
-                            <i class="fas fa-filter me-1"></i>Cliente: {{ current_client_name }}
-                        </span>
-                    {% endif %}
+                    <button class="btn btn-sm btn-link text-muted" onclick="expandChart('systemHealthChart', 'Saúde dos Sistemas', this.closest('.chart-card'))"><i class="fas fa-expand"></i></button>
                 </div>
-            {% endif %}
-            <div class="card-body chart-body">
-                 <div style="height: 350px; position: relative;">
-                    <canvas id="systemHealthChart"></canvas>
+                <div class="card-body chart-body">
+                    <div class="chart-canvas-wrap" style="height: 350px; position: relative;">
+                        <canvas id="systemHealthChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -485,11 +506,24 @@ function applyFilters() {
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold text-dark" id="expandedChartTitle">Detalhes do Gráfico</h5>
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-1" id="expandedChartTitle">Detalhes do Gráfico</h5>
+                    <div id="expandedChartSubtitle" class="d-flex gap-2"></div>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4" style="height: 70vh;">
-                <canvas id="expandedChartCanvas"></canvas>
+            <div class="modal-body p-4" style="height: 75vh;">
+                <div class="row h-100 g-4">
+                    <div class="col-lg-8 h-100">
+                        <canvas id="expandedChartCanvas"></canvas>
+                    </div>
+                    <div class="col-lg-4 h-100 d-flex flex-column border-start ps-lg-4">
+                        <h6 class="text-uppercase small fw-bold text-muted mb-3">
+                            <i class="fas fa-list-ul me-1"></i>Detalhamento
+                        </h6>
+                        <div id="expandedChartBreakdown" class="flex-grow-1" style="overflow-y: auto;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -501,41 +535,74 @@ function applyFilters() {
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     // Configuration for nicer charts
-    Chart.defaults.font.family = "'Inter', 'Segoe UI', sans-serif";
-    Chart.defaults.color = '#6c757d';
+    function getJfTheme() {
+        return document.documentElement.getAttribute('data-theme') === 'modern' ? 'modern' : 'classic';
+    }
+
+    // Paletas: "classic" preserva o visual atual; "modern" segue o Manual de Marca JumperFour
+    const jfChartPalettes = {
+        classic: {
+            status: { open: ['#4facfe', '#00f2fe'], pending: ['#f6d365', '#fda085'], danger: '#ff6b6b', finished: ['#43e97b', '#38f9d7'], other: '#95a5a6' },
+            client: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#858796', '#6610f2', '#fd7e14', '#20c997', '#e83e8c'],
+            sysHealth: { overdue: '#dc3545', open: '#ffc107', resolved: '#198754' },
+            font: "'Inter', 'Segoe UI', sans-serif",
+            textColor: '#6c757d'
+        },
+        modern: {
+            status: { open: ['#032b34', '#0b4353'], pending: ['#f5b942', '#d99420'], danger: '#c0392b', finished: ['#338f5c', '#275f40'], other: '#6b7a7d' },
+            client: ['#338f5c', '#a6e17d', '#2a3842', '#0b4353', '#f5b942', '#395a31', '#5c8ea8', '#8ccb5e', '#c0392b', '#6b7a7d'],
+            sysHealth: { overdue: '#c0392b', open: '#f5b942', resolved: '#338f5c' },
+            font: "'Sora', 'Segoe UI', sans-serif",
+            textColor: '#5c7175'
+        }
+    };
+
+    let statusChart, systemChart, clientChart, sysHealthChart;
+
+    function renderDashboardCharts(theme) {
+    const palette = jfChartPalettes[theme] || jfChartPalettes.classic;
+    Chart.defaults.font.family = palette.font;
+    Chart.defaults.color = palette.textColor;
+
+    [statusChart, systemChart, clientChart, sysHealthChart].forEach(function(c) {
+        if (c) c.destroy();
+    });
 
     // Status Chart (Doughnut with 3D feel)
     const ctxStatus = document.getElementById('statusChart').getContext('2d');
-    
+
     // Create gradients for status chart
     const gradientOpen = ctxStatus.createLinearGradient(0, 0, 0, 400);
-    gradientOpen.addColorStop(0, '#4facfe');
-    gradientOpen.addColorStop(1, '#00f2fe');
+    gradientOpen.addColorStop(0, palette.status.open[0]);
+    gradientOpen.addColorStop(1, palette.status.open[1]);
 
     const gradientPending = ctxStatus.createLinearGradient(0, 0, 0, 400);
-    gradientPending.addColorStop(0, '#f6d365');
-    gradientPending.addColorStop(1, '#fda085');
+    gradientPending.addColorStop(0, palette.status.pending[0]);
+    gradientPending.addColorStop(1, palette.status.pending[1]);
 
     const gradientFinished = ctxStatus.createLinearGradient(0, 0, 0, 400);
-    gradientFinished.addColorStop(0, '#43e97b');
-    gradientFinished.addColorStop(1, '#38f9d7');
+    gradientFinished.addColorStop(0, palette.status.finished[0]);
+    gradientFinished.addColorStop(1, palette.status.finished[1]);
 
-    const gradientOther = ctxStatus.createLinearGradient(0, 0, 0, 400);
-    gradientOther.addColorStop(0, '#a18cd1');
-    gradientOther.addColorStop(1, '#fbc2eb');
-
-    const statusChart = new Chart(ctxStatus, {
+    statusChart = new Chart(ctxStatus, {
         type: 'doughnut',
         data: {
             labels: {{ chart_status_labels|safe }},
             datasets: [{
                 data: {{ chart_status_data|safe }},
                 backgroundColor: [
-                    gradientOpen,     // Open (Blueish)
-                    gradientPending,  // Pending (Yellow/Orange)
-                    '#ff6b6b',        // Danger/Other
-                    gradientFinished, // Finished (Greenish)
-                    '#95a5a6'
+                    gradientOpen,     // Open
+                    gradientPending,  // Pending
+                    palette.status.danger,
+                    gradientFinished, // Finished
+                    palette.status.other
+                ],
+                _legendColors: [
+                    palette.status.open[0],
+                    palette.status.pending[0],
+                    palette.status.danger,
+                    palette.status.finished[0],
+                    palette.status.other
                 ],
                 borderWidth: 0,
                 hoverOffset: 15,
@@ -551,12 +618,10 @@ function applyFilters() {
             cutout: '65%',
             plugins: {
                 legend: {
-                    position: 'right',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 20,
-                        font: { size: 12, weight: 600 }
-                    }
+                    position: theme === 'modern' ? 'bottom' : 'right',
+                    labels: theme === 'modern'
+                        ? { usePointStyle: true, boxWidth: 8, padding: 12, font: { size: 10, weight: 500 }, color: palette.textColor }
+                        : { usePointStyle: true, padding: 20, font: { size: 12, weight: 600 } }
                 },
                 tooltip: {
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -631,8 +696,8 @@ function applyFilters() {
 
     // System Chart (Polar Area)
     const ctxSystem = document.getElementById('systemChart').getContext('2d');
-    
-    const systemChart = new Chart(ctxSystem, {
+
+    systemChart = new Chart(ctxSystem, {
         type: 'polarArea',
         data: {
             labels: {{ chart_system_labels|safe }},
@@ -655,7 +720,9 @@ function applyFilters() {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { usePointStyle: true, padding: 15, font: { size: 11 } }
+                    labels: theme === 'modern'
+                        ? { usePointStyle: true, boxWidth: 8, padding: 10, font: { size: 10, weight: 500 }, color: palette.textColor }
+                        : { usePointStyle: true, padding: 15, font: { size: 11 } }
                 },
                 tooltip: {
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -707,12 +774,9 @@ function applyFilters() {
     // Produtividade Recente (Barras por Cliente)
     const ctxClient = document.getElementById('techChart').getContext('2d');
 
-    const clientColors = [
-        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
-        '#858796', '#6610f2', '#fd7e14', '#20c997', '#e83e8c',
-    ];
+    const clientColors = palette.client;
 
-    const clientChart = new Chart(ctxClient, {
+    clientChart = new Chart(ctxClient, {
         type: 'bar',
         data: {
             labels: {{ chart_client_labels|safe }},
@@ -783,8 +847,8 @@ function applyFilters() {
 
     // System Health Chart (Stacked Bar)
     const ctxSysHealth = document.getElementById('systemHealthChart').getContext('2d');
-    
-    const sysHealthChart = new Chart(ctxSysHealth, {
+
+    sysHealthChart = new Chart(ctxSysHealth, {
         type: 'bar',
         data: {
             labels: {{ chart_sys_health_labels|safe }},
@@ -792,21 +856,21 @@ function applyFilters() {
                 {
                     label: 'Vencidas',
                     data: {{ chart_sys_overdue|safe }},
-                    backgroundColor: '#dc3545', // Vermelho - vencidas
+                    backgroundColor: palette.sysHealth.overdue,
                     borderRadius: 4,
                     maxBarThickness: 60,
                 },
                 {
                     label: 'Em Aberto',
                     data: {{ chart_sys_open|safe }},
-                    backgroundColor: '#ffc107', // Amarelo - em aberto
+                    backgroundColor: palette.sysHealth.open,
                     borderRadius: 4,
                     maxBarThickness: 60,
                 },
                 {
                     label: 'Resolvidos',
                     data: {{ chart_sys_resolved|safe }},
-                    backgroundColor: '#198754', // Verde - resolvidos
+                    backgroundColor: palette.sysHealth.resolved,
                     borderRadius: 4,
                     maxBarThickness: 60,
                 }
@@ -827,7 +891,9 @@ function applyFilters() {
                 }
             },
             plugins: {
-                legend: { position: 'top' },
+                legend: theme === 'modern'
+                    ? { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 12, font: { size: 10, weight: 500 }, color: palette.textColor } }
+                    : { position: 'top' },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
@@ -896,6 +962,13 @@ function applyFilters() {
             }
         }]
     });
+    }
+
+    renderDashboardCharts(getJfTheme());
+
+    document.addEventListener('jf:theme-change', function(e) {
+        renderDashboardCharts(e.detail.theme);
+    });
 
     // Auto Refresh Logic
     const lastUpdatedEl = document.getElementById('lastUpdated');
@@ -937,20 +1010,89 @@ function applyFilters() {
     // Generic Chart Expansion Logic
     let expandedChartInstance = null;
 
-    function expandChart(originalChartId, title) {
+    function resolveSwatchColor(dataset, index) {
+        if (Array.isArray(dataset._legendColors)) return dataset._legendColors[index] || '#6c757d';
+        const bg = dataset.backgroundColor;
+        const c = Array.isArray(bg) ? bg[index] : bg;
+        return (typeof c === 'string') ? c : '#6c757d';
+    }
+
+    function buildChartBreakdown(chart) {
+        const labels = chart.data.labels || [];
+        const datasets = chart.data.datasets || [];
+        if (!labels.length || !datasets.length) {
+            return '<p class="text-muted small">Sem dados para detalhar.</p>';
+        }
+
+        // Um único dataset (rosca, polar, barras simples): lista com barra de proporção
+        if (datasets.length === 1) {
+            const data = datasets[0].data;
+            const total = data.reduce((a, b) => a + (Number(b) || 0), 0);
+            let html = '<div class="d-flex flex-column gap-2">';
+            labels.forEach((label, i) => {
+                const value = Number(data[i]) || 0;
+                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                const color = resolveSwatchColor(datasets[0], i);
+                html += `
+                    <div class="p-2 rounded-3" style="background: rgba(0,0,0,0.03);">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="d-flex align-items-center gap-2 small fw-semibold text-truncate">
+                                <span style="width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block;"></span>
+                                <span class="text-truncate">${label}</span>
+                            </span>
+                            <span class="fw-bold small">${value}</span>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar" style="width:${pct}%; background-color:${color};"></div>
+                        </div>
+                        <div class="text-end text-muted" style="font-size:0.7rem;">${pct}%</div>
+                    </div>`;
+            });
+            html += `</div><hr class="my-3"><div class="d-flex justify-content-between fw-bold px-1"><span>Total</span><span>${total}</span></div>`;
+            return html;
+        }
+
+        // Múltiplos datasets (ex.: Saúde dos Sistemas): tabela por sistema
+        let html = '<div class="table-responsive"><table class="table table-sm align-middle">';
+        html += '<thead><tr><th>Sistema</th>';
+        datasets.forEach((ds) => { html += `<th class="text-end text-nowrap">${ds.label}</th>`; });
+        html += '<th class="text-end">Total</th></tr></thead><tbody>';
+        labels.forEach((label, i) => {
+            let rowTotal = 0;
+            html += `<tr><td class="small">${label}</td>`;
+            datasets.forEach((ds) => {
+                const v = Number(ds.data[i]) || 0;
+                rowTotal += v;
+                html += `<td class="text-end small">${v}</td>`;
+            });
+            html += `<td class="text-end small fw-bold">${rowTotal}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function expandChart(originalChartId, title, cardEl) {
         const modalEl = document.getElementById('chartExpandModal');
         const modal = new bootstrap.Modal(modalEl);
-        
+
         // Update Title
         document.getElementById('expandedChartTitle').textContent = title;
-        
+
+        // Badges de filtro (período/cliente) copiadas do card de origem
+        const subtitleEl = document.getElementById('expandedChartSubtitle');
+        subtitleEl.innerHTML = '';
+        if (cardEl) {
+            const badgeWrapper = cardEl.querySelector('.card-chart-badge-wrapper');
+            if (badgeWrapper) subtitleEl.innerHTML = badgeWrapper.innerHTML;
+        }
+
         // Get original chart
         let originalChart;
         if (originalChartId === 'statusChart') originalChart = statusChart;
         else if (originalChartId === 'systemChart') originalChart = systemChart;
         else if (originalChartId === 'techChart') originalChart = clientChart;
         else if (originalChartId === 'systemHealthChart') originalChart = sysHealthChart;
-        
+
         if (!originalChart) return;
 
         // Clean up previous instance
@@ -960,13 +1102,13 @@ function applyFilters() {
 
         // Clone config carefully to preserve functions and objects (like Images)
         const originalConfig = originalChart.config;
-        
+
         // Clone Data
         const newData = {
             labels: originalConfig.data.labels,
             datasets: originalConfig.data.datasets.map(d => ({...d})) // Shallow copy datasets to preserve Image objects
         };
-        
+
         // Clone Options (Deep-ish copy to avoid mutating original)
         const newOptions = {
              ...originalConfig.options,
@@ -986,12 +1128,23 @@ function applyFilters() {
             data: newData,
             options: newOptions
         };
-        
+
         // Render new chart
         const ctx = document.getElementById('expandedChartCanvas').getContext('2d');
         expandedChartInstance = new Chart(ctx, config);
 
+        document.getElementById('expandedChartBreakdown').innerHTML = buildChartBreakdown(originalChart);
+
         modal.show();
     }
+
+    // Duplo clique em qualquer card de gráfico abre o mesmo detalhamento do botão de expandir/opções
+    document.querySelectorAll('.chart-card').forEach(function(card) {
+        card.addEventListener('dblclick', function(e) {
+            if (e.target.closest('button, a, select, input')) return;
+            const actionBtn = card.querySelector('.chart-header button');
+            if (actionBtn) actionBtn.click();
+        });
+    });
 </script>
 {% endblock %}
