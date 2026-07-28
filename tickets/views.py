@@ -335,8 +335,36 @@ class TicketListView(LoginRequiredMixin, ListView):
     model = Ticket
     template_name = 'tickets/ticket_list.html'
     context_object_name = 'tickets'
+    paginate_by = 25
+
+    def get(self, request, *args, **kwargs):
+        # Deep-link (ex.: notificações, redirecionamento de /tickets/<pk>/) abre uma OS
+        # específica via ?open=<id>. Como a lista agora é paginada, se essa OS não
+        # estiver na página 1 o JS não a encontraria no DOM. Descobrimos em qual
+        # página ela cai (respeitando filtros/ordenação atuais) e redirecionamos.
+        open_id = request.GET.get('open')
+        if open_id and not request.GET.get('page'):
+            try:
+                open_id_int = int(open_id)
+            except (TypeError, ValueError):
+                open_id_int = None
+            if open_id_int is not None:
+                base_qs = self.get_queryset()
+                if isinstance(base_qs, list):
+                    ids = [t.id for t in base_qs]
+                else:
+                    ids = list(base_qs.values_list('id', flat=True))
+                if open_id_int in ids:
+                    page_num = ids.index(open_id_int) // self.paginate_by + 1
+                    if page_num > 1:
+                        query = request.GET.copy()
+                        query['page'] = str(page_num)
+                        return redirect(f"{request.path}?{query.urlencode()}")
+        return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
+        if hasattr(self, '_cached_queryset'):
+            return self._cached_queryset
         queryset = (
             Ticket.objects.all()
             .select_related(
@@ -473,10 +501,15 @@ class TicketListView(LoginRequiredMixin, ListView):
         queryset = queryset.order_by('status_order', '-updated_at')
 
         from .models import TicketListOrder
-        return TicketListOrder.apply_saved_order(self.request.user, queryset)
+        self._cached_queryset = TicketListOrder.apply_saved_order(self.request.user, queryset)
+        return self._cached_queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        # Preserva todos os filtros atuais (menos "page") nos links de paginação
+        qs_params = self.request.GET.copy()
+        qs_params.pop('page', None)
+        context['querystring'] = qs_params.urlencode()
         # Context for filters
         context['ticket_types'] = TicketType.objects.all().order_by('name')
         context['status_list'] = TicketStatus.objects.filter(is_active=True).order_by('order', 'name')

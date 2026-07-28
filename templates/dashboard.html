@@ -140,6 +140,7 @@
 </style>
 
 <div class="dashboard-header d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center">
+    <div class="dashboard-header-decor"></div>
     <div class="d-flex align-items-center gap-3">
         <div class="dash-title-icon" style="display:none;"><i class="fas fa-chart-line"></i></div>
         <div>
@@ -1126,7 +1127,8 @@ function applyFilters() {
         const config = {
             type: originalConfig.type,
             data: newData,
-            options: newOptions
+            options: newOptions,
+            plugins: originalConfig.plugins || []
         };
 
         // Render new chart

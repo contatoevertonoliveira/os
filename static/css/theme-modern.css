@@ -343,10 +343,22 @@ html[data-theme="modern"] .dashboard-header {
     background: var(--jf-surface);
     border: 1px solid var(--jf-border);
     position: relative;
-    overflow: hidden;
+    z-index: 5;
 }
 
-html[data-theme="modern"] .dashboard-header::before {
+/* Camada decorativa isolada: só ela recorta (overflow: hidden), assim o
+   header em si não corta dropdowns (ex.: filtro de período) que precisem
+   ultrapassar sua borda inferior. */
+html[data-theme="modern"] .dashboard-header-decor {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+}
+
+html[data-theme="modern"] .dashboard-header-decor::before {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0;
@@ -354,7 +366,7 @@ html[data-theme="modern"] .dashboard-header::before {
     background: linear-gradient(90deg, var(--jf-navy) 0%, var(--jf-lime) 45%, transparent 85%);
 }
 
-html[data-theme="modern"] .dashboard-header::after {
+html[data-theme="modern"] .dashboard-header-decor::after {
     content: '';
     position: absolute;
     top: -40px;
