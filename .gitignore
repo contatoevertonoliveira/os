@@ -7,3 +7,4 @@ media/
 data/clientes.csv
 data/clientes.xlsx
 data/db_backups/*.json
+.env

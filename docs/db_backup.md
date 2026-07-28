@@ -59,3 +59,5 @@ Se você estiver no servidor Windows, já existem atalhos em `scripts\`:
 - Ativar automático (todo dia 18:00): `scripts\backup_auto.cmd`
 - Backup manual agora: `scripts\backup_now.cmd`
 - Status: `scripts\backup_status.cmd`
+
+O script de agendamento tenta registrar a tarefa como `SYSTEM` e, se não tiver permissão administrativa, faz fallback automático para o usuário atual.

@@ -111,16 +111,38 @@ function Install-Or-UpdateTask {
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ($args -join ' ')
     $trigger = New-ScheduledTaskTrigger -Daily -At $AtTime
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+    $description = "Backup diário do SQLite em JSON (Django dumpdata)."
 
-    # Atualiza se já existir
+    function Register-TaskWithPrincipal {
+        param($Principal)
+
+        $task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $Principal -Description $description
+
+        # Atualiza se já existir
+        try {
+            Unregister-ScheduledTask -TaskName $Name -TaskPath $Path -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+        } catch {}
+
+        Register-ScheduledTask -TaskName $Name -TaskPath $Path -InputObject $task | Out-Null
+        Enable-ScheduledTask -TaskName $Name -TaskPath $Path | Out-Null
+    }
+
     try {
-        Unregister-ScheduledTask -TaskName $Name -TaskPath $Path -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-    } catch {}
+        $systemPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+        Register-TaskWithPrincipal -Principal $systemPrincipal
+        return 'SYSTEM'
+    } catch {
+        $msg = $_.Exception.Message
+        $accessDenied = ($msg -match 'Acesso negado') -or ($msg -match 'Access is denied') -or ($msg -match '0x80070005')
+        if (-not $accessDenied) {
+            throw
+        }
+    }
 
-    Register-ScheduledTask -TaskName $Name -TaskPath $Path -InputObject $task | Out-Null
-    Enable-ScheduledTask -TaskName $Name -TaskPath $Path | Out-Null
+    $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $userPrincipal = New-ScheduledTaskPrincipal -UserId $currentUser -LogonType Interactive -RunLevel Limited
+    Register-TaskWithPrincipal -Principal $userPrincipal
+    return $currentUser
 }
 
 $rootPath = Resolve-ProjectRoot -ExplicitRoot $ProjectRoot
@@ -136,8 +158,8 @@ switch ($Mode) {
         Write-Host "OK: backup manual executado."
     }
     'auto' {
-        Install-Or-UpdateTask -Path $TaskPath -Name $TaskName -AtTime $Time -Keep $KeepDays -Root $rootPath -Py $py
-        Write-Host "OK: agendamento criado/atualizado ($Time)."
+        $installedAs = Install-Or-UpdateTask -Path $TaskPath -Name $TaskName -AtTime $Time -Keep $KeepDays -Root $rootPath -Py $py
+        Write-Host "OK: agendamento criado/atualizado ($Time). Execução: $installedAs"
     }
     'pause' {
         Disable-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath | Out-Null

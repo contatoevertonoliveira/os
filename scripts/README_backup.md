@@ -19,9 +19,10 @@ Abra um Prompt/PowerShell na raiz do projeto e rode:
 
 Os backups ficam em `data\db_backups\backup_YYYYMMDD_HHMM.json`
 
+Ao ativar o agendamento, o script tenta criar a tarefa como `SYSTEM`. Se não houver permissão administrativa, ele cai automaticamente para o usuário atual.
+
 ### Restaurar (manual)
 
 ```bat
 python manage.py loaddata data\db_backups\backup_YYYYMMDD_HHMM.json
 ```
-
