@@ -11,7 +11,7 @@ six==1.17.0
 sqlparse==0.5.5
 tzdata==2025.3
 gunicorn==23.0.0
-mysqlclient==2.2.7
+mysqlclient==2.2.7; sys_platform != "win32"
 packaging==25.0
 xhtml2pdf==0.2.17
 openai==2.44.0
